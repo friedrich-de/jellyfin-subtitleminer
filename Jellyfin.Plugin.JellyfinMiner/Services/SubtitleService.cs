@@ -115,7 +115,7 @@ public sealed class SubtitleService
         var output = Path.Combine(_tempDirectory, $"{Guid.NewGuid():N}.vtt");
         try
         {
-            var args = new List<string> { "-y", "-hide_banner", "-loglevel", "error", "-i", input };
+            var args = new List<string> { "-y", "-hide_banner", "-loglevel", "error", "-i", FfmpegHelper.ToFfmpegInputPath(input) };
             if (streamIndex.HasValue)
             {
                 args.AddRange(["-map", $"0:{streamIndex.Value}"]);

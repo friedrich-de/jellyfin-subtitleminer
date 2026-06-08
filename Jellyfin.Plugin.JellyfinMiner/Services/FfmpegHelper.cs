@@ -17,7 +17,7 @@ internal static partial class FfmpegHelper
         string[] args,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(mediaEncoder.EncoderPath) || !File.Exists(mediaEncoder.EncoderPath))
+        if (string.IsNullOrWhiteSpace(mediaEncoder.EncoderPath))
         {
             logger.LogDebug("FFmpeg {Operation} failed: encoder path is unavailable.", operation);
             return false;
@@ -52,7 +52,7 @@ internal static partial class FfmpegHelper
         IReadOnlyList<string> candidates,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(mediaEncoder.EncoderPath) || !File.Exists(mediaEncoder.EncoderPath))
+        if (string.IsNullOrWhiteSpace(mediaEncoder.EncoderPath))
         {
             logger.LogDebug("FFmpeg encoder detection failed: encoder path is unavailable.");
             return null;
@@ -112,6 +112,14 @@ internal static partial class FfmpegHelper
 
         return ParseEncoderNames(output);
     }
+
+    /// <summary>
+    /// Prepends a <c>file:</c> protocol prefix to a local file path so that
+    /// ffmpeg does not misinterpret a Windows drive letter (e.g. <c>C:</c>)
+    /// as an unknown URI scheme. On non-Windows paths this is harmless.
+    /// </summary>
+    internal static string ToFfmpegInputPath(string path) =>
+        path.Contains("://", StringComparison.Ordinal) ? path : $"file:{path}";
 
     [GeneratedRegex(@"^\s*[A-Z.]{6}\s+(?<name>\S+)\s", RegexOptions.Compiled)]
     private static partial Regex EncoderLineRegex();

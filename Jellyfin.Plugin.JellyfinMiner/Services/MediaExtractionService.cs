@@ -190,7 +190,7 @@ public sealed partial class MediaExtractionService
             "-ss",
             FormatSeconds(start),
             "-i",
-            input,
+            FfmpegHelper.ToFfmpegInputPath(input),
             "-an"
         };
 
@@ -273,7 +273,7 @@ public sealed partial class MediaExtractionService
             "-ss",
             FormatSeconds(start),
             "-i",
-            input,
+            FfmpegHelper.ToFfmpegInputPath(input),
             "-t",
             FormatSeconds(duration),
             "-vn"
