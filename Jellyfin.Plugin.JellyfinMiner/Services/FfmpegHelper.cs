@@ -119,7 +119,7 @@ internal static partial class FfmpegHelper
     /// as an unknown URI scheme. On non-Windows paths this is harmless.
     /// </summary>
     internal static string ToFfmpegInputPath(string path) =>
-        path.Contains("://", StringComparison.Ordinal) ? path : $"file:{path}";
+        string.IsNullOrWhiteSpace(path) ? path : path.Contains("://", StringComparison.Ordinal) ? path : $"file:{path}";
 
     [GeneratedRegex(@"^\s*[A-Z.]{6}\s+(?<name>\S+)\s", RegexOptions.Compiled)]
     private static partial Regex EncoderLineRegex();
