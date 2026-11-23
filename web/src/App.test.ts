@@ -11,6 +11,7 @@ import {
   problem,
   status,
   webClientLogins,
+  withQuietEvents,
 } from './testing/fakes';
 
 /** Stands in for the window: tests fire its storage event by hand. */
@@ -36,7 +37,9 @@ describe('the page', () => {
     storage.setItem(WEB_CLIENT_KEY, webClientLogins({ token: 'web-token' }));
     const server = fakeServer(json(status({ UserName: 'mika' })));
 
-    const page = mount(App, { props: { env: env(server.fetch, storage), events: fakeEvents() } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch), storage), events: fakeEvents() },
+    });
     await flushPromises();
 
     expect(page.get('[data-testid="signed-in-as"]').text()).toBe('Signed in as mika');
@@ -44,6 +47,7 @@ describe('the page', () => {
       'Subtitle Miner 2.0.0.0 on Home, Jellyfin 12.4.0',
     );
     expect(page.find('form').exists()).toBe(false);
+    expect(page.get('[data-testid="nothing-playing"] h1').text()).toBe('Nothing is playing');
     // The login belongs to Jellyfin's web client, so the page offers no sign-out for it.
     expect(page.findAll('button').map((button) => button.text())).not.toContain('Sign out');
   });
@@ -54,7 +58,9 @@ describe('the page', () => {
       json(status({ UserName: 'mika' })),
     );
 
-    const page = mount(App, { props: { env: env(server.fetch), events: fakeEvents() } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch)), events: fakeEvents() },
+    });
     await flushPromises();
     expect(page.get('h1').text()).toBe('Sign in');
     expect(page.get('a.button').attributes('href')).toBe('https://jellyfin.example/base/web/');
@@ -71,7 +77,9 @@ describe('the page', () => {
   it('shows why a sign-in was refused and lets the user try again', async () => {
     const server = fakeServer(problem(401, 'Invalid username or password entered.'));
 
-    const page = mount(App, { props: { env: env(server.fetch), events: fakeEvents() } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch)), events: fakeEvents() },
+    });
     await flushPromises();
     await page.get('#sign-in-name').setValue('mika');
     await page.get('#sign-in-password').setValue('wrong');
@@ -85,7 +93,9 @@ describe('the page', () => {
   it('does not send an empty name', async () => {
     const server = fakeServer();
 
-    const page = mount(App, { props: { env: env(server.fetch), events: fakeEvents() } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch)), events: fakeEvents() },
+    });
     await flushPromises();
     await page.get('form').trigger('submit');
     await flushPromises();
@@ -98,7 +108,9 @@ describe('the page', () => {
     const events = fakeEvents();
     const server = fakeServer(json(status({ UserName: 'mika' })));
 
-    const page = mount(App, { props: { env: env(server.fetch, storage), events } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch), storage), events },
+    });
     await flushPromises();
     expect(page.get('h1').text()).toBe('Sign in');
 
@@ -119,7 +131,9 @@ describe('the page', () => {
     const events = fakeEvents();
     const server = fakeServer(json(status()));
 
-    const page = mount(App, { props: { env: env(server.fetch, storage), events } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch), storage), events },
+    });
     await flushPromises();
     expect(page.find('[data-testid="signed-in-as"]').exists()).toBe(true);
 
@@ -137,7 +151,9 @@ describe('the page', () => {
       new Response(null, { status: 204 }),
     );
 
-    const page = mount(App, { props: { env: env(server.fetch), events: fakeEvents() } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch)), events: fakeEvents() },
+    });
     await flushPromises();
     await page.get('#sign-in-name').setValue('mika');
     await page.get('form').trigger('submit');
@@ -156,7 +172,9 @@ describe('the page', () => {
     storage.setItem(WEB_CLIENT_KEY, webClientLogins({ token: 'web-token' }));
     const server = fakeServer(new TypeError('Failed to fetch'), json(status({ UserName: 'mika' })));
 
-    const page = mount(App, { props: { env: env(server.fetch, storage), events: fakeEvents() } });
+    const page = mount(App, {
+      props: { env: env(withQuietEvents(server.fetch), storage), events: fakeEvents() },
+    });
     await flushPromises();
     expect(page.get('h1').text()).toBe('The server could not be reached');
 

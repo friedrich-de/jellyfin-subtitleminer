@@ -7,11 +7,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { FILM, makeMedia, SHOW } from './media';
+
 /** A user of the test server. */
 export interface Account {
   name: string;
   password: string;
   id: string;
+}
+
+/** A video of the test library, as Jellyfin lists it. */
+export interface TestVideo {
+  id: string;
+  name: string;
 }
 
 /** What the tests need to know about the running test server. */
@@ -21,7 +29,10 @@ export interface ServerState {
   serverVersion: string;
   plugin: { guid: string; name: string; version: string };
   admin: Account;
+  /** A user who is no administrator and sees the library of shows only. */
   viewer: Account;
+  /** The videos media.ts makes: a show with two episodes for everyone, a film for the administrator. */
+  media: { show: string; episode1: TestVideo; episode2: TestVideo; film: TestVideo };
 }
 
 export interface ServerOptions {
@@ -98,6 +109,12 @@ export class JellyfinServer {
       plugin: { guid: plugin.guid, name: plugin.name, version: version.version },
       admin: { name: 'admin', password: 'e2e-admin-password', id: '' },
       viewer: { name: 'viewer', password: 'e2e-viewer-password', id: '' },
+      media: {
+        show: SHOW,
+        episode1: { id: '', name: '' },
+        episode2: { id: '', name: '' },
+        film: { id: '', name: '' },
+      },
     });
 
     try {
@@ -131,11 +148,19 @@ export class JellyfinServer {
       await server.waitUntilUp();
       await server.signIn(server.state.admin);
 
+      const showsLibrary = await server.createLibraries();
+
       const created = await server.send('POST', 'Users/New', {
         Name: server.state.viewer.name,
         Password: server.state.viewer.password,
       });
-      server.state.viewer.id = ((await created.json()) as { Id: string }).Id;
+      const viewer = (await created.json()) as { Id: string; Policy: Record<string, unknown> };
+      server.state.viewer.id = viewer.Id;
+      await server.send('POST', `Users/${viewer.Id}/Policy`, {
+        ...viewer.Policy,
+        EnableAllFolders: false,
+        EnabledFolders: [showsLibrary],
+      });
       return server;
     } catch (error) {
       const tail = server.output.split('\n').slice(-60).join('\n');
@@ -174,12 +199,18 @@ export class JellyfinServer {
     if (this.options.ffmpeg !== undefined) args.push('--ffmpeg', this.options.ffmpeg);
 
     // The server gets a small environment of its own: nothing of the caller's keys or proxies.
+    // It reaches this machine and nothing else. Its calls to anywhere else go to a proxy that is
+    // not there, so no test depends on the internet, and no name or picture comes from it.
+    const nowhere = 'http://127.0.0.1:9';
     const env: NodeJS.ProcessEnv = {
       PATH: process.env.PATH,
       HOME: this.root,
       LANG: 'C.UTF-8',
       DOTNET_NOLOGO: '1',
       DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+      HTTP_PROXY: nowhere,
+      HTTPS_PROXY: nowhere,
+      NO_PROXY: '127.0.0.1,localhost',
     };
 
     // Jellyfin drops a few folders into its working directory.
@@ -330,6 +361,84 @@ export class JellyfinServer {
     } finally {
       repository.close();
     }
+  }
+
+  /**
+   * Makes the test videos, puts them into two libraries and waits until Jellyfin has read them.
+   * Returns the id of the library of shows.
+   */
+  private async createLibraries(): Promise<string> {
+    const media = await makeMedia(path.join(this.root, 'media'), this.options.ffmpeg);
+
+    // Nothing is looked up on the internet: the names come from the files alone.
+    const library = (
+      name: string,
+      type: string,
+      folder: string,
+      kinds: string[],
+    ): Promise<Response> =>
+      this.send(
+        'POST',
+        `Library/VirtualFolders?name=${name}&collectionType=${type}&refreshLibrary=true`,
+        {
+          LibraryOptions: {
+            PathInfos: [{ Path: folder }],
+            EnableRealtimeMonitor: false,
+            EnableInternetProviders: false,
+            TypeOptions: kinds.map((kind) => ({
+              Type: kind,
+              MetadataFetchers: [],
+              ImageFetchers: [],
+            })),
+          },
+        },
+      );
+    await library('Shows', 'tvshows', media.showsDir, ['Series', 'Season', 'Episode']);
+    await library('Films', 'movies', media.filmsDir, ['Movie']);
+
+    // The scan runs in the background. It is done when every video is there with its tracks read.
+    interface Listed {
+      Id: string;
+      Name: string;
+      Type: string;
+      IndexNumber?: number;
+      MediaStreams?: unknown[];
+    }
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      const listed = (await (
+        await this.send(
+          'GET',
+          'Items?Recursive=true&IncludeItemTypes=Episode,Movie&Fields=MediaStreams',
+        )
+      ).json()) as { Items: Listed[] };
+      const ready = listed.Items.filter((item) => (item.MediaStreams?.length ?? 0) >= 5);
+      const episode = (number: number): Listed | undefined =>
+        ready.find((item) => item.Type === 'Episode' && item.IndexNumber === number);
+      const [first, second, film] = [
+        episode(1),
+        episode(2),
+        ready.find((item) => item.Type === 'Movie'),
+      ];
+      if (first !== undefined && second !== undefined && film !== undefined) {
+        this.state.media.episode1 = { id: first.Id, name: first.Name };
+        this.state.media.episode2 = { id: second.Id, name: second.Name };
+        this.state.media.film = { id: film.Id, name: film.Name };
+        if (film.Name !== FILM) throw new Error(`Jellyfin named the film "${film.Name}".`);
+
+        const folders = (await (await this.send('GET', 'Library/VirtualFolders')).json()) as {
+          Name: string;
+          ItemId: string;
+        }[];
+        const shows = folders.find((folder) => folder.Name === 'Shows');
+        if (shows === undefined) throw new Error('The library of shows is not listed.');
+        return shows.ItemId;
+      }
+
+      await sleep(1000);
+    }
+
+    throw new Error('Jellyfin did not finish reading the test libraries within 120 s.');
   }
 
   private async shutDown(): Promise<void> {

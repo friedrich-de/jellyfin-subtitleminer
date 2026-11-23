@@ -1,5 +1,6 @@
 import { type APIRequestContext, expect, test as base } from '@playwright/test';
 
+import { PretendPlayer } from './player';
 import type { Account, ServerState } from './server';
 import { readState } from './state';
 
@@ -41,6 +42,11 @@ interface Fixtures {
   jellyfin: ServerState;
   /** What the plugin's page wrote to the browser's console as an error, checked after every test. */
   pageErrors: string[];
+  /**
+   * Makes a pretend player that signs in as the account. Every player a test made closes its
+   * video when the test ends, passed or failed, so no test finds another's playback.
+   */
+  player: (account: Account, device: string, client?: string) => PretendPlayer;
 }
 
 export const test = base.extend<Fixtures>({
@@ -52,6 +58,16 @@ export const test = base.extend<Fixtures>({
   // eslint-disable-next-line no-empty-pattern
   baseURL: async ({}, use) => {
     await use(readState().baseUrl);
+  },
+
+  player: async ({ baseURL }, use) => {
+    const made: PretendPlayer[] = [];
+    await use((account, device, client = 'mpv') => {
+      const player = new PretendPlayer(baseURL!, account, device, client);
+      made.push(player);
+      return player;
+    });
+    await Promise.allSettled(made.map((player) => player.stop()));
   },
 
   pageErrors: [

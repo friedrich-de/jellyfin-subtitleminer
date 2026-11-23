@@ -1,0 +1,246 @@
+<script setup lang="ts">
+import { nextTick, useTemplateRef, watch } from 'vue';
+
+import { clockOf, type ShownLine } from '@/watch/watches';
+
+const props = defineProps<{
+  lines: readonly ShownLine[];
+  /** The lines on screen at this moment. */
+  current: ReadonlySet<number>;
+  selected: ReadonlySet<number>;
+  /** The line the page keeps in view while it follows playback. */
+  anchor: number | undefined;
+  follow: boolean;
+  lang: string | undefined;
+  secondLang: string | undefined;
+}>();
+
+const emit = defineEmits<{ toggle: [id: number, range: boolean] }>();
+
+const list = useTemplateRef<HTMLOListElement>('list');
+
+const KIND_NAMES = { sign: 'Sign', song: 'Song' } as const;
+
+function scrollToAnchor(instant: boolean): void {
+  if (props.anchor === undefined || list.value === null) return;
+  const row = list.value.querySelector<HTMLElement>(`[data-line="${props.anchor}"]`);
+  if (row === null || typeof row.scrollIntoView !== 'function') return;
+  const still =
+    instant || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+  row.scrollIntoView({ block: 'center', behavior: still ? 'instant' : 'smooth' });
+}
+
+// While following, the line being said stays in the middle. A new track or episode jumps there.
+watch(
+  () => [props.anchor, props.follow] as const,
+  async ([anchor, follow], before) => {
+    if (!follow || anchor === undefined) return;
+    await nextTick();
+    scrollToAnchor(before === undefined || before[0] === undefined || before[1] !== follow);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => props.lines,
+  async () => {
+    if (!props.follow) return;
+    await nextTick();
+    scrollToAnchor(true);
+  },
+);
+
+function onRowClick(event: MouseEvent, id: number): void {
+  // A click that ends a text selection is for copying, not for choosing the line.
+  const chosen = window.getSelection?.()?.toString() ?? '';
+  if (chosen !== '') return;
+  emit('toggle', id, event.shiftKey);
+}
+</script>
+
+<template>
+  <ol ref="list" class="lines" aria-label="Subtitle lines">
+    <li
+      v-for="line in lines"
+      :key="line.Id"
+      class="line"
+      :class="{
+        selected: selected.has(line.Id),
+        current: current.has(line.Id),
+        quiet: line.Kind !== 'dialogue',
+      }"
+      :data-line="line.Id"
+      :aria-current="current.has(line.Id) ? 'time' : undefined"
+    >
+      <button
+        class="check"
+        type="button"
+        role="checkbox"
+        :aria-checked="selected.has(line.Id)"
+        :aria-label="`Line at ${clockOf(line.StartMs)}`"
+        @click="emit('toggle', line.Id, $event.shiftKey)"
+      >
+        <span class="box">
+          <svg v-if="selected.has(line.Id)" viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="m9.5 16.2-4-4L4 13.7l5.5 5.5L20 8.7l-1.5-1.5z" />
+          </svg>
+        </span>
+      </button>
+      <span class="time">
+        {{ clockOf(line.StartMs) }}
+        <span v-if="line.Kind !== 'dialogue'" class="kind">{{ KIND_NAMES[line.Kind] }}</span>
+      </span>
+      <div class="text" @click="onRowClick($event, line.Id)">
+        <p class="said" :lang="lang">{{ line.Text }}</p>
+        <p v-if="line.second !== undefined" class="second" :lang="secondLang">
+          {{ line.second }}
+        </p>
+      </div>
+      <span v-if="current.has(line.Id)" class="playing" title="Playing now">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path fill="currentColor" d="M4 10h3v10H4zm6.5-6h3v16h-3zM17 13h3v7h-3z" />
+        </svg>
+        <span class="visually-hidden">Playing now</span>
+      </span>
+    </li>
+  </ol>
+</template>
+
+<style scoped>
+.lines {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 8px 0;
+  list-style: none;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 44px 64px 1fr 28px;
+  align-items: start;
+  gap: 0 8px;
+  padding: 10px 16px 10px 8px;
+  border-radius: var(--radius);
+}
+
+.line.selected {
+  background: var(--surface);
+}
+
+.line.current {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg));
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--text-muted);
+  border-radius: var(--radius);
+}
+
+.selected .box {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.kind {
+  font-size: 12px;
+}
+
+.text {
+  min-width: 0;
+  cursor: pointer;
+}
+
+.said {
+  font-size: 22px;
+  line-height: 1.5;
+  color: var(--text-strong);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.current .said {
+  font-weight: 500;
+}
+
+.quiet .said {
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+.second {
+  margin-top: 2px;
+  font-size: 15px;
+  color: var(--text-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.playing {
+  padding-top: 8px;
+  color: var(--accent);
+}
+
+@media (width <= 600px) {
+  .line {
+    grid-template-columns: 44px 1fr 24px;
+    padding: 8px 12px 8px 4px;
+  }
+
+  .time {
+    grid-column: 2;
+    grid-row: 1;
+    flex-direction: row;
+    gap: 8px;
+    padding-top: 0;
+    font-size: 12px;
+  }
+
+  .text {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .check {
+    grid-row: 1 / span 2;
+  }
+
+  .playing {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .said {
+    font-size: 20px;
+  }
+}
+</style>

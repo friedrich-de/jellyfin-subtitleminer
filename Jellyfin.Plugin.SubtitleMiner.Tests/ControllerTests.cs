@@ -12,12 +12,20 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Jellyfin.Plugin.SubtitleMiner.Tests;
 
-public class ControllerTests
+public sealed class ControllerTests : IDisposable
 {
-    private readonly FakeCallers _callers = new();
+    private readonly TestServices _test = new();
+    private readonly FakeCallers _callers;
 
-    private PluginServices Services(params string[] pageFiles) =>
-        new(new PageFiles(new FakePageFileSource(pageFiles)), _callers, new ServerInfo("Test server", "12.4.0"));
+    public ControllerTests()
+    {
+        _callers = _test.Callers;
+        _callers.Caller = null;
+    }
+
+    public void Dispose() => _test.Dispose();
+
+    private PluginServices Services(params string[] pageFiles) => _test.Build(pageFiles);
 
     private static ControllerContext Context(string path, string query = "") => new()
     {
@@ -154,13 +162,13 @@ public class ControllerTests
     public async Task The_status_names_the_user_the_plugin_and_the_server()
     {
         var userId = Guid.NewGuid();
-        _callers.Caller = new Caller(userId, "alex", IsAdministrator: true);
+        _callers.Caller = new Caller(userId, "mika", IsAdministrator: true);
         var controller = new SubtitleMinerController(Services()) { ControllerContext = Context("/SubtitleMiner/Api/Status") };
 
         var status = Assert.IsType<StatusView>(Assert.IsType<OkObjectResult>(await controller.GetStatus()).Value);
 
         Assert.Equal(userId, status.UserId);
-        Assert.Equal("alex", status.UserName);
+        Assert.Equal("mika", status.UserName);
         Assert.True(status.IsAdministrator);
         Assert.Equal("Test server", status.ServerName);
         Assert.Equal("12.4.0", status.ServerVersion);
