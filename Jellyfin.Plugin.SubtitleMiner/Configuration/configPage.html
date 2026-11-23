@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Subtitle Miner</title>
+</head>
+<body>
+    <div id="SubtitleMinerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button">
+        <div data-role="content">
+            <div class="content-primary">
+                <div class="verticalSection">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">Subtitle Miner</h2>
+                    </div>
+                    <p class="fieldDescription">
+                        The plugin has its own page, which every signed-in user can open. It follows the subtitles of
+                        what is playing and makes Anki cards from them.
+                    </p>
+                    <p>
+                        <a is="emby-linkbutton" class="raised button-submit emby-button" id="SubtitleMinerPageLink" href="#" target="_blank" rel="noopener">
+                            <span>Open Subtitle Miner</span>
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                'use strict';
+
+                var page = document.querySelector('#SubtitleMinerConfigPage');
+                page.addEventListener('pageshow', function () {
+                    page.querySelector('#SubtitleMinerPageLink').href = ApiClient.getUrl('SubtitleMiner/');
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>

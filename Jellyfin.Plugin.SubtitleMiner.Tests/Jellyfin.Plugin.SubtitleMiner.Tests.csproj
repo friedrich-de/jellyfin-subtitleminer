@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <!-- Test names read as sentences, test types stay public for the runner, and stubs live as long as their test. -->
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA1001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" Version="4.0.3" />
+    <!-- Unlike the plugin, the tests need the Jellyfin assemblies at run time. -->
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinVersion)" />
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jellyfin.Plugin.SubtitleMiner\Jellyfin.Plugin.SubtitleMiner.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Two files named the way the plugin's build names the page's files, one of them as a build on Windows would. -->
+    <EmbeddedResource Include="Resources\index.html" LogicalName="page/index.html" />
+    <EmbeddedResource Include="Resources\app.js" LogicalName="page\assets\app-1a2b3c.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

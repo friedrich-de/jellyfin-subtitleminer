@@ -1,125 +1,62 @@
-# Jellyfin Miner
+# Subtitle Miner for Jellyfin
 
-Watch on any Jellyfin client (TV, mobile, web) and create media Anki cards on any Yomitan client (desktop, mobile) - finally making mining media from your couch a reality!
-
-https://github.com/user-attachments/assets/53bc0616-00ec-4f39-9e75-83e54fddaeb1
-
-## General Description
-
-Jellyfin Miner is a plugin for the Jellyfin media server that extracts subtitle cues and their corresponding screenshots and audio clips from your media. It allows you to create Anki flashcards with this content using AnkiConnect.
+Watch on any Jellyfin client (TV, mobile, web) and make Anki cards from the subtitles on any device, with the sentence, a picture and the audio cut from the video. Mining from your couch.
 
 Only watching locally with mpv? Check out [mpv-subtitleminer](https://github.com/friedrich-de/mpv-subtitleminer) instead.
 
-## Installation
+## Where things stand
 
-### Requirements
+The main branch holds **version 2, which is being rebuilt from scratch and is not released yet**. It is for Jellyfin 12.4 and later.
 
-- Jellyfin server 10.11.9 or newer
+| | Version 1 (1.1.0.1) | Version 2 (main) |
+| --- | --- | --- |
+| Jellyfin | 10.11 | 12.4 and later |
+| State | Released, no longer developed | In progress, not released |
+| Source | [tag v1.1.0.1](https://github.com/friedrich-de/jellyfin-subtitleminer/tree/v1.1.0.1) | this branch |
+| Install and usage | [README of v1.1.0.1](https://github.com/friedrich-de/jellyfin-subtitleminer/blob/v1.1.0.1/README.md) | follows with the release |
 
-### Plugin Repository
+Version 1 was called Jellyfin Miner. Its sign-in does not work on Jellyfin 12, because Jellyfin 12 no longer reads the header it sends.
 
-Add this repository URL in Jellyfin:
+What version 2 can do today:
 
-```text
-https://friedrich-de.github.io/jellyfin-subtitleminer/manifest.json
+- The page lives at `/SubtitleMiner/` at your Jellyfin address. The address of version 1, `/Plugins/JellyfinMiner/`, leads there.
+- No separate sign-in. The page uses the login of Jellyfin's web client in the same browser. Where there is none, it asks for your Jellyfin name and password once.
+
+What comes next, in this order: following what is playing and making Anki cards (on this device or through an AnkiConnect on a server, with an API key), installing the page as an app, and a dictionary hosted on the Jellyfin server. [CHANGELOG.md](CHANGELOG.md) lists what is done.
+
+## Development
+
+The plugin is C# for .NET 10 in `Jellyfin.Plugin.SubtitleMiner/`. The page is Vue and TypeScript in `web/`; its build is embedded in the plugin's one DLL.
+
+You need the .NET 10 SDK, Node.js 22 or newer, `zip`, Python 3 and, for the end-to-end tests, ffmpeg.
+
+```sh
+# The plugin: build (warnings are errors) and unit tests
+dotnet build -c Release
+dotnet test -c Release
+
+# The page: types, lint, formatting and unit tests
+cd web && npm ci && npm run check
+
+# The package Jellyfin installs: dist/subtitle-miner_<version>.zip and dist/manifest.json
+dev/package.sh
+
+# End to end: a throwaway Jellyfin 12.4 with the package installed through Jellyfin's own
+# plugin installer, then the plugin's addresses over HTTP and the page in a real browser
+# at desktop and at phone size
+dev/e2e.sh
 ```
 
-Then install it from Jellyfin:
+`dev/e2e.sh` downloads the Jellyfin server once into `.cache/` (about 110 MB, x86-64 Linux) and needs Playwright's Chromium (`cd web && npx playwright install chromium`). The top of the script says how to use an installed server instead.
 
-1. Open the Jellyfin dashboard.
-2. Go to Plugins.
-3. Open Repositories.
-4. Add the repository URL above.
-5. Open Catalog.
-6. Install Jellyfin Miner.
-7. Restart Jellyfin.
+To work on the page against a Jellyfin that has the plugin installed: `cd web && JELLYFIN_URL=http://localhost:8096 npm run dev`.
 
-After the restart, open:
-
-```text
-https://your-jellyfin-server/Plugins/JellyfinMiner/
-```
-
-Use your normal Jellyfin username and password.
-
-### Manual Install
-
-Download the latest plugin zip from the GitHub Releases page.
-
-Extract the `Jellyfin Miner/` folder into Jellyfin's plugins directory, then restart Jellyfin.
-
-The installed folder should look like this:
-
-```text
-plugins/
-  Jellyfin Miner/
-    Jellyfin.Plugin.JellyfinMiner.dll
-    meta.json
-    wwwroot/
-```
-
-## Usage
-
-1. Start playback in Jellyfin.
-2. Open Jellyfin Miner:
-
-   ```text
-   https://your-jellyfin-server/Plugins/JellyfinMiner/
-   ```
-
-3. Sign in with your Jellyfin account.
-4. Select the active stream from the sidebar.
-5. Select the subtitle track if needed.
-6. Click subtitle cues to select one cue or a contiguous range.
-7. Use the action bar to preview screenshots/audio or add the selection to Anki.
-
-Jellyfin Miner talks to AnkiConnect at:
-
-```text
-http://127.0.0.1:8765
-```
-
-Anki and AnkiConnect must be running on the same device as the browser. If the app is opened from a Jellyfin server URL, configure AnkiConnect to allow that browser origin.
-
-### AnkiConnect Setup
-
-On desktop Anki, add your Jellyfin server origin to `webCorsOriginList` in the AnkiConnect configuration.
-
-Example:
-
-```json
-{
-  "apiKey": null,
-  "apiLogPath": null,
-  "ignoreOriginList": [],
-  "webBindAddress": "127.0.0.1",
-  "webBindPort": 8765,
-  "webCorsOriginList": [
-    "http://localhost",
-    "null",
-    "https://your-jellyfin-server"
-  ]
-}
-```
-
-On AnkiConnect Android, add your Jellyfin server origin to **CORS Host**.
-
-Use the exact origin you open Jellyfin Miner from, including protocol and port if present:
-
-```text
-https://your-jellyfin-server
-http://your-jellyfin-server:8096
-```
-
-In the settings panel, configure:
-
-- Anki note type and fields
-- maximum latest-card age
-- image format, quality, size, and animation
-- audio format, quality, offsets, and filter preset
-
-Jellyfin Miner updates the latest matching Anki note. It does not create new notes.
+Nothing runs on GitHub by itself. Whoever makes a change runs the checks above before merging.
 
 ## Philosophy
 
 A lot of great tools for language learning and media mining exist, but they place the learner in artificial learning environments that they would not use if they weren't actively engaged in language learning. In my opinion, this is an issue. Immersion should be performed in the same environment as leisure media consumption. This plugin fixes that gap - watch shows as you would normally. Only when you want to mine a subtitle do you need to open the plugin interface, and you can do that on any device. Watch on TV, mine on mobile. Watch on desktop, mine on desktop. The choice is yours.
+
+## Licence
+
+GPL-3.0, see [LICENSE](LICENSE). Jellyfin plugins link Jellyfin's libraries, which are GPL-3.0.
