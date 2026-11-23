@@ -1,0 +1,104 @@
+/*
+ * The look is "Jellyfin native": the greys and the blue of Jellyfin's own dark theme, one accent,
+ * plain surfaces. The accent marks the main action and what is playing, nothing else.
+ */
+:root {
+  --bg: #101010;
+  --surface: #202020;
+  --raised: #303030;
+  --raised-hover: #3a3a3a;
+  --border: #3d3d3d;
+  --text: #e6e6e6;
+  --text-strong: #ffffff;
+  --text-muted: #a3a3a3;
+  --accent: #00a4dc;
+  --on-accent: #101010;
+  --danger: #ff8a80;
+  --radius: 4px;
+  --font:
+    'Noto Sans', 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic UI', Meiryo, system-ui, sans-serif;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--text-strong);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--raised-hover);
+}
+
+.button.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.button.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, #ffffff);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.muted {
+  color: var(--text-muted);
+}

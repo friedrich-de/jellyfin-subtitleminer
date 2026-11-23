@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!-- One version for the plugin, its package and the repository manifest. -->
+    <Version>2.0.0.0</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- The Jellyfin server version this builds against. Jellyfin 12.4 runs on .NET 10. -->
+    <JellyfinVersion>12.4.0</JellyfinVersion>
+  </PropertyGroup>
+</Project>

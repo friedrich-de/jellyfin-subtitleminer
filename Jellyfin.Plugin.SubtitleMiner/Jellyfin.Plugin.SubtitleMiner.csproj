@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.SubtitleMiner</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.SubtitleMiner</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The server ships these assemblies, so the plugin must not carry its own copies. -->
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinVersion)">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Configuration\configPage.html" />
+    <!-- The page, as "npm run build" in web/ leaves it in web/dist. dev/package.sh builds it first.
+         Without that folder the plugin still builds, and says on its address that it holds no page. -->
+    <EmbeddedResource Include="..\web\dist\**\*" LogicalName="page/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Jellyfin.Plugin.SubtitleMiner.Tests" />
+  </ItemGroup>
+
+</Project>

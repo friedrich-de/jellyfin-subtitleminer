@@ -1,0 +1,68 @@
+name: CI
+
+# Started by hand only. Whoever makes a change runs these checks themselves before
+# merging: dotnet build, dotnet test, "npm run check" in web/ and dev/e2e.sh do all of
+# it. Nothing here starts on a push or a pull request, so no Actions minutes are used
+# unless someone asks for a run.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: The page, types, lint, formatting and unit tests
+        working-directory: web
+        run: npm ci --no-audit --no-fund && npm run check
+
+      # Warnings are errors, so this is also the lint step.
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Unit tests
+        run: dotnet test -c Release --no-build
+
+      # The end-to-end tests run a real Jellyfin server; its download is kept between runs.
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: jellyfin-${{ hashFiles('dev/e2e.sh') }}
+
+      # Jellyfin refuses to start without ffmpeg.
+      - name: Install ffmpeg and the browser
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+          cd web && npx playwright install --with-deps chromium
+
+      - name: End-to-end tests in a real Jellyfin server
+        run: dev/e2e.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-package
+          path: dist/
+          if-no-files-found: error
