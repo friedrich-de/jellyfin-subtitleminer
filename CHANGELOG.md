@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1.1
+
+- Videos with many subtitle tracks inside, as streaming releases with one for each of 40 languages, now show every track. Before, the first 15 or so of them, often English and Japanese, said "The subtitle track could not be read", because the plugin kept the lines of at most 24 tracks and let the rest go straight after reading them. It now keeps the tracks of a video together, for up to 16 videos and subtitle files, and a track that cannot be read says why in the Jellyfin log.
+
 ## 2.0.1.0
 
 - A "Sync Anki now" button in the top bar, next to the settings, whenever cards go to an Anki. It has that Anki sync with AnkiWeb right away instead of when it next would by itself, and says how it went: synced, already the same as AnkiWeb, or why it could not, such as a sync already running or AnkiWeb asking for a full sync that would replace changes not on AnkiWeb yet (then nothing is replaced). For an AnkiConnect on a server the Jellyfin server makes the call with its key, as for cards; desktop Anki starts its own sync.
