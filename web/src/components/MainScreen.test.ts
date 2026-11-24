@@ -54,7 +54,12 @@ function serverSettings(page?: unknown): SettingsView {
 /** The plugin behind the page: a stream of news the test writes to, and the item endpoints. */
 function plugin(
   lines: Record<string, Line[] | Response> = {},
-  user: { settings?: SettingsView; anki?: Collection } = {},
+  user: {
+    settings?: SettingsView;
+    anki?: Collection;
+    /** Holds AnkiConnect's answers to one action until the promise settles. */
+    holdAnki?: { action: string; until: Promise<void> };
+  } = {},
 ) {
   const streams: EventStream[] = [];
   const server = fakeRoutes((request: RoutedRequest) => {
@@ -63,7 +68,11 @@ function plugin(
     // The plugin passes the call on to the user's AnkiConnect, with the key.
     if (request.path === 'Anki' && user.anki !== undefined) {
       const call = request.body as { Action: string; Params?: unknown };
-      return json(user.anki.answer({ action: call.Action, version: 6, params: call.Params }));
+      const anki = user.anki;
+      const answer = () =>
+        json(anki.answer({ action: call.Action, version: 6, params: call.Params }));
+      const hold = user.holdAnki;
+      return hold?.action === call.Action ? hold.until.then(answer) : answer();
     }
 
     const toAnki = /^Items\/([^/]+)\/(Picture|Audio)\/Anki$/.exec(request.path);
@@ -513,12 +522,50 @@ describe('the main screen', () => {
     const cut = server.asked('Audio/Anki')[0]!;
     expect([cut.query.get('start'), cut.query.get('end')]).toEqual(['3750', '6250']);
     expect(screen.get('[data-testid="sending"]').text()).toContain('Added to "約束".');
+    // The lines are let go of once the card has them; what happened stays, with its Undo.
+    expect(screen.find('[data-testid="selected-count"]').exists()).toBe(false);
+    expect(screen.findAll('.line.selected')).toHaveLength(0);
 
     await screen.get('[data-testid="undo"]').trigger('click');
     await settle();
     expect(note.fields.Sentence).toBe('<b>約束</b>したからね。');
     expect(note.fields.Picture).toBe('');
     expect(screen.get('[data-testid="sending"]').text()).toContain('The card is as it was.');
+
+    await screen.get('[data-testid="close-sent"]').trigger('click');
+    expect(screen.find('[data-testid="sending"]').exists()).toBe(false);
+  });
+
+  it('lets go of the lines of a new card, and keeps them when the card fails', async () => {
+    const anki = createCollection();
+    const page = { anki: { deck: 'Mining', noteType: 'Basic', fields: { Front: 'sentence' } } };
+    const server = plugin({}, { settings: serverSettings(page), anki });
+    const screen = await open(server);
+    server.send([sampleWatch()]);
+    await settle();
+
+    await screen.findAll('.line .check')[0]!.trigger('click');
+    await settle(300);
+    await screen.get('[data-testid="add-new"]').trigger('click');
+    await settle();
+    expect(screen.get('[data-testid="sending"]').text()).toContain('Made a new card');
+    expect(screen.find('[data-testid="selected-count"]').exists()).toBe(false);
+    expect(screen.find('[data-testid="undo"]').exists()).toBe(false);
+
+    // Choosing lines again starts afresh: the note about the last card goes.
+    await screen.findAll('.line .check')[0]!.trigger('click');
+    await settle(300);
+    expect(screen.get('[data-testid="selected-count"]').text()).toBe('1 line selected');
+    expect(screen.get('[data-testid="sending"]').text()).toBe('');
+
+    // A card Anki refuses leaves the lines chosen, to try again.
+    await screen.get('[data-testid="add-new"]').trigger('click');
+    await settle();
+    expect(screen.get('[data-testid="sending"]').text()).toContain(
+      'This deck has a card like this already.',
+    );
+    expect(screen.get('[data-testid="selected-count"]').text()).toBe('1 line selected');
+    expect(anki.notes.size).toBe(1);
   });
 
   it('makes a new card in the chosen deck, and refuses a card made too long ago', async () => {
@@ -574,11 +621,42 @@ describe('the main screen', () => {
     expect(screen.find('[data-testid="undo"]').exists()).toBe(false);
 
     // The same card again would be a duplicate in the deck.
+    await screen.findAll('.line .check')[0]!.trigger('click');
+    await settle(300);
     await screen.get('[data-testid="add-new"]').trigger('click');
     await settle();
     expect(screen.get('[data-testid="sending"]').text()).toContain(
       'This deck has a card like this already.',
     );
+  });
+
+  it('keeps lines chosen while the card was on its way, for the next card', async () => {
+    const anki = createCollection();
+    const page = { anki: { deck: 'Mining', noteType: 'Basic', fields: { Front: 'sentence' } } };
+    let release = () => {};
+    const until = new Promise<void>((resolve) => (release = resolve));
+    const server = plugin(
+      {},
+      { settings: serverSettings(page), anki, holdAnki: { action: 'addNote', until } },
+    );
+    const screen = await open(server);
+    server.send([sampleWatch()]);
+    await settle();
+
+    const checks = screen.findAll('.line .check');
+    await checks[0]!.trigger('click');
+    await settle(300);
+    await screen.get('[data-testid="add-new"]').trigger('click');
+    await settle();
+    await checks[2]!.trigger('click');
+    await settle(300);
+    release();
+    await settle();
+
+    expect([...anki.notes.values()][0]!.fields.Front).toBe('昨日の話、覚えてる？');
+    expect(screen.get('[data-testid="sending"]').text()).toContain('Made a new card');
+    expect(screen.get('[data-testid="selected-count"]').text()).toBe('1 line selected');
+    expect(checks[2]!.attributes('aria-checked')).toBe('true');
   });
 
   it('gives a new card the meaning once, though it spans two chosen lines', async () => {

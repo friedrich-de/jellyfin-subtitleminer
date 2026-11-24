@@ -53,6 +53,8 @@ There are two ways to make a card from the lines you picked:
 - **Add to my newest card**: make the card with your own Yomitan first, then this adds the sentence, the picture and the sound to it, keeping the word Yomitan marked. The page names the card it will change, such as "Adds to "約束", made a minute ago.", and greys the button out when there is none it may take. It only takes a card made in the last 15 minutes (you can change that), and Undo puts the card back as it was.
 - **New card**: makes a card of the lines in your deck. In the dictionary popup, the + button makes one of the word.
 
+Once the card has them, the lines are unselected, ready for the next one; Undo stays at the bottom until you choose other lines.
+
 Cards reach AnkiWeb when your Anki next syncs. To send them right away, press **Sync Anki now**, the round arrows in the top bar: your Anki, on the server or on the device, syncs with AnkiWeb at once, and the page says how it went.
 
 ![The settings, with Anki on this device and what goes into each field of a Lapis card](docs/screenshots/desktop-settings.webp)

@@ -91,6 +91,7 @@ test.describe('cards', () => {
     await expect(page.getByTestId('newest-card')).toHaveText('Adds to "約束", made just now.');
     await page.getByTestId('add-to-newest').click();
     await expect(page.getByTestId('sending')).toContainText('Added to "約束".');
+    await expect(page.getByTestId('selected-count')).toHaveCount(0);
 
     const note = server.collection.notes.get(id)!;
     expect(note.fields).toMatchObject({
@@ -248,10 +249,15 @@ test.describe('cards', () => {
     const sound = await soundOf(server.media(soundIn(note.fields.Back)));
     expect(Math.abs(sound.seconds - 2.5), `lasts ${sound.seconds} s`).toBeLessThan(0.2);
 
+    // The lines were let go of with the card; chosen again, they would make the same card twice.
+    await expect(page.getByTestId('selected-count')).toHaveCount(0);
+    await expect(page.getByRole('checkbox', { name: 'Line at 00:04' })).not.toBeChecked();
+    await page.getByRole('checkbox', { name: 'Line at 00:04' }).click();
     await page.getByTestId('add-new').click();
     await expect(page.getByTestId('sending')).toContainText(
       'This deck has a card like this already.',
     );
+    await expect(page.getByTestId('selected-count')).toHaveText('1 line selected');
     expect(server.collection.notes.size).toBe(1);
   });
 });

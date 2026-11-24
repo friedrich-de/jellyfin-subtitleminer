@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.2.0
+
+- Once a card has the chosen lines, through "Add to my newest card" or "New card", the lines are unselected, ready for the next card. What happened to the card stays at the bottom, with Undo where there is one, until you choose other lines or close it. A card that fails leaves the lines chosen, to try again.
+
 ## 2.0.1.1
 
 - Videos with many subtitle tracks inside, as streaming releases with one for each of 40 languages, now show every track. Before, the first 15 or so of them, often English and Japanese, said "The subtitle track could not be read", because the plugin kept the lines of at most 24 tracks and let the rest go straight after reading them. It now keeps the tracks of a video together, for up to 16 videos and subtitle files, and a track that cannot be read says why in the Jellyfin log.
