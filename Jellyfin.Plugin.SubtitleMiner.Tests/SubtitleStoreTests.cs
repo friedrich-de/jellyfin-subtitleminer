@@ -91,6 +91,79 @@ public sealed class SubtitleStoreTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(_test.Scratch, "work")) && Directory.EnumerateFileSystemEntries(Path.Combine(_test.Scratch, "work")).Any());
     }
 
+    /// <summary>A streaming release: one text track for each of forty languages inside the video, and nothing next to it.</summary>
+    private MediaInfo ManyLanguages(string name = "many.mkv") => Sample.Episode(_test.WriteFile(name, "video")) with
+    {
+        Streams = [.. Enumerable.Range(0, 40).Select(i => Sample.Stream($"s{i}", StreamKind.Subtitle, i + 3, i, "subrip", $"l{i}"))],
+    };
+
+    /// <summary>An ffmpeg that writes into each file it is asked for a line that names the track.</summary>
+    private void FfmpegWritesNumberedTracks()
+    {
+        _test.Ffmpeg.OnRun = (arguments, _) =>
+        {
+            for (var i = 0; i < arguments.Count - 1; i++)
+            {
+                if (arguments[i] == "-map")
+                {
+                    File.WriteAllText(arguments[i + 6], $"1\n00:00:01,000 --> 00:00:02,000\ntrack {arguments[i + 1][4..]}\n");
+                }
+            }
+
+            return Task.FromResult(true);
+        };
+    }
+
+    [Fact]
+    public async Task Every_track_of_a_video_with_forty_of_them_is_handed_out_from_one_cut()
+    {
+        FfmpegWritesNumberedTracks();
+        var media = ManyLanguages();
+
+        foreach (var i in Enumerable.Range(0, 40))
+        {
+            var document = await _test.Subtitles.GetAsync(media, media.Stream($"s{i}", StreamKind.Subtitle)!, _none);
+            Assert.Equal($"track {i}", Assert.Single(document!.Lines).Text);
+        }
+
+        Assert.Equal("track 0", (await _test.Subtitles.GetAsync(media, media.Stream("s0", StreamKind.Subtitle)!, _none))!.Lines[0].Text);
+        Assert.Equal(40, Assert.Single(_test.Ffmpeg.Runs).Count(argument => argument == "-map"));
+    }
+
+    [Fact]
+    public async Task The_tracks_of_a_video_are_let_go_of_together_once_other_files_were_read_since()
+    {
+        FfmpegWritesNumberedTracks();
+        var media = ManyLanguages();
+        await _test.Subtitles.GetAsync(media, media.Stream("s3", StreamKind.Subtitle)!, _none);
+
+        // As many other subtitle files as are kept besides it leave the video's tracks alone.
+        foreach (var i in Enumerable.Range(0, SubtitleStore.MaxKept - 1))
+        {
+            var other = Sample.Episode(null, _test.WriteFile($"other{i}.srt", Srt));
+            Assert.NotNull(await _test.Subtitles.GetAsync(other, other.Streams[0], _none));
+        }
+
+        Assert.Equal("track 39", (await _test.Subtitles.GetAsync(media, media.Stream("s39", StreamKind.Subtitle)!, _none))!.Lines[0].Text);
+        Assert.Single(_test.Ffmpeg.Runs);
+
+        // One more, and the track used longest ago goes: one of the files, as the video was just asked for.
+        var last = Sample.Episode(null, _test.WriteFile("last.srt", Srt));
+        await _test.Subtitles.GetAsync(last, last.Streams[0], _none);
+        Assert.Equal("track 0", (await _test.Subtitles.GetAsync(media, media.Stream("s0", StreamKind.Subtitle)!, _none))!.Lines[0].Text);
+        Assert.Single(_test.Ffmpeg.Runs);
+
+        // Read on until the video is the oldest, and all of its tracks go at once.
+        foreach (var i in Enumerable.Range(0, SubtitleStore.MaxKept))
+        {
+            var other = Sample.Episode(null, _test.WriteFile($"more{i}.srt", Srt));
+            await _test.Subtitles.GetAsync(other, other.Streams[0], _none);
+        }
+
+        Assert.Equal("track 20", (await _test.Subtitles.GetAsync(media, media.Stream("s20", StreamKind.Subtitle)!, _none))!.Lines[0].Text);
+        Assert.Equal(2, _test.Ffmpeg.Runs.Count);
+    }
+
     [Fact]
     public async Task Two_pages_that_ask_at_once_share_one_cut()
     {
