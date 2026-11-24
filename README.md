@@ -20,6 +20,10 @@ Only watching locally with mpv? Check out [mpv-subtitleminer](https://github.com
   <img src="docs/screenshots/phone-popup.webp" alt="A word looked up on a phone" width="270">
 </p>
 
+Looking a word up and making a card of it, with Jitendex:
+
+![A conjugated verb tapped in a line, the popup showing it undone, part of its meaning selected, a card made with the + button, and a word in the example looked up in turn](docs/screenshots/desktop-lookup.webp)
+
 ## Install
 
 You need Jellyfin 12.4 or later.
@@ -49,7 +53,7 @@ There are two ways to make a card from the lines you picked:
 - **Add to my newest card**: make the card with your own Yomitan first, then this adds the sentence, the picture and the sound to it, keeping the word Yomitan marked. The page names the card it will change, such as "Adds to "約束", made a minute ago.", and greys the button out when there is none it may take. It only takes a card made in the last 15 minutes (you can change that), and Undo puts the card back as it was.
 - **New card**: makes a card of the lines in your deck. In the dictionary popup, the + button makes one of the word.
 
-![The settings, with Anki on a server and what goes into each field of a Lapis card](docs/screenshots/desktop-settings.webp)
+![The settings, with Anki on this device and what goes into each field of a Lapis card](docs/screenshots/desktop-settings.webp)
 
 ## The dictionary
 
@@ -98,7 +102,7 @@ dev/package.sh
 dev/e2e.sh
 ```
 
-`dev/e2e.sh` downloads the Jellyfin server once into `.cache/` (about 110 MB, x86-64 Linux) and needs Playwright's Chromium (`cd web && npx playwright install chromium`). The top of the script says how to use an installed server instead. The tests make their own videos with ffmpeg (colours that change every five seconds, a hum on each audio track, subtitles inside and next to the video), play them with a pretend player through Jellyfin's own playback calls, send cards to a pretend AnkiConnect, and keep the server off the internet. `SUBTITLE_MINER_E2E_SCREENS=<folder> dev/e2e.sh screens` takes pictures of the page; those in `docs/screenshots/` are made from them.
+`dev/e2e.sh` downloads the Jellyfin server once into `.cache/` (about 110 MB, x86-64 Linux) and needs Playwright's Chromium (`cd web && npx playwright install chromium`). The top of the script says how to use an installed server instead. The tests make their own videos with ffmpeg (colours that change every five seconds, a hum on each audio track, subtitles inside and next to the video), play them with a pretend player through Jellyfin's own playback calls, send cards to a pretend AnkiConnect, and keep the server off the internet. `SUBTITLE_MINER_E2E_SCREENS=<folder> dev/e2e.sh screens` takes pictures of the page with the test media. The pictures in `docs/screenshots/` were taken on a real Jellyfin playing Fate/strange Fake.
 
 To work on the page against a Jellyfin that has the plugin installed: `cd web && JELLYFIN_URL=http://localhost:8096 npm run dev`.
 
