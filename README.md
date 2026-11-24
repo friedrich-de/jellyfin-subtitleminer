@@ -8,9 +8,9 @@ Only watching locally with mpv? Check out [mpv-subtitleminer](https://github.com
 
 ## What it does
 
-- **Follows what you play.** Start an episode on your TV, phone or any other Jellyfin app, and open the page on another device. It shows the subtitle lines as they are spoken and keeps up when you pause, jump or change the track. Episodes and films you watched in the last 12 hours stay listed, so you can still mine from them afterwards.
+- **Follows what you play.** Start an episode on your TV, phone or any other Jellyfin app, and open the page on another device. It shows the subtitle lines as they are spoken and keeps up when you pause, jump or change the track. Scroll back to read, and one tap takes you to the line playing again. Episodes and films you watched in the last 12 hours stay listed, so you can still mine from them afterwards.
 - **Reads the subtitles itself.** ASS, SRT and WebVTT, next to the video or inside it. The Japanese track is picked for you, a second track can be shown under each line for its meaning, and signs and songs are told apart from what people say.
-- **Makes Anki cards.** Pick one line or several, see the picture and hear the sound the card will get, then either add them to the card you just made with Yomitan, or make a new card. The picture and the sound are cut from the video on the Jellyfin server.
+- **Makes Anki cards.** Pick one line or several in a row, see the picture and hear the sound the card will get, then either add them to the card you just made with Yomitan, or make a new card. The picture and the sound are cut from the video on the Jellyfin server.
 - **Looks words up.** Tap a word in a line, or hold Shift over it as with Yomitan, and a popup shows it from Yomitan dictionaries kept on the Jellyfin server, with conjugations undone, frequencies and pitch accents. Its + button makes a card of the word, its reading, meaning, frequency, pitch and sound, the sentence, the picture and the sound of the line. Select part of a definition first, and only that goes into SelectionText. No browser extension is needed, so it works on a phone too.
 - **No extra sign-in.** The page uses your Jellyfin login. Where the browser has none, it asks for your Jellyfin name and password once.
 - **Installs as an app** on a phone, tablet or computer, from the browser's menu.
@@ -42,11 +42,11 @@ In the page's settings, choose where your cards go:
 - **Anki on this device.** Desktop Anki with [AnkiConnect](https://ankiweb.net/shared/info/2055492159), or AnkiConnect for Android, on the device you open the page on. AnkiConnect has to let the page in: the settings show the line to add to `webCorsOriginList` in AnkiConnect's config.
 - **Anki on a server.** An AnkiConnect that the Jellyfin server can reach, with its API key. The Jellyfin server sends the cards, the pictures and the sound there for you, so nothing needs to run on the device you mine on. The key stays on the Jellyfin server, encrypted, and only the calls that read, add and fill in notes are passed on, never ones that delete. Because the Jellyfin server then calls whatever address is typed in, only administrators may use this until an administrator ticks "Let users who are not administrators send cards through this server".
 
-Then choose the deck and the note type. What goes into each field is guessed from the field names, which works for Lapis and most mining note types, and can be changed. Each choice is named as Lapis names its field, such as "ExpressionReading: its reading in kana (e.g. たべる)".
+Then choose the deck and the note type. If you use [Lapis](https://github.com/donkuri/lapis) (or Kiku, or a copy of either under another name), it is chosen for you the first time you connect, with the deck its newest card is in and every field filled as Lapis means it. For other note types, what goes into each field is guessed from the field names, which works for most mining note types. Each choice is named as Lapis names its field, such as "ExpressionReading: its reading (e.g. たべる)", and can be changed. "Restore defaults" puts every choice back as it was the first time, Lapis included, and keeps where your cards go.
 
 There are two ways to make a card from the lines you picked:
 
-- **Add to my newest card**: make the card with your own Yomitan first, then this adds the sentence, the picture and the sound to it, keeping the word Yomitan marked. It only takes a card made in the last 15 minutes (you can change that), and Undo puts the card back as it was.
+- **Add to my newest card**: make the card with your own Yomitan first, then this adds the sentence, the picture and the sound to it, keeping the word Yomitan marked. The page names the card it will change, such as "Adds to "約束", made a minute ago.", and greys the button out when there is none it may take. It only takes a card made in the last 15 minutes (you can change that), and Undo puts the card back as it was.
 - **New card**: makes a card of the lines in your deck. In the dictionary popup, the + button makes one of the word.
 
 ![The settings, with Anki on a server and what goes into each field of a Lapis card](docs/screenshots/desktop-settings.webp)

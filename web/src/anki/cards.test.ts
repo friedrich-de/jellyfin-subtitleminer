@@ -11,6 +11,7 @@ import {
   DuplicateCardError,
   fieldHtml,
   keepMarks,
+  newestCard,
   plainText,
   sentenceWithWord,
   undoUpdate,
@@ -147,6 +148,26 @@ describe('making cards', () => {
     });
   });
 
+  it('names the card it would change before anything is sent', async () => {
+    const collection = createCollection({ now: () => NOW });
+    const anki = ankiOver(collection);
+    await expect(newestCard(anki, lapis(), NOW)).rejects.toThrow('Anki has no "Lapis" card');
+
+    collection.makeNote({
+      id: NOW - 3 * 60_000 - 5_000,
+      deck: 'Mining',
+      modelName: 'Lapis',
+      fields: { Expression: '<b>約束</b>', Sentence: '約束したからね。' },
+    });
+    const found = await newestCard(anki, lapis(), NOW);
+
+    expect(found).toMatchObject({ label: '約束', minutes: 3 });
+    expect(found.roles.Sentence).toBe('sentence');
+    // Looking changes nothing.
+    expect(anki.cuts).toEqual([]);
+    expect(collection.notes.get(found.info.noteId)!.fields.Sentence).toBe('約束したからね。');
+  });
+
   it('guesses the fields of a card of another note type', async () => {
     const collection = createCollection({ now: () => NOW });
     collection.models['Mining Note'] = [
@@ -238,6 +259,7 @@ const EAT: WordContent = {
   meaning: '<div class="yomitan-glossary" style="text-align: left">to eat</div>',
   frequency: '512',
   pitch: '2',
+  pitchCategories: 'kifuku',
   at: { start: 2, length: 8 },
 };
 

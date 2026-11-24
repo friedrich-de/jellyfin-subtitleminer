@@ -69,8 +69,8 @@ internal sealed class AnkiClient : IDisposable
     internal static readonly TimeSpan LongCallLimit = TimeSpan.FromSeconds(120);
 
     /// <summary>
-    /// The calls the page may make through the server. They read decks, note types and notes, and add and change
-    /// notes. Nothing that deletes, nothing that opens windows, no files but the plugin's own cuts.
+    /// The calls the page may make through the server. They read decks, note types, notes and cards, and add and
+    /// change notes. Nothing that deletes, nothing that opens windows, no files but the plugin's own cuts.
     /// </summary>
     internal static readonly FrozenSet<string> PageActions = FrozenSet.Create(
         StringComparer.Ordinal,
@@ -81,6 +81,7 @@ internal sealed class AnkiClient : IDisposable
         "modelFieldNames",
         "findNotes",
         "notesInfo",
+        "cardsInfo",
         "canAddNotes",
         "canAddNotesWithErrorDetail",
         "addNote",

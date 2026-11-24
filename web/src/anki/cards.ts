@@ -187,6 +187,8 @@ function valueFor(
       return word?.frequency;
     case 'pitch':
       return word?.pitch;
+    case 'pitchCategories':
+      return word?.pitchCategories;
     case 'translation':
       return content.translation.trim() === '' ? undefined : fieldHtml(content.translation);
     case 'picture':
@@ -202,12 +204,27 @@ function valueFor(
   }
 }
 
-/** The card that "Add to the newest card" would change, or why there is none. */
-export async function newestNote(
+/** The card that "Add to my newest card" would change, and which of its fields get what. */
+export interface NewestCard {
+  info: NoteInfo;
+  /** Its first field as text, to name it. */
+  label: string;
+  /** How many minutes ago it was made. */
+  minutes: number;
+  /** What goes into each of its fields. */
+  roles: Record<string, FieldRole>;
+}
+
+/**
+ * The card that "Add to my newest card" would change: the newest card made today, of the note
+ * type of the settings when one is chosen, made recently enough, with fields the settings fill.
+ * An AnkiError says why there is none.
+ */
+export async function newestCard(
   anki: AnkiConnect,
   settings: PageSettings,
   now: number,
-): Promise<NoteInfo> {
+): Promise<NewestCard> {
   const noteType = settings.anki.noteType;
   const ids = await anki.invoke<number[]>('findNotes', {
     query: noteType === '' ? 'added:1' : `added:1 note:${query(noteType)}`,
@@ -223,7 +240,7 @@ export async function newestNote(
 
   // A note's id is the moment it was made.
   const within = settings.anki.newestWithinMinutes;
-  const minutes = Math.floor((now - newest) / 60_000);
+  const minutes = Math.max(0, Math.floor((now - newest) / 60_000));
   if (within > 0 && minutes > within) {
     throw new AnkiError(
       `Your newest card was made ${minutes} minutes ago, which is too long ago to be the one you mean. Make the card first, or make a new card.`,
@@ -232,7 +249,17 @@ export async function newestNote(
 
   const [info] = await anki.invoke<NoteInfo[]>('notesInfo', { notes: [newest] });
   if (info?.fields === undefined) throw new AnkiError('Anki did not say what is on the card.');
-  return info;
+
+  const names = Object.keys(info.fields);
+  const chosen = info.modelName === settings.anki.noteType ? settings.anki.fields : {};
+  const given = Object.keys(chosen).length > 0 ? chosen : guessRoles(names);
+  const roles = Object.fromEntries(Object.entries(given).filter(([name]) => names.includes(name)));
+  if (!Object.values(roles).some((role) => role !== 'none')) {
+    throw new AnkiError(
+      `The settings put nothing into the fields of "${info.modelName}" cards. Choose what goes where in the settings.`,
+    );
+  }
+  return { info, label: labelOf(info), minutes, roles };
 }
 
 function labelOf(info: Pick<NoteInfo, 'fields'>): string {
@@ -251,23 +278,11 @@ export async function addToNewest(
   media: CardMedia,
   now: number,
 ): Promise<CardOutcome> {
-  const info = await newestNote(anki, settings, now);
-  const names = Object.keys(info.fields);
-  const chosen = info.modelName === settings.anki.noteType ? settings.anki.fields : {};
-  const roles = Object.keys(chosen).length > 0 ? chosen : guessRoles(names);
-  const present = Object.fromEntries(
-    Object.entries(roles).filter(([name]) => names.includes(name)),
-  );
-  if (!Object.values(present).some((role) => role !== 'none')) {
-    throw new AnkiError(
-      `The settings put nothing into the fields of "${info.modelName}" cards. Choose what goes where in the settings.`,
-    );
-  }
-
-  const stored = await storeAll(anki, present, media, content.word);
+  const { info, label, roles } = await newestCard(anki, settings, now);
+  const stored = await storeAll(anki, roles, media, content.word);
   const fields: Record<string, string> = {};
   const before: Record<string, string> = {};
-  for (const [name, role] of Object.entries(present)) {
+  for (const [name, role] of Object.entries(roles)) {
     const existing = info.fields[name]?.value ?? '';
     const value = valueFor(role, content, stored, existing);
     if (value === undefined) continue;
@@ -276,7 +291,7 @@ export async function addToNewest(
   }
 
   await anki.invoke('updateNoteFields', { note: { id: info.noteId, fields } });
-  return { kind: 'updated', noteId: info.noteId, label: labelOf(info), before };
+  return { kind: 'updated', noteId: info.noteId, label, before };
 }
 
 /** Puts the fields of a card back as they were before an update. */

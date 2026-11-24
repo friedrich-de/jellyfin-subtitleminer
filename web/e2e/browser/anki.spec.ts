@@ -44,6 +44,8 @@ test.describe('cards', () => {
       modelName: 'Lapis',
       fields: { Expression: '約束', Sentence: '<b>約束</b>したからね。' },
     });
+    // A deck of the user's own besides: only the card says which deck is for mining.
+    server.collection.decks.push('Kanji');
     const settingsSeen: Promise<string>[] = [];
     page.on('response', (response) => {
       if (response.url().includes('/SubtitleMiner/Api/Settings'))
@@ -70,10 +72,13 @@ test.describe('cards', () => {
     );
     await page.getByTestId('server-key').fill(KEY);
     await page.getByTestId('connect').click();
-    await expect(page.getByTestId('connected')).toHaveText('Connected: 2 decks, 2 note types.');
+    await expect(page.getByTestId('connected')).toHaveText('Connected: 3 decks, 2 note types.');
     await expect(page.getByTestId('server-key')).toHaveValue('');
 
-    await page.getByTestId('note-type').selectOption('Lapis');
+    // A new user's Lapis is chosen for them, with the deck its newest card is in.
+    await expect(page.getByTestId('lapis-found')).toContainText('"Lapis" is a Lapis note type');
+    await expect(page.getByTestId('note-type')).toHaveValue('Lapis');
+    await expect(page.getByTestId('deck')).toHaveValue('Mining');
     await expect(page.getByTestId('role-Sentence')).toHaveValue('sentence');
     await expect(page.getByTestId('role-SentenceAudio')).toHaveValue('sound');
     await page.getByTestId('save').click();
@@ -83,6 +88,7 @@ test.describe('cards', () => {
     await page.getByRole('checkbox', { name: 'Line at 00:04' }).click();
     await expect(page.getByTestId('selected-count')).toHaveText('2 lines selected');
     await expect(page.getByTestId('play-sound')).toBeEnabled();
+    await expect(page.getByTestId('newest-card')).toHaveText('Adds to "約束", made just now.');
     await page.getByTestId('add-to-newest').click();
     await expect(page.getByTestId('sending')).toContainText('Added to "約束".');
 
@@ -119,11 +125,6 @@ test.describe('cards', () => {
     anki,
   }) => {
     const device = await anki({ key: KEY });
-    const id = device.collection.makeNote({
-      deck: 'Mining',
-      modelName: 'Lapis',
-      fields: { Expression: '明日', Sentence: 'じゃあ、<b>明日</b>の朝に行こう。' },
-    });
     const origin = new URL(jellyfin.baseUrl).origin;
 
     const tv = player(jellyfin.viewer, 'Anki phone', 'mpv');
@@ -146,12 +147,27 @@ test.describe('cards', () => {
     device.allow(origin);
     await page.getByTestId('connect').click();
     await expect(page.getByTestId('connected')).toHaveText('Connected: 2 decks, 2 note types.');
-    await page.getByTestId('note-type').selectOption('Lapis');
+    await expect(page.getByTestId('note-type')).toHaveValue('Lapis');
     await page.getByTestId('save').click();
     await expect(page.getByTestId('settings-message')).toHaveText('Saved.');
     await page.getByTestId('settings-back').click();
 
+    // No card made yet: the button is off, and the page says why.
     await page.getByRole('checkbox', { name: 'Line at 00:10' }).click();
+    await expect(page.getByTestId('newest-card')).toHaveText(
+      'Anki has no "Lapis" card made today. Make one with Yomitan first, or make a new card.',
+    );
+    await expect(page.getByTestId('add-to-newest')).toBeDisabled();
+
+    // Yomitan makes one meanwhile: the page finds it by itself, and names it.
+    const id = device.collection.makeNote({
+      deck: 'Mining',
+      modelName: 'Lapis',
+      fields: { Expression: '明日', Sentence: 'じゃあ、<b>明日</b>の朝に行こう。' },
+    });
+    await expect(page.getByTestId('newest-card')).toHaveText('Adds to "明日", made just now.', {
+      timeout: 15_000,
+    });
     await expect(page.getByTestId('play-sound')).toBeEnabled();
     await page.getByTestId('add-to-newest').click();
     await expect(page.getByTestId('sending')).toContainText('Added to "明日".');

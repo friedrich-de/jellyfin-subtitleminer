@@ -60,11 +60,18 @@ test('the main screen', async ({ page, request, jellyfin, player, anki }, info) 
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: path.join(folder!, `${info.project.name}-lines.png`) });
 
+  // A card Yomitan made a moment ago, for "Add to my newest card" to name.
+  server.collection.makeNote({
+    deck: 'Mining',
+    modelName: 'Lapis',
+    fields: { Expression: '約束', Sentence: '<b>約束</b>したからね。' },
+  });
   await page.getByRole('checkbox', { name: 'Line at 00:01' }).click();
   await page.getByRole('checkbox', { name: 'Line at 00:04' }).click();
   await expect(page.getByTestId('preview-picture').locator('img')).toBeVisible();
   await expect(page.getByTestId('play-sound')).toBeEnabled();
   await expect(page.getByTestId('add-new')).toBeEnabled();
+  await expect(page.getByTestId('newest-card')).toContainText('Adds to "約束"');
   await page.screenshot({ path: path.join(folder!, `${info.project.name}-selected.png`) });
 
   await page.getByTestId('account').click();

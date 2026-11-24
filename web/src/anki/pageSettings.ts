@@ -14,6 +14,7 @@ export type FieldRole =
   | 'meaning'
   | 'frequency'
   | 'pitch'
+  | 'pitchCategories'
   | 'wordAudio'
   | 'selectionText';
 
@@ -25,6 +26,7 @@ export const WORD_ROLES: ReadonlySet<FieldRole> = new Set([
   'meaning',
   'frequency',
   'pitch',
+  'pitchCategories',
   'wordAudio',
   'selectionText',
 ]);
@@ -51,6 +53,7 @@ export const FIELD_ROLES: readonly { role: FieldRole; label: string }[] = [
   { role: 'selectionText', label: 'SelectionText: what you select in the popup (e.g. to eat)' },
   { role: 'frequency', label: 'Frequency: how common it is (e.g. 512)' },
   { role: 'pitch', label: 'PitchPosition: its pitch accent (e.g. 2)' },
+  { role: 'pitchCategories', label: 'PitchCategories: its pitch pattern (e.g. nakadaka)' },
 ];
 
 export interface AnkiChoices {
@@ -176,7 +179,8 @@ export function tagsFrom(typed: string): string[] {
 
 const WORD = '(expression|word|vocab(ulary)?|term)';
 
-const GUESSES: readonly [RegExp, FieldRole][] = [
+/** What a field's name says it is for. A part that also goes into a second field says so. */
+const GUESSES: readonly [RegExp, FieldRole, 'also'?][] = [
   [/^sentence([ _-]?(kanji|text|jp|ja|japanese))?$/i, 'sentence'],
   [/^(sentence[ _-]?(translation|meaning|english|eng|en)|translation)$/i, 'translation'],
   [/^((sentence[ _-]?)?audio|sentence[ _-]?sound|sound)$/i, 'sound'],
@@ -194,15 +198,19 @@ const GUESSES: readonly [RegExp, FieldRole][] = [
     'meaning',
   ],
   [/^(selection[ _-]?text|selected[ _-]?(text|definition))$/i, 'selectionText'],
-  [/^(freq(uency)?|frequencies|freq[ _-]?sort)$/i, 'frequency'],
+  [/^(freq(uency)?|frequencies)$/i, 'frequency'],
+  // Lapis sorts new cards by it: the same number as the frequency.
+  [/^freq(uency)?[ _-]?sort$/i, 'frequency', 'also'],
   [/^(pitch([ _-]?(position|accent))?|accent)$/i, 'pitch'],
+  [/^pitch[ _-]?(categories|category|pattern)$/i, 'pitchCategories'],
 ];
 
 /**
  * What goes into each field of a note type, by the names of its fields: the sentence into
  * "Sentence", the sound into "SentenceAudio", the word into "Expression", and so on, as Lapis
- * and most mining note types name them. Each part goes into one field at most. The word's parts
- * fill only cards made from the dictionary popup; "Add to my newest card" leaves them to Yomitan.
+ * and most mining note types name them. Each part goes into one field at most, but for the
+ * frequency, which Lapis also sorts by. The word's parts fill only cards made from the dictionary
+ * popup; "Add to my newest card" leaves them to Yomitan.
  */
 export function guessRoles(fieldNames: readonly string[]): Record<string, FieldRole> {
   return rolesFor(fieldNames, {});
@@ -224,9 +232,15 @@ export function rolesFor(
       roles[name] = chosen[name]!;
       continue;
     }
-    const role = GUESSES.find(([pattern]) => pattern.test(name.trim()))?.[1] ?? 'none';
-    roles[name] = role !== 'none' && !taken.has(role) ? role : 'none';
-    if (role !== 'none') taken.add(role);
+    const [, role, also] = GUESSES.find(([pattern]) => pattern.test(name.trim())) ?? [];
+    if (role === undefined) {
+      roles[name] = 'none';
+    } else if (also === 'also') {
+      roles[name] = role;
+    } else {
+      roles[name] = taken.has(role) ? 'none' : role;
+      taken.add(role);
+    }
   }
   return roles;
 }

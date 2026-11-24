@@ -5,7 +5,9 @@ import type { Fetch } from '@/api/http';
 import type { PluginApi } from '@/api/plugin';
 import type { AnkiWhere, SettingsChange, SettingsView } from '@/api/types';
 import { type AnkiConnect, AnkiError, deviceAnki, serverAnki } from '@/anki/connect';
+import { findLapis } from '@/anki/lapis';
 import {
+  defaultPageSettings,
   FIELD_ROLES,
   type FieldRole,
   PICTURE_WIDTHS,
@@ -63,6 +65,8 @@ const connection = ref<Connection>({ kind: 'idle' });
 // Decks, note types and errors are those of one Anki: choosing another sets them aside until it is connected.
 watch(where, () => (connection.value = { kind: 'idle' }));
 const fieldNames = ref<string[]>(Object.keys(page.value.anki.fields));
+/** The Lapis note type chosen for the user, until they choose themselves. */
+const lapisFound = ref<string | null>(null);
 const saving = ref(false);
 const message = ref<{ text: string; error: boolean } | null>(null);
 
@@ -99,6 +103,20 @@ async function loadFields(anki: AnkiConnect, noteType: string): Promise<void> {
   page.value.anki.fields = rolesFor(names, page.value.anki.fields);
 }
 
+/**
+ * Chooses a Lapis note type, if this Anki has one, with the deck its cards are in and each field
+ * filled as Lapis means it, for someone who has no note type chosen.
+ */
+async function chooseLapis(anki: AnkiConnect, decks: string[], noteTypes: string[]): Promise<void> {
+  const found = await findLapis(anki, noteTypes, decks);
+  if (found === undefined || page.value.anki.noteType !== '') return;
+  page.value.anki.noteType = found.noteType;
+  if (page.value.anki.deck === '') page.value.anki.deck = found.deck;
+  page.value.anki.fields = found.fields;
+  fieldNames.value = found.fieldNames;
+  lapisFound.value = found.noteType;
+}
+
 /** Saves where the cards go, then asks that Anki for its decks and note types. */
 async function connect(): Promise<void> {
   message.value = null;
@@ -122,7 +140,9 @@ async function connect(): Promise<void> {
       anki.invoke<string[]>('modelNames'),
     ]);
     answer({ kind: 'connected', decks, noteTypes });
-    if (where.value === asked) await loadFields(anki, page.value.anki.noteType);
+    if (where.value !== asked) return;
+    if (page.value.anki.noteType === '') await chooseLapis(anki, decks, noteTypes);
+    else await loadFields(anki, page.value.anki.noteType);
   } catch (error) {
     answer({ kind: 'failed', message: messageOf(error) });
   }
@@ -132,6 +152,7 @@ async function onNoteType(event: Event): Promise<void> {
   const name = (event.target as HTMLSelectElement).value;
   page.value.anki.noteType = name;
   page.value.anki.fields = {};
+  lapisFound.value = null;
   const anki = ankiFor(current.value);
   if (anki === null) return;
   try {
@@ -177,6 +198,30 @@ async function save(): Promise<void> {
     message.value = { text: messageOf(error), error: true };
   } finally {
     saving.value = false;
+  }
+}
+
+/**
+ * Puts every choice of the page back as a new user has it, with Lapis chosen if this Anki has it.
+ * Where the cards go stays, so that no address or key has to be typed again. Nothing is kept until
+ * the settings are saved.
+ */
+async function restoreDefaults(): Promise<void> {
+  page.value = defaultPageSettings();
+  tags.value = page.value.anki.tags.join(' ');
+  fieldNames.value = [];
+  lapisFound.value = null;
+  message.value = {
+    text: 'Defaults restored. Where your cards go is kept. Save to keep the rest.',
+    error: false,
+  };
+  const anki = ankiFor(current.value);
+  const connected = connection.value;
+  if (anki === null || connected.kind !== 'connected') return;
+  try {
+    await chooseLapis(anki, connected.decks, connected.noteTypes);
+  } catch (error) {
+    message.value = { text: messageOf(error), error: true };
   }
 }
 
@@ -370,6 +415,10 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
               </option>
             </select>
           </label>
+          <p v-if="lapisFound !== null" class="small ok" role="status" data-testid="lapis-found">
+            "{{ lapisFound }}" is a Lapis note type, so it is chosen, with each field filled as
+            Lapis means it. Change anything you like.
+          </p>
 
           <div v-if="fieldNames.length > 0" class="fields" data-testid="fields">
             <p class="name">What goes into each field</p>
@@ -495,6 +544,15 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
       <div class="actions">
         <button class="button primary" type="submit" :disabled="saving" data-testid="save">
           {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+        <button
+          class="button"
+          type="button"
+          :disabled="saving"
+          data-testid="restore-defaults"
+          @click="restoreDefaults"
+        >
+          Restore defaults
         </button>
         <p
           v-if="message !== null"

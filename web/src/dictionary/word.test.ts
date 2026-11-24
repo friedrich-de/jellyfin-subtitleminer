@@ -143,12 +143,39 @@ describe('a word for a card', () => {
       meaning: '<div class="yomitan-glossary" style="text-align: left">to eat</div>',
       frequency: '512',
       pitch: '2, 0',
+      pitchCategories: 'kifuku,heiban',
       at: { start: 3, length: 8 },
     });
   });
 
   it('has no frequency or pitch where no dictionary gives one', () => {
     const word = wordOf(result(), 0);
-    expect([word.frequency, word.pitch]).toEqual(['', '']);
+    expect([word.frequency, word.pitch, word.pitchCategories]).toEqual(['', '', '']);
+  });
+
+  it('names the pitch patterns as Yomitan does, for Lapis to colour the word by', () => {
+    const categories = (expression: string, reading: string, rules: string, positions: number[]) =>
+      wordOf(
+        result({
+          expression,
+          reading,
+          rules,
+          pitches: [{ dictionary: 'Pitch', pitches: positions.map((position) => ({ position })) }],
+        }),
+        0,
+      ).pitchCategories;
+
+    expect(categories('箸', 'はし', '', [1])).toBe('atamadaka');
+    expect(categories('橋', 'はし', '', [2])).toBe('odaka');
+    expect(categories('お菓子', 'おかし', '', [2])).toBe('nakadaka');
+    expect(categories('桜', 'さくら', '', [0])).toBe('heiban');
+    // A small ゃ is part of the mora before it, a small っ a mora of its own.
+    expect(categories('ちゃっかり', 'ちゃっかり', '', [3, 4])).toBe('nakadaka,odaka');
+    // A verb or an adjective whose pitch falls is kifuku, wherever it falls.
+    expect(categories('食べる', 'たべる', 'v1', [2])).toBe('kifuku');
+    expect(categories('高い', 'たかい', 'adj-i', [2, 0])).toBe('kifuku,heiban');
+    // A noun that takes する is named as a noun.
+    expect(categories('勉強', 'べんきょう', 'vs n', [0])).toBe('heiban');
+    expect(categories('料理', 'りょうり', 'vs n', [1])).toBe('atamadaka');
   });
 });

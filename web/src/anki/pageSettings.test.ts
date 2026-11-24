@@ -65,7 +65,10 @@ describe('the page settings', () => {
       ['SentenceAudio', 'sound'],
       ['Picture', 'picture'],
       ['PitchPosition', 'pitch'],
+      ['PitchCategories', 'pitchCategories'],
       ['Frequency', 'frequency'],
+      // Lapis sorts new cards by the frequency: it goes there too.
+      ['FreqSort', 'frequency'],
       ['MiscInfo', 'source'],
     ]);
     // The second list of meanings is the first's.
