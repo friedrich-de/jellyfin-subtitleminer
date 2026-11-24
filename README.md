@@ -112,7 +112,7 @@ dev/e2e.sh
 
 To work on the page against a Jellyfin that has the plugin installed: `cd web && JELLYFIN_URL=http://localhost:8096 npm run dev`.
 
-The app's icons are drawn from `web/icons/*.svg` into `web/public/icons/` with `node dev/render-icons.mjs` (it uses Playwright's Chromium); the PNGs are committed. The page's service worker (`web/src/worker/`) is built into `sw.js` with the list of the build's files, and keeps nothing else.
+The app's icons in `web/public/icons/` are the plugin's pickaxe logo from version 1; `icon-512.png` is also the picture in Jellyfin's plugin catalog. The page's service worker (`web/src/worker/`) is built into `sw.js` with the list of the build's files, and keeps nothing else.
 
 A release raises `<Version>` in `Directory.Build.props`, gives it a section in `CHANGELOG.md`, and runs `dev/package.sh --publish`, which adds the zip to `repository/` and the version to `repository/manifest.json`. Jellyfin reads that manifest from the main branch, so the version is out once that commit is on main.
 

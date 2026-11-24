@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.2.1
+
+- The plugin's own pickaxe logo is back as the icon of the installed app, the browser tab and the picture in Jellyfin's plugin catalog. Version 2 had replaced it with a stand-in.
+
 ## 2.0.2.0
 
 - Once a card has the chosen lines, through "Add to my newest card" or "New card", the lines are unselected, ready for the next card. What happened to the card stays at the bottom, with Undo where there is one, until you choose other lines or close it. A card that fails leaves the lines chosen, to try again.
