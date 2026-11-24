@@ -158,6 +158,13 @@ public sealed class DictionariesControllerTests : IDisposable
         var import = (await List()).Import;
         Assert.Equal(("failed", "The address answered 404 Not Found."), (import.State, import.Error));
         Assert.Empty((await List()).Dictionaries);
+
+        _test.DownloadNetwork.Unreachable.Add("https://dictionaries.example/words.zip");
+        await Controller().PostDownload(new DictionaryDownload { Url = "https://dictionaries.example/words.zip" });
+        await _test.Dictionaries.Job;
+        Assert.Equal(
+            "The address could not be reached: Connection refused (dictionaries.example:443).",
+            (await List()).Import.Error);
     }
 
     [Theory]

@@ -25,8 +25,9 @@ What version 2 can do today:
 - It makes Anki cards: it adds the lines, the picture and the sound to the card you just made with Yomitan, or makes a new one. Cards go to AnkiConnect on your device, or to an AnkiConnect on a server with its API key, which the Jellyfin server calls for you, so nothing needs to run on your device.
 
 - It installs as an app on a phone, tablet or computer, from the browser's menu, when Jellyfin is opened over HTTPS.
+- It has its own dictionary, kept on the Jellyfin server, so no browser extension is needed: tap a word in a line to look it up, and "Add card" makes a card with the word, its reading, meaning, frequency and pitch, the sentence, the picture and the sound. An administrator adds Yomitan dictionaries in the settings (Jitendex and JMnedict with one tap, or any address or file). If you would rather use your own Yomitan, turn looking up off in the settings.
 
-What comes next: a dictionary hosted on the Jellyfin server. [CHANGELOG.md](CHANGELOG.md) lists what is done.
+What comes next: a real run on a home server, then the release. [CHANGELOG.md](CHANGELOG.md) lists what is done.
 
 ## Development
 
@@ -68,3 +69,5 @@ A lot of great tools for language learning and media mining exist, but they plac
 GPL-3.0, see [LICENSE](LICENSE). Jellyfin plugins link Jellyfin's libraries, which are GPL-3.0.
 
 The rules the dictionary uses to undo Japanese conjugations are [Yomitan](https://github.com/yomidevs/yomitan)'s, as the [Hoshidicts](https://github.com/bee-san/hoshidicts) Japanese language pack writes them (GPL-3.0-or-later); [Dictionary/Japanese/SOURCES.md](Jellyfin.Plugin.SubtitleMiner/Dictionary/Japanese/SOURCES.md) says where each file comes from. No dictionary comes with the plugin: an administrator downloads or uploads the ones they want, under their own licences.
+
+The page shows words with [dictionary-popup](https://github.com/bee-san/dictionary-popup), [Hachidori](https://github.com/bee-san/hachidori)'s popup (GPL-3.0-or-later, its icons Fluent UI System Icons under MIT). A copy is in [web/src/vendor/dictionary-popup](web/src/vendor/dictionary-popup), changed only so that its styles pass the page's content policy; its `SOURCES.md` says from where and what changed.

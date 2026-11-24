@@ -1,7 +1,29 @@
 import type { PictureFormat, SoundFormat } from '@/api/plugin';
 
 /** What goes into a field of a card. */
-export type FieldRole = 'none' | 'sentence' | 'translation' | 'picture' | 'sound' | 'source';
+export type FieldRole =
+  | 'none'
+  | 'sentence'
+  | 'translation'
+  | 'picture'
+  | 'sound'
+  | 'source'
+  | 'word'
+  | 'reading'
+  | 'furigana'
+  | 'meaning'
+  | 'frequency'
+  | 'pitch';
+
+/** The parts that only a card made from a word in the dictionary popup has. */
+export const WORD_ROLES: ReadonlySet<FieldRole> = new Set([
+  'word',
+  'reading',
+  'furigana',
+  'meaning',
+  'frequency',
+  'pitch',
+]);
 
 export const FIELD_ROLES: readonly { role: FieldRole; label: string }[] = [
   { role: 'none', label: 'Nothing, or what Yomitan puts there' },
@@ -10,6 +32,12 @@ export const FIELD_ROLES: readonly { role: FieldRole; label: string }[] = [
   { role: 'picture', label: 'The picture' },
   { role: 'sound', label: 'The sound' },
   { role: 'source', label: 'Where it is from' },
+  { role: 'word', label: 'The word looked up' },
+  { role: 'reading', label: "The word's reading" },
+  { role: 'furigana', label: 'The word with its reading over it' },
+  { role: 'meaning', label: "The word's meaning" },
+  { role: 'frequency', label: 'How common the word is' },
+  { role: 'pitch', label: "The word's pitch accent" },
 ];
 
 export interface AnkiChoices {
@@ -35,10 +63,16 @@ export interface MediaChoices {
   padAfterMs: number;
 }
 
+export interface DictionaryChoices {
+  /** A tap on a word looks it up in the server's dictionaries. Off for those who use Yomitan. */
+  lookUp: boolean;
+}
+
 /** What only the page reads, kept on the server with the user's other settings. */
 export interface PageSettings {
   anki: AnkiChoices;
   media: MediaChoices;
+  dictionary: DictionaryChoices;
 }
 
 export const PICTURE_WIDTHS = [480, 640, 800, 960, 1280] as const;
@@ -56,6 +90,7 @@ export function defaultPageSettings(): PageSettings {
       padBeforeMs: 250,
       padAfterMs: 250,
     },
+    dictionary: { lookUp: true },
   };
 }
 
@@ -87,6 +122,7 @@ export function readPageSettings(stored: unknown): PageSettings {
   const raw = record(stored);
   const anki = record(raw.anki);
   const media = record(raw.media);
+  const dictionary = record(raw.dictionary);
 
   const fields: Record<string, FieldRole> = {};
   for (const [name, role] of Object.entries(record(anki.fields)).slice(0, 64)) {
@@ -116,6 +152,7 @@ export function readPageSettings(stored: unknown): PageSettings {
       padBeforeMs: whole(media.padBeforeMs, 250, 0, 2_000),
       padAfterMs: whole(media.padAfterMs, 250, 0, 2_000),
     },
+    dictionary: { lookUp: dictionary.lookUp !== false },
   };
 }
 
@@ -124,18 +161,33 @@ export function tagsFrom(typed: string): string[] {
   return [...new Set(typed.split(/\s+/).filter((tag) => tag !== ''))].slice(0, 20);
 }
 
+const WORD = '(expression|word|vocab(ulary)?|term)';
+
 const GUESSES: readonly [RegExp, FieldRole][] = [
   [/^sentence([ _-]?(kanji|text|jp|ja|japanese))?$/i, 'sentence'],
   [/^(sentence[ _-]?(translation|meaning|english|eng|en)|translation)$/i, 'translation'],
   [/^((sentence[ _-]?)?audio|sentence[ _-]?sound|sound)$/i, 'sound'],
   [/^(picture|image|screenshot|snapshot)$/i, 'picture'],
   [/^(misc[ _-]?info|source|sentence[ _-]?source)$/i, 'source'],
+  [new RegExp(`^(${WORD}|key)$`, 'i'), 'word'],
+  [new RegExp(`^(${WORD}[ _-]?reading|reading|kana)$`, 'i'), 'reading'],
+  [new RegExp(`^(${WORD}[ _-]?furigana|furigana)$`, 'i'), 'furigana'],
+  [
+    new RegExp(
+      `^(main[ _-]?definition|definition|meaning|glossary|${WORD}[ _-]?(meaning|definition|english))$`,
+      'i',
+    ),
+    'meaning',
+  ],
+  [/^(freq(uency)?|frequencies|freq[ _-]?sort)$/i, 'frequency'],
+  [/^(pitch([ _-]?(position|accent))?|accent)$/i, 'pitch'],
 ];
 
 /**
  * What goes into each field of a note type, by the names of its fields: the sentence into
- * "Sentence", the sound into "SentenceAudio", and so on, as Lapis and most mining note types
- * name them. Each part goes into one field at most; the word's fields are left to Yomitan.
+ * "Sentence", the sound into "SentenceAudio", the word into "Expression", and so on, as Lapis
+ * and most mining note types name them. Each part goes into one field at most. The word's parts
+ * fill only cards made from the dictionary popup; "Add to my newest card" leaves them to Yomitan.
  */
 export function guessRoles(fieldNames: readonly string[]): Record<string, FieldRole> {
   return rolesFor(fieldNames, {});

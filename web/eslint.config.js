@@ -19,6 +19,8 @@ export default [
       'node_modules/**',
       'test-results/**',
       'playwright-report/**',
+      // Copied as it is from bee-san/dictionary-popup; src/vendor/dictionary-popup/SOURCES.md.
+      'src/vendor/**',
     ],
   },
   js.configs.recommended,

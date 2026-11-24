@@ -66,6 +66,9 @@ export default defineConfig({
       output: {
         entryFileNames: (chunk) => (chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js'),
       },
+      // The dictionary popup's files from Hachidori are written for a script tag and for Node:
+      // they set module.exports where there is a module, which a browser has not.
+      checks: { commonJsVariableInEsm: false },
     },
   },
   server: {

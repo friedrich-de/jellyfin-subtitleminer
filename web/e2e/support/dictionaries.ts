@@ -46,7 +46,21 @@ export function wordsDictionary(title = 'E2E Words'): TestDictionary {
       ),
       term('食', 'しょく', '', ['food'], 'n'),
       term('昨日', 'きのう', '', ['yesterday'], 'n'),
-      term('話', 'はなし', '', ['talk; story'], 'n'),
+      term(
+        '話',
+        'はなし',
+        '',
+        [
+          {
+            type: 'structured-content',
+            content: [
+              { tag: 'span', data: { content: 'gloss' }, content: 'talk; story' },
+              { tag: 'img', path: 'img/bowl.png', width: 2, height: 2, sizeUnits: 'em' },
+            ],
+          },
+        ],
+        'n',
+      ),
     ],
     tags: [['v1', 'partOfSpeech', 0, 'Ichidan verb', 0]],
     styles: '[data-sc-content="gloss"] { font-weight: bold; }',
@@ -68,6 +82,8 @@ export function metaDictionary(title = 'E2E Frequencies'): TestDictionary {
     metas: [
       ['食べる', 'freq', { reading: 'たべる', frequency: 512 }],
       ['食べる', 'pitch', { reading: 'たべる', pitches: [{ position: 2 }] }],
+      ['昨日', 'freq', { reading: 'きのう', frequency: 77 }],
+      ['昨日', 'pitch', { reading: 'きのう', pitches: [{ position: 2 }, { position: 0 }] }],
     ],
   };
 }

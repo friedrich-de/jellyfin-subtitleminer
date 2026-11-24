@@ -14,6 +14,8 @@ describe('the page settings', () => {
   it('reads what the server kept, and takes the default for what it cannot read', () => {
     expect(readPageSettings(undefined)).toEqual(defaultPageSettings());
     expect(readPageSettings('nonsense')).toEqual(defaultPageSettings());
+    expect(readPageSettings({ dictionary: { lookUp: false } }).dictionary.lookUp).toBe(false);
+    expect(readPageSettings({ dictionary: { lookUp: 'no' } }).dictionary.lookUp).toBe(true);
 
     const read = readPageSettings({
       anki: {
@@ -49,29 +51,53 @@ describe('the page settings', () => {
     });
   });
 
-  it('guesses where the parts go in a Lapis note and leaves the word to Yomitan', () => {
+  it('guesses where the parts go in a Lapis note', () => {
     const roles = guessRoles(LAPIS_FIELDS);
 
     expect(Object.entries(roles).filter(([, role]) => role !== 'none')).toEqual([
+      ['Expression', 'word'],
+      ['ExpressionFurigana', 'furigana'],
+      ['ExpressionReading', 'reading'],
+      ['MainDefinition', 'meaning'],
       ['Sentence', 'sentence'],
       ['SentenceAudio', 'sound'],
       ['Picture', 'picture'],
+      ['PitchPosition', 'pitch'],
+      ['Frequency', 'frequency'],
       ['MiscInfo', 'source'],
     ]);
-    expect(roles.Expression).toBe('none');
+    // The page has no sound of the word, and the second list of meanings is the first's.
     expect(roles.ExpressionAudio).toBe('none');
+    expect(roles.Glossary).toBe('none');
   });
 
   it('guesses other common names, each part into one field', () => {
     expect(
-      guessRoles(['Front', 'Sentence', 'Sentence Translation', 'Audio', 'Image', 'Sound']),
+      guessRoles([
+        'Front',
+        'Word',
+        'Word Reading',
+        'Sentence',
+        'Sentence Translation',
+        'Meaning',
+        'Audio',
+        'Image',
+        'Sound',
+        'Pitch Accent',
+        'Freq',
+      ]),
     ).toEqual({
       Front: 'none',
+      Word: 'word',
+      'Word Reading': 'reading',
       Sentence: 'sentence',
       'Sentence Translation': 'translation',
+      Meaning: 'meaning',
       Audio: 'sound',
       Image: 'picture',
       Sound: 'none',
+      'Pitch Accent': 'pitch',
+      Freq: 'frequency',
     });
   });
 

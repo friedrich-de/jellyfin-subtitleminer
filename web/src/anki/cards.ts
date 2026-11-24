@@ -1,4 +1,5 @@
 import type { PictureOptions, SoundOptions } from '@/api/plugin';
+import type { WordContent } from '@/dictionary/word';
 
 import { AnkiError, type AnkiConnect, type MediaCut } from './connect';
 import { type FieldRole, guessRoles, type PageSettings } from './pageSettings';
@@ -11,6 +12,16 @@ export interface CardContent {
   translation: string;
   /** Where it is from: "Sample Show · S1 E1 · 00:04". */
   source: string;
+  /** The word looked up in the dictionary popup, for a card made from it. */
+  word?: WordContent;
+}
+
+/** Anki has a card like this in the deck already. */
+export class DuplicateCardError extends AnkiError {
+  constructor() {
+    super('This deck has a card like this already.');
+    this.name = 'DuplicateCardError';
+  }
 }
 
 /** The video and the times the picture and the sound are cut from. */
@@ -48,6 +59,16 @@ export function escapeHtml(text: string): string {
 /** Text for a field: escaped, with its line feeds as breaks. */
 export function fieldHtml(text: string): string {
   return escapeHtml(text.trim()).replace(/\r?\n/g, '<br>');
+}
+
+/** The sentence for a field with the word in bold, as Yomitan writes it. */
+export function sentenceWithWord(text: string, at: { start: number; length: number }): string {
+  const end = Math.min(text.length, at.start + at.length);
+  if (at.start < 0 || at.length <= 0 || at.start >= end) return fieldHtml(text);
+  const html = (part: string): string => escapeHtml(part).replace(/\r?\n/g, '<br>');
+  const before = text.slice(0, at.start).trimStart();
+  const after = text.slice(end).trimEnd();
+  return `${html(before)}<b>${html(text.slice(at.start, end))}</b>${html(after)}`;
 }
 
 /** A field's HTML as plain text, to name a card. */
@@ -114,11 +135,25 @@ function valueFor(
   stored: { picture?: string; sound?: string },
   existing: string,
 ): string | undefined {
+  const word = content.word;
   switch (role) {
     case 'sentence': {
+      if (word !== undefined) return sentenceWithWord(content.sentence, word.at);
       const sentence = fieldHtml(content.sentence);
       return existing.trim() === '' ? sentence : keepMarks(existing, sentence);
     }
+    case 'word':
+      return word === undefined ? undefined : escapeHtml(word.expression);
+    case 'reading':
+      return word === undefined ? undefined : escapeHtml(word.reading);
+    case 'furigana':
+      return word === undefined ? undefined : escapeHtml(word.furigana);
+    case 'meaning':
+      return word?.meaning;
+    case 'frequency':
+      return word?.frequency;
+    case 'pitch':
+      return word?.pitch;
     case 'translation':
       return content.translation.trim() === '' ? undefined : fieldHtml(content.translation);
     case 'picture':
@@ -214,6 +249,59 @@ export async function undoUpdate(anki: AnkiConnect, outcome: CardOutcome): Promi
   await anki.invoke('updateNoteFields', { note: { id: outcome.noteId, fields: outcome.before } });
 }
 
+/** Why a new card cannot be made with these settings, or nothing when it can. */
+export function newCardProblem(settings: PageSettings, withWord: boolean): string | undefined {
+  const { deck, noteType, fields: roles } = settings.anki;
+  if (deck === '' || noteType === '') return 'Choose a deck and a note type in the settings first.';
+  const needed = withWord ? 'word' : 'sentence';
+  if (!Object.values(roles).includes(needed)) {
+    return withWord
+      ? 'Give the word a field in the settings first.'
+      : 'Give the lines a field in the settings first.';
+  }
+  return undefined;
+}
+
+function noteOf(settings: PageSettings, fields: Record<string, string>): Record<string, unknown> {
+  const { deck, noteType, tags } = settings.anki;
+  return {
+    deckName: deck,
+    modelName: noteType,
+    fields,
+    tags,
+    options: { allowDuplicate: false, duplicateScope: 'deck' },
+  };
+}
+
+/**
+ * Whether Anki has a card for each of these words in the deck already, as a new card would be
+ * made: true where it has. The media are left out, which Anki does not compare.
+ */
+export async function wordsInDeck(
+  anki: AnkiConnect,
+  settings: PageSettings,
+  contents: readonly CardContent[],
+): Promise<boolean[]> {
+  if (contents.length === 0 || newCardProblem(settings, true) !== undefined) {
+    return contents.map(() => false);
+  }
+  const notes = contents.map((content) => {
+    const fields: Record<string, string> = {};
+    for (const [name, role] of Object.entries(settings.anki.fields)) {
+      fields[name] = valueFor(role, content, {}, '') ?? '';
+    }
+    return noteOf(settings, fields);
+  });
+  const answers = await anki.invoke<{ canAdd: boolean; error?: string }[]>(
+    'canAddNotesWithErrorDetail',
+    { notes },
+  );
+  return contents.map((_, index) => {
+    const answer = answers[index];
+    return answer?.canAdd === false && /duplicate/i.test(answer.error ?? '');
+  });
+}
+
 /** Makes a new card of the chosen lines in the deck and note type of the settings. */
 export async function addNew(
   anki: AnkiConnect,
@@ -221,13 +309,9 @@ export async function addNew(
   content: CardContent,
   media: CardMedia,
 ): Promise<CardOutcome> {
-  const { deck, noteType, fields: roles, tags } = settings.anki;
-  if (deck === '' || noteType === '') {
-    throw new AnkiError('Choose a deck and a note type in the settings first.');
-  }
-  if (!Object.values(roles).includes('sentence')) {
-    throw new AnkiError('Give the lines a field in the settings first.');
-  }
+  const { noteType, fields: roles } = settings.anki;
+  const problem = newCardProblem(settings, content.word !== undefined);
+  if (problem !== undefined) throw new AnkiError(problem);
 
   const stored = await storeAll(anki, roles, media);
   const fields: Record<string, string> = {};
@@ -237,23 +321,17 @@ export async function addNew(
 
   let noteId: number;
   try {
-    noteId = await anki.invoke<number>('addNote', {
-      note: {
-        deckName: deck,
-        modelName: noteType,
-        fields,
-        tags,
-        options: { allowDuplicate: false, duplicateScope: 'deck' },
-      },
-    });
+    noteId = await anki.invoke<number>('addNote', { note: noteOf(settings, fields) });
   } catch (error) {
     if (error instanceof AnkiError && /empty/i.test(error.message)) {
       throw new AnkiError(
-        `A new "${noteType}" card needs something in its first field. Give it the lines in the settings.`,
+        content.word === undefined
+          ? `A new "${noteType}" card needs something in its first field. Give it the lines in the settings.`
+          : `A new "${noteType}" card needs something in its first field. Give it the word in the settings.`,
       );
     }
     if (error instanceof AnkiError && /duplicate/i.test(error.message)) {
-      throw new AnkiError('This deck has a card like this already.');
+      throw new DuplicateCardError();
     }
     throw error;
   }

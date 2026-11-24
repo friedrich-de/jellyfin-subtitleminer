@@ -109,3 +109,89 @@ export interface SettingsChange {
 export interface StoredMedia {
   FileName: string;
 }
+
+/** A dictionary on the server. */
+export interface DictionaryView {
+  /** The name the calls that change it use. */
+  Id: string;
+  /** Its name in lookups. */
+  Title: string;
+  Revision: string;
+  /** Whether lookups use it. */
+  Enabled: boolean;
+  Terms: number;
+  Frequencies: number;
+  /** Pitch accents and pronunciations. */
+  Pitches: number;
+  FrequencyMode?: 'rank-based' | 'occurrence-based';
+  Author?: string;
+  Url?: string;
+  Attribution?: string;
+  /** Where a newer revision can be downloaded. */
+  DownloadUrl?: string;
+  /** Its stylesheet, which the popup keeps to its definitions. */
+  Styles: string;
+  /** The size of its file on the server. */
+  Bytes: number;
+  Imported: string;
+}
+
+export type ImportState = 'idle' | 'downloading' | 'importing' | 'done' | 'failed';
+
+/** What the import that runs, or ran last, does. */
+export interface DictionaryImport {
+  State: ImportState;
+  /** A file's name or an address. */
+  Source?: string;
+  /** From 0 to 1. */
+  Progress: number;
+  Title?: string;
+  Error?: string;
+}
+
+export interface DictionariesView {
+  /** In the order lookups read them. */
+  Dictionaries: DictionaryView[];
+  Import: DictionaryImport;
+  /** Whether the user may add, arrange and remove them: administrators may. */
+  MayManage: boolean;
+}
+
+/**
+ * What a lookup finds, as the dictionary popup reads it. Unlike the plugin's other answers, its
+ * names start small.
+ */
+export interface LookupResult {
+  /** The part of the text the word was found as. */
+  matched: string;
+  deinflected: string;
+  /** The inflections undone, in the order they were undone. */
+  trace: { name: string; description?: string }[];
+  term: {
+    expression: string;
+    reading: string;
+    /** Its parts of speech, with spaces between them ("v1 vt"). */
+    rules: string;
+    glossaries: {
+      dictionary: string;
+      /** Yomitan's glossary of one definition, as JSON. */
+      glossary: string;
+      definitionTags: string;
+      termTags: string;
+      tags: { name: string; category: string; order: number; notes: string; score: number }[];
+    }[];
+    frequencies: {
+      dictionary: string;
+      frequencies: { value: number; displayValue?: string }[];
+    }[];
+    pitches: {
+      dictionary: string;
+      pitches: { position: number; pattern?: string; nasal?: number[]; devoice?: number[] }[];
+      transcriptions?: string[];
+    }[];
+  };
+}
+
+export interface Lookup {
+  results: LookupResult[];
+}

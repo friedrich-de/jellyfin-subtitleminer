@@ -167,9 +167,17 @@ internal sealed class FakeDownloadHandler : HttpMessageHandler
 
     public List<Uri> Asked { get; } = [];
 
+    /// <summary>Gets the addresses that cannot be reached, as a server that is not there.</summary>
+    public HashSet<string> Unreachable { get; } = [];
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Asked.Add(request.RequestUri!);
+        if (Unreachable.Contains(request.RequestUri!.AbsoluteUri))
+        {
+            throw new HttpRequestException("Connection refused (dictionaries.example:443)");
+        }
+
         return Task.FromResult(Files.TryGetValue(request.RequestUri!.AbsoluteUri, out var data)
             ? new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(data) }
             : new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { ReasonPhrase = "Not Found" });

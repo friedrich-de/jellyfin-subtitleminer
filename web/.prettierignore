@@ -5,3 +5,4 @@ test-results
 playwright-report
 package-lock.json
 e2e/.state.json
+src/vendor

@@ -20,6 +20,9 @@ Done so far:
 - Sending cards through the server is for administrators unless an administrator lets everyone, since the server then calls whatever address a user types.
 - The page installs as an app from the browser, with its own icon. The app opens without the server and says it cannot reach it; it keeps only the page's own files, never subtitles, pictures, sound or settings. Installing needs Jellyfin over HTTPS, or the address of the device itself.
 - "Open Jellyfin" on the sign-in screen opens beside the page, which goes on by itself once you have signed in there.
+- A dictionary on the Jellyfin server, so that looking up words needs no browser extension. Tap a word in a line and a popup shows it, as Yomitan would: conjugations are undone with Yomitan's own rules, with each dictionary's meanings, tags, pictures, frequencies and pitch accents. On a phone the popup is a sheet at the bottom. "Add card" makes a new card with the word, its reading and furigana, the meaning from the first dictionary, the frequency, the pitch, the sentence with the word in bold, the picture and the sound; a word already in the deck says so.
+- Administrators add Yomitan dictionaries in the settings: Jitendex and JMnedict with one tap, any other address, or a file. The server imports them (Jitendex takes about half a minute), and they can be put in order, turned off and removed. Every user may look words up; only administrators change the dictionaries.
+- Looking up can be turned off in each user's settings, for those who mine with their own Yomitan.
 - Settings are kept on the Jellyfin server for each user, so they follow you from device to device: where cards go, the deck, the note type and what goes into each field (guessed from the field names, for Lapis and most mining note types), tags, the picture's format and width, and how much sound to keep before and after the lines.
 
 ## 1.1.0.1
