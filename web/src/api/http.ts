@@ -47,7 +47,9 @@ export async function send(fetchFn: Fetch, url: string, init: RequestInit): Prom
   let response: Response;
   try {
     response = await fetchFn(url, init);
-  } catch {
+  } catch (error) {
+    // A request the page called off is no sign of a server that cannot be reached.
+    if (init.signal?.aborted === true) throw error;
     throw new UnreachableError();
   }
   if (!response.ok) {
@@ -57,9 +59,15 @@ export async function send(fetchFn: Fetch, url: string, init: RequestInit): Prom
 }
 
 /** Reads one of the plugin's or Jellyfin's JSON answers with a login. */
-export async function getJson<T>(fetchFn: Fetch, url: string, token: string): Promise<T> {
+export async function getJson<T>(
+  fetchFn: Fetch,
+  url: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<T> {
   const response = await send(fetchFn, url, {
     headers: { Authorization: tokenHeader(token), Accept: 'application/json' },
+    ...(signal === undefined ? {} : { signal }),
   });
   return (await response.json()) as T;
 }

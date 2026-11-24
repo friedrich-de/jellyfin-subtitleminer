@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { jellyfinUrl } from '@/api/addresses';
 import { createSessionStore } from '@/auth/sessionStore';
 import type { AuthEnv } from '@/auth/signIn';
+import MainScreen from '@/components/MainScreen.vue';
 import SignInForm from '@/components/SignInForm.vue';
 
 const props = defineProps<{
@@ -21,22 +22,18 @@ onBeforeUnmount(() => store.stop());
 </script>
 
 <template>
-  <div class="app">
+  <MainScreen
+    v-if="state.kind === 'signed-in'"
+    :key="state.session.token"
+    :env="env"
+    :session="state.session"
+    @signed-out="store.retry()"
+    @sign-out="store.signOut()"
+  />
+
+  <div v-else class="app">
     <header class="bar">
       <span class="brand">Subtitle Miner</span>
-      <template v-if="state.kind === 'signed-in'">
-        <span class="who muted" data-testid="signed-in-as">
-          Signed in as {{ state.session.status.UserName }}
-        </span>
-        <button
-          v-if="state.session.source === 'page'"
-          class="button"
-          type="button"
-          @click="store.signOut()"
-        >
-          Sign out
-        </button>
-      </template>
     </header>
 
     <main class="main">
@@ -49,17 +46,6 @@ onBeforeUnmount(() => store.stop());
         :jellyfin-address="jellyfinAddress"
         @submit="(name, password) => store.signIn(name, password)"
       />
-
-      <section v-else-if="state.kind === 'signed-in'" class="note" data-testid="status">
-        <h1>Nothing to show yet</h1>
-        <p class="muted">
-          Version 2 is still being built. Following what is playing and making Anki cards come next.
-        </p>
-        <p class="muted" data-testid="versions">
-          Subtitle Miner {{ state.session.status.Version }} on
-          {{ state.session.status.ServerName }}, Jellyfin {{ state.session.status.ServerVersion }}
-        </p>
-      </section>
 
       <section v-else class="note" role="alert">
         <h1>
@@ -101,10 +87,6 @@ onBeforeUnmount(() => store.stop());
   font-size: 18px;
   font-weight: 600;
   color: var(--text-strong);
-}
-
-.who {
-  font-size: 13px;
 }
 
 .main {

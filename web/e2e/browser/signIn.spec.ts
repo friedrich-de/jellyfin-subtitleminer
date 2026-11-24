@@ -1,16 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { expect, signIn, test, tokenHeader } from '../support/fixtures';
-import type { Account } from '../support/server';
-
-/** Signs in on Jellyfin's own web client, the way a user does. */
-async function signInToJellyfin(page: Page, account: Account): Promise<void> {
-  await page.goto('/web/');
-  await page.locator('#txtManualName').fill(account.name);
-  await page.locator('#txtManualPassword').fill(account.password);
-  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
-  await page.waitForURL(/#\/home/);
-}
+import { signInToJellyfin } from '../support/webClient';
 
 /** The login Jellyfin's web client keeps in this browser. */
 async function jellyfinToken(page: Page): Promise<string | null> {
@@ -29,7 +20,9 @@ test.describe('with a login of Jellyfin in the browser', () => {
     await signInToJellyfin(page, jellyfin.viewer);
 
     await page.goto('/SubtitleMiner/');
+    await page.getByTestId('account').click();
     await expect(page.getByTestId('signed-in-as')).toHaveText('Signed in as viewer');
+    await expect(page.getByTestId('signed-in-as')).toBeVisible();
     await expect(page.getByRole('heading', signInHeading)).toHaveCount(0);
     await expect(page.getByTestId('versions')).toContainText(
       `Subtitle Miner ${jellyfin.plugin.version}`,
@@ -48,7 +41,7 @@ test.describe('with a login of Jellyfin in the browser', () => {
   }) => {
     await signInToJellyfin(page, jellyfin.viewer);
     await page.goto('/SubtitleMiner/');
-    await expect(page.getByTestId('signed-in-as')).toBeVisible();
+    await expect(page.getByTestId('account')).toHaveText('viewer');
 
     const token = await jellyfinToken(page);
     expect(token).not.toBeNull();
@@ -122,6 +115,7 @@ test.describe('without a login of Jellyfin in the browser', () => {
       return stored.accessToken ?? '';
     });
     expect(token).not.toBe('');
+    await page.getByTestId('account').click();
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page.getByRole('heading', signInHeading)).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('subtitle-miner.session'))).toBeNull();

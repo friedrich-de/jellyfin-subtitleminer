@@ -1,4 +1,5 @@
 import type { Fetch } from '@/api/http';
+import type { Watch } from '@/api/types';
 import type { AuthEnv, Status } from '@/auth/signIn';
 
 /** A browser's storage, held in memory. */
@@ -142,4 +143,89 @@ export function webClientLogins(...logins: { token: string; used?: number }[]): 
       DateLastAccessed: login.used ?? index,
     })),
   });
+}
+
+/** A stream of server-sent events that a test writes into. */
+export function eventStream() {
+  const encoder = new TextEncoder();
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  let open = true;
+  const body = new ReadableStream<Uint8Array>({
+    start(started) {
+      controller = started;
+    },
+  });
+  const write = (text: string): void => {
+    if (open) controller.enqueue(encoder.encode(text));
+  };
+  return {
+    response: new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    }),
+    write,
+    send(watches: Watch[]): void {
+      write(`event: watches\ndata: ${JSON.stringify({ Watches: watches })}\n\n`);
+    },
+    close(): void {
+      if (open) controller.close();
+      open = false;
+    },
+    fail(error: unknown): void {
+      if (open) controller.error(error);
+      open = false;
+    },
+  };
+}
+
+export type EventStream = ReturnType<typeof eventStream>;
+
+function urlOf(input: RequestInfo | URL): string {
+  return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+}
+
+/**
+ * Answers the plugin's stream of news with one that says nothing has played and stays open, and
+ * passes every other request on. For tests of something else than the news.
+ */
+export function withQuietEvents(fetch: Fetch): Fetch {
+  return (input, init) => {
+    if (!urlOf(input).endsWith('/Api/Events')) return fetch(input, init);
+    const stream = eventStream();
+    stream.send([]);
+    init?.signal?.addEventListener('abort', () =>
+      stream.fail(new DOMException('The request was aborted.', 'AbortError')),
+    );
+    return Promise.resolve(stream.response);
+  };
+}
+
+export interface RoutedRequest extends SentRequest {
+  /** The path below the plugin's API, such as "Items/abc/Subtitles". */
+  path: string;
+  query: URLSearchParams;
+  signal: AbortSignal | undefined;
+}
+
+/** A server that answers by address, with what the test's function returns. */
+export function fakeRoutes(
+  route: (request: RoutedRequest) => Response | Error | Promise<Response> | undefined,
+): { fetch: Fetch; sent: RoutedRequest[] } {
+  const sent: RoutedRequest[] = [];
+  const fetch: Fetch = (input, init) => {
+    const url = new URL(urlOf(input));
+    const request: RoutedRequest = {
+      url: url.href,
+      method: init?.method ?? 'GET',
+      headers: headerMap(init?.headers),
+      body: typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : null,
+      path: url.pathname.replace(/^.*\/SubtitleMiner\/Api\//, ''),
+      query: url.searchParams,
+      signal: init?.signal ?? undefined,
+    };
+    sent.push(request);
+    const answer = route(request) ?? problem(404, `Nothing at ${url.pathname}`);
+    return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
+  };
+  return { fetch, sent };
 }

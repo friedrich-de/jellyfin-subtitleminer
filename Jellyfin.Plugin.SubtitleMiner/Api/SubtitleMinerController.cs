@@ -15,6 +15,9 @@ namespace Jellyfin.Plugin.SubtitleMiner.Api;
 [Authorize]
 public class SubtitleMinerController : ControllerBase
 {
+    /// <summary>What a caller without a user's login is told.</summary>
+    internal const string NoUser = "Sign in to Jellyfin as a user to use this page.";
+
     private readonly PluginServices _services;
 
     /// <summary>
@@ -39,7 +42,7 @@ public class SubtitleMinerController : ControllerBase
         var caller = await _services.Callers.ResolveAsync(HttpContext).ConfigureAwait(false);
         if (caller is null)
         {
-            return Problem("Sign in to Jellyfin as a user to use this page.", statusCode: StatusCodes.Status403Forbidden);
+            return Problem(NoUser, statusCode: StatusCodes.Status403Forbidden);
         }
 
         return Ok(new StatusView
