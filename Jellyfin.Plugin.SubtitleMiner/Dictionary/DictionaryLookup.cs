@@ -336,7 +336,7 @@ internal static class DictionaryLookup
         switch (data.ValueKind)
         {
             case JsonValueKind.Number:
-                return new FrequencyView { Value = data.GetDouble() };
+                return YomitanArchive.Number(data, out var plain) ? new FrequencyView { Value = plain } : null;
             case JsonValueKind.String:
                 var text = data.GetString()!;
                 var digits = new string(text.TakeWhile(char.IsAsciiDigit).ToArray());
@@ -352,13 +352,19 @@ internal static class DictionaryLookup
         }
     }
 
+    /// <summary>Whether metadata is an object for this reading. A reading that is not text is for none.</summary>
+    private static bool ForReading(JsonElement data, string reading) =>
+        data.ValueKind == JsonValueKind.Object
+        && data.TryGetProperty("reading", out var forReading)
+        && forReading.ValueKind == JsonValueKind.String
+        && forReading.GetString() == reading;
+
     /// <summary>Pitch accents as Yomitan writes them: <c>{reading, pitches: [{position, nasal, devoice}]}</c>.</summary>
     internal static IEnumerable<PitchView> ReadPitches(string json, string reading)
     {
         using var document = JsonDocument.Parse(json);
         var data = document.RootElement;
-        if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("reading", out var forReading) || forReading.GetString() != reading
-            || !data.TryGetProperty("pitches", out var pitches) || pitches.ValueKind != JsonValueKind.Array)
+        if (!ForReading(data, reading) || !data.TryGetProperty("pitches", out var pitches) || pitches.ValueKind != JsonValueKind.Array)
         {
             return [];
         }
@@ -407,8 +413,7 @@ internal static class DictionaryLookup
     {
         using var document = JsonDocument.Parse(json);
         var data = document.RootElement;
-        if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("reading", out var forReading) || forReading.GetString() != reading
-            || !data.TryGetProperty("transcriptions", out var transcriptions) || transcriptions.ValueKind != JsonValueKind.Array)
+        if (!ForReading(data, reading) || !data.TryGetProperty("transcriptions", out var transcriptions) || transcriptions.ValueKind != JsonValueKind.Array)
         {
             return [];
         }

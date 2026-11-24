@@ -171,6 +171,28 @@ public sealed class DictionaryLookupTests : IDisposable
     }
 
     [Fact]
+    public void Metadata_whose_reading_or_number_is_not_what_the_format_says_is_left_out_and_the_word_still_found()
+    {
+        var odd = new YomitanZip
+        {
+            Title = "Odd",
+            Metas =
+            {
+                new object[] { "食べる", "pitch", new { reading = 42, pitches = new object[] { new { position = 2 } } } },
+                new object[] { "食べる", "ipa", new { reading = new[] { "たべる" }, transcriptions = new object[] { new { ipa = "x" } } } },
+                new object[] { "食べる", "freq", new { reading = true, frequency = 5 } },
+            },
+        };
+
+        var term = Assert.Single(Find("食べる", Words(), odd).Results, result => result.Term.Expression == "食べる").Term;
+
+        Assert.Equal("食べる", term.Expression);
+        Assert.Empty(term.Pitches);
+        Assert.Empty(term.Frequencies);
+        Assert.Null(DictionaryLookup.ReadFrequency("1e400", "たべる"));
+    }
+
+    [Fact]
     public void A_word_in_two_dictionaries_is_one_result_with_both_definitions_in_their_order()
     {
         var other = new YomitanZip { Title = "Other", Terms = { YomitanZip.Term("食べる", "たべる", "v1", "v1", 1, ["to consume"]) } };

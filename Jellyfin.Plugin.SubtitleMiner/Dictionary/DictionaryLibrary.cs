@@ -77,6 +77,12 @@ internal sealed class DictionaryLibrary : IDisposable
     private CancellationTokenSource? _running;
     private Task _job = Task.CompletedTask;
 
+    /// <summary>How many lookups and pictures read each dictionary now, under <see cref="_gate"/>.</summary>
+    private readonly Dictionary<DictionaryReader, int> _readers = [];
+
+    /// <summary>Dictionaries replaced or removed while read: their files go when the last read ends.</summary>
+    private readonly HashSet<DictionaryReader> _retired = [];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="DictionaryLibrary"/> class, reading what is in
     /// <paramref name="folder"/>. An import that a stop of the server cut short is thrown away.
@@ -93,7 +99,7 @@ internal sealed class DictionaryLibrary : IDisposable
             TryDelete(unfinished);
         }
 
-        _installed = Read();
+        _installed = ReadList();
     }
 
     /// <summary>Gets the dictionaries in their order.</summary>
@@ -107,9 +113,6 @@ internal sealed class DictionaryLibrary : IDisposable
             }
         }
     }
-
-    /// <summary>Gets the dictionaries lookups use, in their order.</summary>
-    public IReadOnlyList<DictionaryReader> Enabled => Installed.Where(item => item.Enabled).Select(item => item.Reader).ToList();
 
     /// <summary>Gets what the import that runs or ran last is doing.</summary>
     public ImportState Import
@@ -138,7 +141,31 @@ internal sealed class DictionaryLibrary : IDisposable
     /// <summary>Looks up the words <paramref name="text"/> starts with in the dictionaries that are on.</summary>
     /// <param name="text">The text.</param>
     /// <returns>The words.</returns>
-    public LookupView Lookup(string text) => DictionaryLookup.Find(text, Enabled);
+    public LookupView Lookup(string text)
+    {
+        using var reading = Read(item => item.Enabled);
+        return DictionaryLookup.Find(text, reading.Readers);
+    }
+
+    /// <summary>
+    /// The dictionaries that <paramref name="which"/> picks, kept for reading until the result is disposed: one
+    /// replaced or removed meanwhile keeps its file until then, since a lookup opens it more than once.
+    /// </summary>
+    /// <param name="which">Which dictionaries.</param>
+    /// <returns>The dictionaries, in their order.</returns>
+    internal Reading Read(Func<InstalledDictionary, bool> which)
+    {
+        lock (_gate)
+        {
+            var readers = _installed.Where(which).Select(item => item.Reader).ToList();
+            foreach (var reader in readers)
+            {
+                _readers[reader] = _readers.GetValueOrDefault(reader) + 1;
+            }
+
+            return new Reading(this, readers);
+        }
+    }
 
     /// <summary>
     /// Starts an import, unless one runs. <paramref name="fetch"/> gives the path of the zip (downloading it, or
@@ -219,8 +246,7 @@ internal sealed class DictionaryLibrary : IDisposable
             Save();
         }
 
-        SqliteConnection.ClearAllPools();
-        TryDelete(removed.Reader.Path);
+        Retire(removed.Reader);
         return true;
     }
 
@@ -230,13 +256,13 @@ internal sealed class DictionaryLibrary : IDisposable
     /// <returns>The picture and its type.</returns>
     public (byte[] Data, string Type)? Media(string id, string path)
     {
-        var reader = Installed.FirstOrDefault(item => item.Reader.Info.Id == id)?.Reader;
-        if (reader is null || !YomitanArchive.MediaTypes.TryGetValue(Path.GetExtension(path), out var type))
+        if (!YomitanArchive.MediaTypes.TryGetValue(Path.GetExtension(path), out var type))
         {
             return null;
         }
 
-        return reader.Media(path) is { } data ? (data, type) : null;
+        using var reading = Read(item => item.Reader.Info.Id == id);
+        return reading.Readers.Count > 0 && reading.Readers[0].Media(path) is { } data ? (data, type) : null;
     }
 
     /// <summary>The size of a dictionary's file.</summary>
@@ -330,8 +356,51 @@ internal sealed class DictionaryLibrary : IDisposable
 
         if (replaced is not null)
         {
-            SqliteConnection.ClearAllPools();
-            TryDelete(replaced.Reader.Path);
+            Retire(replaced.Reader);
+        }
+    }
+
+    /// <summary>Removes the file of a dictionary that is no longer listed, now or when the last read of it ends.</summary>
+    private void Retire(DictionaryReader reader)
+    {
+        lock (_gate)
+        {
+            if (_readers.ContainsKey(reader))
+            {
+                _retired.Add(reader);
+                return;
+            }
+        }
+
+        SqliteConnection.ClearAllPools();
+        TryDelete(reader.Path);
+    }
+
+    private void Done(IReadOnlyList<DictionaryReader> readers)
+    {
+        var gone = new List<DictionaryReader>();
+        lock (_gate)
+        {
+            foreach (var reader in readers)
+            {
+                var left = _readers[reader] - 1;
+                if (left > 0)
+                {
+                    _readers[reader] = left;
+                    continue;
+                }
+
+                _readers.Remove(reader);
+                if (_retired.Remove(reader))
+                {
+                    gone.Add(reader);
+                }
+            }
+        }
+
+        foreach (var reader in gone)
+        {
+            Retire(reader);
         }
     }
 
@@ -339,7 +408,7 @@ internal sealed class DictionaryLibrary : IDisposable
         installed.Title == imported.Title
         || (installed.IndexUrl is { Length: > 0 } index && index == imported.IndexUrl);
 
-    private List<InstalledDictionary> Read()
+    private List<InstalledDictionary> ReadList()
     {
         var listed = new DictionaryList();
         var file = Path.Combine(_folder, ListFileName);
@@ -429,6 +498,24 @@ internal sealed class DictionaryLibrary : IDisposable
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(error, "Could not remove {Path}", path);
+        }
+    }
+
+    /// <summary>Dictionaries kept for reading until this is disposed.</summary>
+    internal sealed class Reading(DictionaryLibrary library, IReadOnlyList<DictionaryReader> readers) : IDisposable
+    {
+        private int _done;
+
+        /// <summary>Gets the dictionaries, in their order.</summary>
+        public IReadOnlyList<DictionaryReader> Readers => readers;
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _done, 1) == 0)
+            {
+                library.Done(readers);
+            }
         }
     }
 

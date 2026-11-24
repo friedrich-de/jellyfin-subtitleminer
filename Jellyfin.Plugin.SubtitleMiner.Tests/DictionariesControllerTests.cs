@@ -241,6 +241,38 @@ public sealed class DictionariesControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_dictionary_removed_or_replaced_during_a_lookup_keeps_its_file_until_the_lookup_ends()
+    {
+        await Upload(Words("Words", "old meaning"));
+        await Upload(Words("Other"));
+        var ids = (await List()).Dictionaries.Select(item => item.Id).ToList();
+        var folder = Path.Combine(_test.Scratch, "dictionaries");
+        string FileOf(string id) => Path.Combine(folder, id + ".db");
+
+        var first = _test.Dictionaries.Read(_ => true);
+        var second = _test.Dictionaries.Read(item => item.Reader.Info.Id == ids[1]);
+        await Upload(Words("Words", "new meaning"));
+        await Controller().DeleteDictionary(ids[1]);
+
+        Assert.True(File.Exists(FileOf(ids[0])));
+        Assert.True(File.Exists(FileOf(ids[1])));
+        var titles = DictionaryLookup.Find("食べる", first.Readers).Results
+            .SelectMany(result => result.Term.Glossaries)
+            .Select(glossary => glossary.Dictionary);
+        Assert.Equal(["Words", "Other"], titles);
+        Assert.Equal(["Words"], (await List()).Dictionaries.Select(item => item.Title));
+
+        first.Dispose();
+        first.Dispose();
+        Assert.False(File.Exists(FileOf(ids[0])));
+        Assert.True(File.Exists(FileOf(ids[1])));
+
+        second.Dispose();
+        Assert.False(File.Exists(FileOf(ids[1])));
+        Assert.Single(Directory.GetFiles(folder, "*.db"));
+    }
+
+    [Fact]
     public async Task The_dictionaries_their_order_and_what_is_off_are_there_after_a_restart()
     {
         await Upload(Words("First"));
