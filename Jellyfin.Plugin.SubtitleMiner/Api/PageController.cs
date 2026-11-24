@@ -18,12 +18,20 @@ public class PageController : ControllerBase
 {
     /// <summary>
     /// What the page may do: run its own script and styles, show pictures and play sound from this server or
-    /// made in the page, and call this server. Nothing from elsewhere, and no other site may frame it.
+    /// made in the page, and call this server and an AnkiConnect on the user's own device. Nothing from
+    /// elsewhere, and no other site may frame it. An AnkiConnect anywhere else is called by the server.
     /// </summary>
     internal const string ContentSecurityPolicy =
         "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; "
-        + "font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; "
+        + "font-src 'self'; connect-src 'self' " + DeviceAddresses + "; manifest-src 'self'; worker-src 'self'; "
         + "frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+
+    /// <summary>
+    /// The addresses of the user's own device, on any port: where desktop Anki's AnkiConnect, and the Android
+    /// app's, listen.
+    /// </summary>
+    internal const string DeviceAddresses =
+        "http://127.0.0.1:* http://localhost:* http://[::1]:* https://127.0.0.1:* https://localhost:* https://[::1]:*";
 
     /// <summary>
     /// Where the page lives, as an address relative to the folder it sits in.

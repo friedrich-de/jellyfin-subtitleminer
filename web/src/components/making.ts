@@ -5,3 +5,10 @@ export type Making =
   | { kind: 'failed'; message: string }
   /** Nothing can be cut, and why. */
   | { kind: 'none'; message: string };
+
+/** Where sending the chosen lines to Anki is. */
+export type Sending =
+  | { kind: 'idle' }
+  | { kind: 'busy'; text: string }
+  | { kind: 'done'; text: string; canUndo: boolean }
+  | { kind: 'failed'; text: string };
