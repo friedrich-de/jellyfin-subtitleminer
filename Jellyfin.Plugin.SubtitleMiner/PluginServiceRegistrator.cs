@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using Jellyfin.Plugin.SubtitleMiner.Anki;
 using Jellyfin.Plugin.SubtitleMiner.Api;
 using Jellyfin.Plugin.SubtitleMiner.Library;
 using Jellyfin.Plugin.SubtitleMiner.Media;
 using Jellyfin.Plugin.SubtitleMiner.Playback;
+using Jellyfin.Plugin.SubtitleMiner.Settings;
 using Jellyfin.Plugin.SubtitleMiner.Subtitles;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
@@ -23,11 +25,18 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     /// </summary>
     internal const string ScratchFolderName = "subtitle-miner";
 
+    /// <summary>
+    /// The plugin's folder inside Jellyfin's data folder: the users' settings and the secret that encrypts their keys.
+    /// </summary>
+    internal const string DataFolderName = "subtitle-miner";
+
     /// <inheritdoc />
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         static string Scratch(IServiceProvider provider) =>
             Path.Combine(provider.GetRequiredService<IApplicationPaths>().TempDirectory, ScratchFolderName);
+        static string Data(IServiceProvider provider) =>
+            Path.Combine(provider.GetRequiredService<IApplicationPaths>().DataPath, DataFolderName);
 
         serviceCollection.AddSingleton<ICallerResolver, CallerResolver>();
         serviceCollection.AddSingleton(_ => new PlaybackTracker(TimeProvider.System));
@@ -42,6 +51,13 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<IFfmpeg>(),
             Scratch(provider),
             provider.GetRequiredService<ILogger<MediaCutter>>()));
+        serviceCollection.AddSingleton(provider => new UserSettingsStore(
+            Path.Combine(Data(provider), "users"),
+            new KeyProtector(Path.Combine(Data(provider), KeyProtector.FileName)),
+            provider.GetRequiredService<ILogger<UserSettingsStore>>()));
+        serviceCollection.AddSingleton<ISharedSettings, PluginSharedSettings>();
+        serviceCollection.AddSingleton(provider => new AnkiClient(AnkiClient.CreateHandler(), provider.GetRequiredService<ILogger<AnkiClient>>()));
+        serviceCollection.AddSingleton(provider => new AnkiGate(provider.GetRequiredService<UserSettingsStore>(), provider.GetRequiredService<ISharedSettings>()));
         serviceCollection.AddSingleton(provider => new PluginServices(
             new PageFiles(new EmbeddedPageFiles(typeof(Plugin).Assembly)),
             provider.GetRequiredService<ICallerResolver>(),
@@ -50,6 +66,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<IMediaLibrary>(),
             provider.GetRequiredService<SubtitleStore>(),
             provider.GetRequiredService<MediaCutter>(),
+            provider.GetRequiredService<UserSettingsStore>(),
+            provider.GetRequiredService<ISharedSettings>(),
+            provider.GetRequiredService<AnkiClient>(),
+            provider.GetRequiredService<AnkiGate>(),
             TimeProvider.System));
     }
 }
