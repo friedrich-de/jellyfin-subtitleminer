@@ -38,6 +38,13 @@ internal enum WordAudioOutcome
 internal sealed record WordAudio(WordAudioOutcome Outcome, byte[]? Content = null, string? ContentType = null, string? Extension = null);
 
 /// <summary>
+/// The sounds an audio source has for a word, by name, as Yomitan lists them when its audio button is held.
+/// </summary>
+/// <param name="Outcome">What the search came to: <see cref="WordAudioOutcome.Found"/> with the list, which may be empty.</param>
+/// <param name="Names">The names of the sounds, in the source's order, each once.</param>
+internal sealed record WordAudioChoices(WordAudioOutcome Outcome, IReadOnlyList<string> Names);
+
+/// <summary>
 /// Fetches how a word sounds from the audio source an administrator set, as Yomitan does with a custom audio source:
 /// an address with <c>{term}</c> and <c>{reading}</c> in it that answers with a list of sounds in JSON (Yomitan's
 /// "Custom URL (JSON)") or with the sound itself ("Custom URL"). Such an address often holds a key: it is kept
@@ -53,6 +60,12 @@ internal sealed class WordAudioSource : IDisposable
 
     /// <summary>How many sounds of a list are tried before the word is taken to have none.</summary>
     internal const int MaxTries = 3;
+
+    /// <summary>A sound's name longer than this is cut.</summary>
+    internal const int MaxName = 60;
+
+    /// <summary>The name of the one sound of a "Custom URL" source, which answers with the sound itself.</summary>
+    internal const string DirectName = "Sound";
 
     /// <summary>How long a search may take in all.</summary>
     internal static readonly TimeSpan Limit = TimeSpan.FromSeconds(15);
@@ -174,42 +187,39 @@ internal sealed class WordAudioSource : IDisposable
     /// <param name="reading">Its reading; the word itself where it is empty.</param>
     /// <param name="cancellationToken">Ends the search.</param>
     /// <returns>The sound, or why there is none.</returns>
-    public async Task<WordAudio> FindAsync(string term, string reading, CancellationToken cancellationToken)
-    {
-        var template = Address;
-        if (template.Length == 0)
-        {
-            return new WordAudio(WordAudioOutcome.NoSource);
-        }
+    public Task<WordAudio> FindAsync(string term, string reading, CancellationToken cancellationToken)
+        => FindAsync(term, reading, null, cancellationToken);
 
-        term = term.Trim();
-        reading = string.IsNullOrWhiteSpace(reading) ? term : reading.Trim();
-        if (term.Length == 0 || Fill(template, term, reading) is not { } address)
+    /// <summary>
+    /// Finds how a word sounds: the sound of the source's list with the name given, or without one the first sound
+    /// of the list that can be fetched.
+    /// </summary>
+    /// <param name="term">The word as the dictionary writes it.</param>
+    /// <param name="reading">Its reading; the word itself where it is empty.</param>
+    /// <param name="source">The name of the sound wanted, as <see cref="ChoicesAsync"/> gives it; null for the first that works.</param>
+    /// <param name="cancellationToken">Ends the search.</param>
+    /// <returns>The sound, or why there is none.</returns>
+    public Task<WordAudio> FindAsync(string term, string reading, string? source, CancellationToken cancellationToken)
+        => AskAsync(term, reading, new WordAudio(WordAudioOutcome.NoSource), new WordAudio(WordAudioOutcome.NotFound), new WordAudio(WordAudioOutcome.Failed), async (address, first, token) =>
         {
-            return new WordAudio(WordAudioOutcome.NotFound);
-        }
-
-        await _running.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            limit.CancelAfter(Limit);
-            var first = await GetAsync(address, limit.Token).ConfigureAwait(false);
-            if (first is null)
-            {
-                return new WordAudio(WordAudioOutcome.Failed);
-            }
-
             // A "Custom URL" source answers with the sound itself.
             if (AudioOf(first) is { } direct)
             {
-                return direct;
+                return source is null || source == DirectName ? direct : new WordAudio(WordAudioOutcome.NotFound);
             }
 
             if (SoundsOf(first) is not { } sounds)
             {
                 _logger.LogWarning("The word audio source at {Host} answered with neither a sound nor Yomitan's list of sounds.", address.Host);
                 return new WordAudio(WordAudioOutcome.Failed);
+            }
+
+            if (source is not null)
+            {
+                var chosen = sounds.Find(sound => sound.Name == source);
+                return chosen is not null && await GetAsync(chosen.Address, token).ConfigureAwait(false) is { } fetched && AudioOf(fetched) is { } sound
+                    ? sound
+                    : new WordAudio(WordAudioOutcome.NotFound);
             }
 
             var tried = 0;
@@ -220,18 +230,68 @@ internal sealed class WordAudioSource : IDisposable
                     break;
                 }
 
-                if (await GetAsync(sound, limit.Token).ConfigureAwait(false) is { } fetched && AudioOf(fetched) is { } found)
+                if (await GetAsync(sound.Address, token).ConfigureAwait(false) is { } fetched && AudioOf(fetched) is { } found)
                 {
                     return found;
                 }
             }
 
             return new WordAudio(WordAudioOutcome.NotFound);
+        }, cancellationToken);
+
+    /// <summary>
+    /// The sounds the source has for a word, by name, for the user to choose one: a "Custom URL (JSON)" source's
+    /// list, or the one sound of a "Custom URL" source. Only the names leave the server, never the addresses.
+    /// </summary>
+    /// <param name="term">The word as the dictionary writes it.</param>
+    /// <param name="reading">Its reading; the word itself where it is empty.</param>
+    /// <param name="cancellationToken">Ends the search.</param>
+    /// <returns>The names, or why there are none.</returns>
+    public Task<WordAudioChoices> ChoicesAsync(string term, string reading, CancellationToken cancellationToken)
+        => AskAsync(term, reading, new WordAudioChoices(WordAudioOutcome.NoSource, []), new WordAudioChoices(WordAudioOutcome.Found, []), new WordAudioChoices(WordAudioOutcome.Failed, []), (address, first, _) =>
+        {
+            if (AudioOf(first) is not null)
+            {
+                return Task.FromResult(new WordAudioChoices(WordAudioOutcome.Found, [DirectName]));
+            }
+
+            if (SoundsOf(first) is not { } sounds)
+            {
+                _logger.LogWarning("The word audio source at {Host} answered with neither a sound nor Yomitan's list of sounds.", address.Host);
+                return Task.FromResult(new WordAudioChoices(WordAudioOutcome.Failed, []));
+            }
+
+            return Task.FromResult(new WordAudioChoices(WordAudioOutcome.Found, sounds.ConvertAll(sound => sound.Name)));
+        }, cancellationToken);
+
+    /// <summary>Asks the source about a word and reads its first answer, at most four words at a time and within <see cref="Limit"/>.</summary>
+    private async Task<T> AskAsync<T>(string term, string reading, T noSource, T nothing, T failed, Func<Uri, Fetched, CancellationToken, Task<T>> read, CancellationToken cancellationToken)
+    {
+        var template = Address;
+        if (template.Length == 0)
+        {
+            return noSource;
+        }
+
+        term = term.Trim();
+        reading = string.IsNullOrWhiteSpace(reading) ? term : reading.Trim();
+        if (term.Length == 0 || Fill(template, term, reading) is not { } address)
+        {
+            return nothing;
+        }
+
+        await _running.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            limit.CancelAfter(Limit);
+            var first = await GetAsync(address, limit.Token).ConfigureAwait(false);
+            return first is null ? failed : await read(address, first, limit.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("The word audio source at {Host} did not answer in time.", address.Host);
-            return new WordAudio(WordAudioOutcome.Failed);
+            return failed;
         }
         finally
         {
@@ -274,8 +334,12 @@ internal sealed class WordAudioSource : IDisposable
             : null;
     }
 
-    /// <summary>The sounds of Yomitan's list, in its order, or null when the answer is not such a list.</summary>
-    private static List<Uri>? SoundsOf(Fetched fetched)
+    /// <summary>
+    /// The sounds of Yomitan's list, in its order, each with a name of its own: the list's name, cut to
+    /// <see cref="MaxName"/>, "Sound 2" where it has none, and "nhk16 (2)" for a name said before. Null when the answer
+    /// is not such a list.
+    /// </summary>
+    private static List<NamedSound>? SoundsOf(Fetched fetched)
     {
         if (fetched.Content.Length > MaxListBytes)
         {
@@ -293,7 +357,8 @@ internal sealed class WordAudioSource : IDisposable
                 return null;
             }
 
-            var sounds = new List<Uri>();
+            var sounds = new List<NamedSound>();
+            var names = new HashSet<string>(StringComparer.Ordinal);
             foreach (var item in list.EnumerateArray())
             {
                 if (item.ValueKind == JsonValueKind.Object
@@ -301,7 +366,19 @@ internal sealed class WordAudioSource : IDisposable
                     && Uri.TryCreate(fetched.Address, url.GetString(), out var address)
                     && (address.Scheme == Uri.UriSchemeHttps || address.Scheme == Uri.UriSchemeHttp))
                 {
-                    sounds.Add(address);
+                    var given = item.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString()!.Trim() : string.Empty;
+                    if (given.Length > MaxName)
+                    {
+                        given = given[..MaxName];
+                    }
+
+                    var unique = given.Length > 0 ? given : $"Sound {sounds.Count + 1}";
+                    for (var count = 2; !names.Add(unique); count++)
+                    {
+                        unique = $"{(given.Length > 0 ? given : $"Sound {sounds.Count + 1}")} ({count})";
+                    }
+
+                    sounds.Add(new NamedSound(unique, address));
                 }
             }
 
@@ -357,4 +434,6 @@ internal sealed class WordAudioSource : IDisposable
     }
 
     private sealed record Fetched(Uri Address, string? ContentType, byte[] Content);
+
+    private sealed record NamedSound(string Name, Uri Address);
 }

@@ -29,7 +29,13 @@ export class WordAudioMissingError extends Error {
 export type MediaCut =
   | { kind: 'picture'; itemId: string; source: string; options: PictureOptions }
   | { kind: 'sound'; itemId: string; source: string; options: SoundOptions }
-  | { kind: 'word-audio'; term: string; reading: string };
+  | {
+      kind: 'word-audio';
+      term: string;
+      reading: string;
+      /** The name of the sound chosen in the popup; the first that works when left out. */
+      choice?: string;
+    };
 
 /** The user's Anki, wherever its AnkiConnect is. */
 export interface AnkiConnect {
@@ -94,8 +100,9 @@ export function mediaName(cut: MediaCut, type: string): string {
   const extension =
     EXTENSIONS[type.split(';')[0]!.trim()] ?? (type.startsWith('audio/') ? 'ogg' : 'bin');
   if (cut.kind === 'word-audio') {
-    // The same word gets the same name, so its sound is in Anki once.
-    return `subtitle-miner_word_${markOf(`${cut.term.trim()}|${cut.reading.trim() || cut.term.trim()}`)}.${extension}`;
+    // The same word from the same sound gets the same name, so its sound is in Anki once.
+    const choice = cut.choice === undefined || cut.choice === '' ? '' : `|${cut.choice}`;
+    return `subtitle-miner_word_${markOf(`${cut.term.trim()}|${cut.reading.trim() || cut.term.trim()}${choice}`)}.${extension}`;
   }
   const at = cut.kind === 'picture' ? cut.options.atMs : cut.options.startMs;
   const mark = markOf(JSON.stringify([cut.kind, cut.itemId, cut.source, cut.options]));
@@ -152,7 +159,7 @@ export function deviceAnki(
     async store(cut) {
       const blob =
         cut.kind === 'word-audio'
-          ? await wordAudioOf(api, cut.term, cut.reading)
+          ? await wordAudioOf(api, cut.term, cut.reading, cut.choice)
           : cut.kind === 'picture'
             ? await api.picture(cut.itemId, cut.source, cut.options)
             : await api.sound(cut.itemId, cut.source, cut.options);
@@ -177,9 +184,10 @@ async function wordAudioOf(
   api: Pick<PluginApi, 'wordAudio'>,
   term: string,
   reading: string,
+  choice: string | undefined,
 ): Promise<Blob> {
   try {
-    return await api.wordAudio(term, reading);
+    return await api.wordAudio(term, reading, undefined, choice);
   } catch (error) {
     throw wordAudioMissing(error) ?? error;
   }
@@ -209,7 +217,7 @@ export function serverAnki(
       try {
         const stored =
           cut.kind === 'word-audio'
-            ? await api.wordAudioToAnki(cut.term, cut.reading)
+            ? await api.wordAudioToAnki(cut.term, cut.reading, cut.choice)
             : cut.kind === 'picture'
               ? await api.pictureToAnki(cut.itemId, cut.source, cut.options)
               : await api.soundToAnki(cut.itemId, cut.source, cut.options);

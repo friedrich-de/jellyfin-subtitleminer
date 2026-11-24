@@ -8,6 +8,7 @@ import type {
   StoredMedia,
   Subtitles,
   WordAudioSaved,
+  WordAudioSourcesView,
 } from './types';
 
 export type PictureFormat = 'jpeg' | 'webp' | 'avif';
@@ -76,10 +77,15 @@ export interface PluginApi {
   arrangeDictionaries(order: string[], disabled: string[]): Promise<DictionariesView>;
   /** Only an administrator may. */
   removeDictionary(id: string): Promise<DictionariesView>;
-  /** How a word sounds, from the audio source an administrator set. */
-  wordAudio(term: string, reading: string, signal?: AbortSignal): Promise<Blob>;
-  /** Puts how a word sounds into the user's Anki on a server. */
-  wordAudioToAnki(term: string, reading: string): Promise<StoredMedia>;
+  /**
+   * How a word sounds, from the audio source an administrator set: the sound of that name, or the
+   * first that works when no name is given.
+   */
+  wordAudio(term: string, reading: string, signal?: AbortSignal, choice?: string): Promise<Blob>;
+  /** The names of the sounds the audio source has for a word, to choose one as in Yomitan. */
+  wordAudioSources(term: string, reading: string, signal?: AbortSignal): Promise<string[]>;
+  /** Puts how a word sounds into the user's Anki on a server: the sound of that name, if given. */
+  wordAudioToAnki(term: string, reading: string, choice?: string): Promise<StoredMedia>;
   /** Only an administrator may: sets the audio source for words, or takes it away with "". */
   saveWordAudio(address: string): Promise<WordAudioSaved>;
 }
@@ -220,11 +226,24 @@ export function createPluginApi(fetchFn: Fetch, base: string, token: string): Pl
     removeDictionary: (id) =>
       sendJson<DictionariesView>('DELETE', dictionaries(`/${encodeURIComponent(id)}`)),
 
-    wordAudio: (term, reading, signal) =>
-      file(apiUrl(base, `WordAudio?${query({ term, reading })}`), signal),
+    wordAudio: (term, reading, signal, choice) =>
+      file(apiUrl(base, `WordAudio?${query({ term, reading, source: choice })}`), signal),
 
-    wordAudioToAnki: (term, reading) =>
-      sendJson<StoredMedia>('POST', apiUrl(base, `WordAudio/Anki?${query({ term, reading })}`)),
+    wordAudioSources: async (term, reading, signal) =>
+      (
+        await getJson<WordAudioSourcesView>(
+          fetchFn,
+          apiUrl(base, `WordAudio/Sources?${query({ term, reading })}`),
+          token,
+          signal,
+        )
+      ).Sources,
+
+    wordAudioToAnki: (term, reading, choice) =>
+      sendJson<StoredMedia>(
+        'POST',
+        apiUrl(base, `WordAudio/Anki?${query({ term, reading, source: choice })}`),
+      ),
 
     saveWordAudio: (address) =>
       sendJson<WordAudioSaved>('PUT', apiUrl(base, 'WordAudio'), { Address: address }),

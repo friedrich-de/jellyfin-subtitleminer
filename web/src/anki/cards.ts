@@ -32,6 +32,8 @@ export interface CardMedia {
   sound: SoundOptions | undefined;
   /** Whether the server has an audio source for words, for a card made from a word. */
   wordAudio?: boolean;
+  /** The word's sound chosen in the popup, by name; the first that works when left out. */
+  wordAudioChoice?: string;
 }
 
 /** The names Anki stored the files of a card under. */
@@ -140,7 +142,12 @@ async function storeAll(
   }
   let noWordAudio = false;
   if (wanted.has('wordAudio') && word !== undefined && media.wordAudio === true) {
-    const cut: MediaCut = { kind: 'word-audio', term: word.expression, reading: word.reading };
+    const cut: MediaCut = {
+      kind: 'word-audio',
+      term: word.expression,
+      reading: word.reading,
+      ...(media.wordAudioChoice === undefined ? {} : { choice: media.wordAudioChoice }),
+    };
     cuts.push(
       anki.store(cut).then(
         (name) => ['wordAudio', name],

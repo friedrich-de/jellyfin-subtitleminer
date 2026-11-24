@@ -24,6 +24,11 @@ export interface StandInAudio {
   stop(): Promise<void>;
 }
 
+/** The second sound the stand-in has of a word, under the name "jpod": the first, marked. */
+export function jpodOf(sound: Buffer): Buffer {
+  return Buffer.concat([sound, Buffer.from('jpod')]);
+}
+
 export async function startAudioSource(sounds: Record<string, Buffer>): Promise<StandInAudio> {
   const asked: string[] = [];
   const server = createServer((request, response) => {
@@ -43,13 +48,15 @@ export async function startAudioSource(sounds: Record<string, Buffer>): Promise<
               // The first is gone, as a source's entry sometimes is: the next one is taken.
               { name: 'gone', url: `/audio/gone/${encodeURIComponent(term)}.mp3` },
               { name: 'nhk16', url: `${address()}/audio/nhk16/${encodeURIComponent(term)}.mp3` },
+              { name: 'jpod', url: `${address()}/audio/jpod/${encodeURIComponent(term)}.mp3` },
             ];
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ type: 'audioSourceList', audioSources }));
       return;
     }
-    const sound = /^\/audio\/nhk16\/(.+)\.mp3$/.exec(url.pathname)?.[1];
-    const content = sound === undefined ? undefined : sounds[decodeURIComponent(sound)];
+    const [, name, sound] = /^\/audio\/(nhk16|jpod)\/(.+)\.mp3$/.exec(url.pathname) ?? [];
+    const found = sound === undefined ? undefined : sounds[decodeURIComponent(sound)];
+    const content = found !== undefined && name === 'jpod' ? jpodOf(found) : found;
     if (content === undefined) {
       response.writeHead(404).end();
       return;

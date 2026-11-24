@@ -323,6 +323,16 @@ describe('making a card of a word from the dictionary', () => {
       SentenceAudio: '[sound:sound-item-1.bin]',
     });
     expect(anki.cuts).toContainEqual({ kind: 'word-audio', term: '食べる', reading: 'たべる' });
+
+    // The sound chosen in the popup is the one fetched.
+    const other = ankiOver(createCollection({ now: () => NOW }));
+    await addNew(other, lapis(), EATEN, { ...MEDIA, wordAudio: true, wordAudioChoice: 'jpod' });
+    expect(other.cuts).toContainEqual({
+      kind: 'word-audio',
+      term: '食べる',
+      reading: 'たべる',
+      choice: 'jpod',
+    });
   });
 
   it('puts only the part of a definition selected in the popup into SelectionText', async () => {

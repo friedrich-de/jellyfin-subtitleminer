@@ -43,6 +43,15 @@ public sealed class WordAudioTests : IDisposable
         _test.AudioNetwork.Types[address] = "application/json";
     }
 
+    /// <summary>Makes the source answer for a word with a list of sounds, each with its name.</summary>
+    private void NamedList(string term, string reading, params (string Name, string Url)[] sounds)
+    {
+        var items = string.Join(",", Array.ConvertAll(sounds, sound => "{\"name\":\"" + sound.Name + "\",\"url\":\"" + sound.Url + "\"}"));
+        var address = ListAddress(term, reading);
+        _test.AudioNetwork.Files[address] = Encoding.UTF8.GetBytes("{\"type\":\"audioSourceList\",\"audioSources\":[" + items + "]}");
+        _test.AudioNetwork.Types[address] = "application/json";
+    }
+
     private void Sound(string url, byte[] content, string? type = "audio/mpeg")
     {
         _test.AudioNetwork.Files[url] = content;
@@ -84,7 +93,7 @@ public sealed class WordAudioTests : IDisposable
         await Set(Source);
         _test.AudioNetwork.Asked.Clear();
 
-        var file = Assert.IsType<FileContentResult>(await Controller().GetWordAudio("食べる", "たべる", _none));
+        var file = Assert.IsType<FileContentResult>(await Controller().GetWordAudio("食べる", "たべる", cancellationToken: _none));
 
         Assert.Equal("audio/mpeg", file.ContentType);
         Assert.Equal(Mp3, file.FileContents);
@@ -100,7 +109,7 @@ public sealed class WordAudioTests : IDisposable
         Sound("https://audio.example/sound/%E7%8C%AB.ogg", [1, 2, 3], type: null);
         await Set("https://audio.example/sound/{term}.ogg");
 
-        var file = Assert.IsType<FileContentResult>(await Controller().GetWordAudio("猫", null, _none));
+        var file = Assert.IsType<FileContentResult>(await Controller().GetWordAudio("猫", null, cancellationToken: _none));
 
         Assert.Equal("audio/ogg", file.ContentType);
     }
@@ -108,7 +117,7 @@ public sealed class WordAudioTests : IDisposable
     [Fact]
     public async Task A_word_without_a_sound_a_source_that_fails_and_no_source_each_say_so()
     {
-        Problem(await Controller().GetWordAudio("猫", "ねこ", _none), StatusCodes.Status404NotFound);
+        Problem(await Controller().GetWordAudio("猫", "ねこ", cancellationToken: _none), StatusCodes.Status404NotFound);
 
         List("食べる", "たべる", "https://audio.example/nhk16/taberu.mp3");
         Sound("https://audio.example/nhk16/taberu.mp3", Mp3);
@@ -117,18 +126,66 @@ public sealed class WordAudioTests : IDisposable
         // The source knows the word but none of its sounds can be fetched.
         List("猫", "ねこ", "https://audio.example/gone.mp3", "https://audio.example/page.html");
         Sound("https://audio.example/page.html", Encoding.UTF8.GetBytes("<html></html>"), "text/html");
-        Assert.Equal(WordAudioController.NoSound, Problem(await Controller().GetWordAudio("猫", "ねこ", _none), StatusCodes.Status404NotFound).Detail);
+        Assert.Equal(WordAudioController.NoSound, Problem(await Controller().GetWordAudio("猫", "ねこ", cancellationToken: _none), StatusCodes.Status404NotFound).Detail);
 
         // A wrong key, as the worker answers it.
         _test.AudioNetwork.Errors[ListAddress("犬", "いぬ")] = HttpStatusCode.Forbidden;
-        Assert.Equal(WordAudioController.SourceFailed, Problem(await Controller().GetWordAudio("犬", "いぬ", _none), StatusCodes.Status502BadGateway).Detail);
+        Assert.Equal(WordAudioController.SourceFailed, Problem(await Controller().GetWordAudio("犬", "いぬ", cancellationToken: _none), StatusCodes.Status502BadGateway).Detail);
 
         // Something that is neither a sound nor the list.
         _test.AudioNetwork.Files[ListAddress("鳥", "とり")] = Encoding.UTF8.GetBytes("{\"sounds\":[]}");
         _test.AudioNetwork.Types[ListAddress("鳥", "とり")] = "application/json";
-        Problem(await Controller().GetWordAudio("鳥", "とり", _none), StatusCodes.Status502BadGateway);
+        Problem(await Controller().GetWordAudio("鳥", "とり", cancellationToken: _none), StatusCodes.Status502BadGateway);
 
-        Problem(await Controller().GetWordAudio(new string('語', 65), null, _none), StatusCodes.Status400BadRequest);
+        Problem(await Controller().GetWordAudio(new string('語', 65), null, cancellationToken: _none), StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task A_words_sounds_are_listed_by_name_and_the_one_chosen_is_the_one_fetched()
+    {
+        NamedList(
+            "食べる",
+            "たべる",
+            ("nhk16", "https://audio.example/nhk16/taberu.mp3"),
+            ("jpod", "https://audio.example/jpod/taberu.mp3"),
+            (string.Empty, "https://audio.example/other/taberu.mp3"),
+            ("jpod", "https://audio.example/jpod/taberu-2.mp3"));
+        Sound("https://audio.example/nhk16/taberu.mp3", [1]);
+        Sound("https://audio.example/jpod/taberu.mp3", [2]);
+        Sound("https://audio.example/jpod/taberu-2.mp3", [3]);
+        await Set(Source);
+        _test.SignInAs(administrator: false);
+
+        // Each sound once by name, in the source's order; the addresses stay on the server.
+        var listed = (await Controller().GetWordAudioSources("食べる", "たべる", _none)).Value!;
+        Assert.Equal(["nhk16", "jpod", "Sound 3", "jpod (2)"], listed.Sources);
+
+        _test.AudioNetwork.Asked.Clear();
+        var chosen = Assert.IsType<FileContentResult>(await Controller().GetWordAudio("食べる", "たべる", "jpod (2)", _none));
+        Assert.Equal([3], chosen.FileContents);
+        Assert.DoesNotContain(_test.AudioNetwork.Asked, address => address.AbsolutePath.Contains("nhk16", StringComparison.Ordinal));
+
+        Assert.Equal([2], Assert.IsType<FileContentResult>(await Controller().GetWordAudio("食べる", "たべる", "jpod", _none)).FileContents);
+        Assert.Equal([1], Assert.IsType<FileContentResult>(await Controller().GetWordAudio("食べる", "たべる", cancellationToken: _none)).FileContents);
+
+        // A name the list does not have, or a sound that cannot be fetched, is no sound: not another one.
+        Problem(await Controller().GetWordAudio("食べる", "たべる", "forvo", _none), StatusCodes.Status404NotFound);
+        Problem(await Controller().GetWordAudio("食べる", "たべる", "Sound 3", _none), StatusCodes.Status404NotFound);
+        Problem(await Controller().GetWordAudio("食べる", "たべる", new string('x', 65), _none), StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task A_source_that_gives_the_sound_itself_has_one_sound_and_no_source_has_none()
+    {
+        Problem((await Controller().GetWordAudioSources("猫", null, _none)).Result, StatusCodes.Status404NotFound);
+
+        Sound("https://audio.example/sound/%E7%8C%AB.ogg", [1, 2, 3], type: null);
+        await Set("https://audio.example/sound/{term}.ogg");
+        Assert.Equal([WordAudioSource.DirectName], (await Controller().GetWordAudioSources("猫", null, _none)).Value!.Sources);
+        Assert.IsType<FileContentResult>(await Controller().GetWordAudio("猫", null, WordAudioSource.DirectName, _none));
+
+        // A word the source does not know.
+        Problem((await Controller().GetWordAudioSources("犬", null, _none)).Result, StatusCodes.Status502BadGateway);
     }
 
     [Fact]
@@ -199,7 +256,7 @@ public sealed class WordAudioTests : IDisposable
         _test.UseServerAnki();
         _test.AnkiNetwork.AnswerWith(request => "\"" + request.Json.GetProperty("params").GetProperty("filename").GetString() + "\"");
 
-        var view = (await Controller().PostWordAudioToAnki("食べる", "たべる", _none)).Value!;
+        var view = (await Controller().PostWordAudioToAnki("食べる", "たべる", cancellationToken: _none)).Value!;
 
         var sent = Assert.Single(_test.AnkiNetwork.Requests);
         Assert.Equal("storeMediaFile", sent.Action);
@@ -217,7 +274,7 @@ public sealed class WordAudioTests : IDisposable
         _test.AudioNetwork.Asked.Clear();
 
         // No Anki on a server is set.
-        Problem((await Controller().PostWordAudioToAnki("食べる", "たべる", _none)).Result, StatusCodes.Status409Conflict);
+        Problem((await Controller().PostWordAudioToAnki("食べる", "たべる", cancellationToken: _none)).Result, StatusCodes.Status409Conflict);
 
         Assert.Empty(_test.AudioNetwork.Asked);
         Assert.Empty(_test.AnkiNetwork.Requests);
@@ -229,6 +286,8 @@ public sealed class WordAudioTests : IDisposable
         Assert.Equal(WordAudioController.MediaName("食べる", "たべる"), WordAudioController.MediaName(" 食べる", "たべる "));
         Assert.Equal(WordAudioController.MediaName("ねこ", null), WordAudioController.MediaName("ねこ", "ねこ"));
         Assert.NotEqual(WordAudioController.MediaName("食べる", "たべる"), WordAudioController.MediaName("食べる", "くべる"));
+        // Another sound of the same word is another file.
+        Assert.NotEqual(WordAudioController.MediaName("食べる", "たべる"), WordAudioController.MediaName("食べる", "たべる", "jpod"));
     }
 
     [Fact]

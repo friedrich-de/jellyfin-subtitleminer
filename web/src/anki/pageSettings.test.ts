@@ -16,6 +16,16 @@ describe('the page settings', () => {
     expect(readPageSettings('nonsense')).toEqual(defaultPageSettings());
     expect(readPageSettings({ dictionary: { lookUp: false } }).dictionary.lookUp).toBe(false);
     expect(readPageSettings({ dictionary: { lookUp: 'no' } }).dictionary.lookUp).toBe(true);
+    expect(readPageSettings({}).dictionary).toEqual({
+      lookUp: true,
+      textSize: 100,
+      hideTags: false,
+      compact: false,
+    });
+    expect(
+      readPageSettings({ dictionary: { textSize: 10, hideTags: true, compact: 'yes' } }).dictionary,
+    ).toMatchObject({ textSize: 70, hideTags: true, compact: false });
+    expect(readPageSettings({ dictionary: { textSize: 500 } }).dictionary.textSize).toBe(130);
 
     const read = readPageSettings({
       anki: {

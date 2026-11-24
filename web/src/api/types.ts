@@ -167,6 +167,11 @@ export interface WordAudioView {
   Host?: string;
 }
 
+/** The sounds the audio source has for a word, by name; their addresses stay on the server. */
+export interface WordAudioSourcesView {
+  Sources: string[];
+}
+
 /** The audio source as an administrator set it, and what trying it with 食べる found. */
 export interface WordAudioSaved {
   WordAudio: WordAudioView;

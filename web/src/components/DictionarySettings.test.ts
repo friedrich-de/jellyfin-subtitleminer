@@ -101,6 +101,12 @@ async function open(server: ReturnType<typeof plugin>, lookUp = true) {
       api: createPluginApi(server.fetch, BASE, 'token-1'),
       lookUp,
       'onUpdate:lookUp': (value: boolean) => screen?.setProps({ lookUp: value }),
+      textSize: 100,
+      'onUpdate:textSize': (value: number) => screen?.setProps({ textSize: value }),
+      hideTags: false,
+      'onUpdate:hideTags': (value: boolean) => screen?.setProps({ hideTags: value }),
+      compact: false,
+      'onUpdate:compact': (value: boolean) => screen?.setProps({ compact: value }),
     },
     attachTo: document.body,
   });
@@ -128,8 +134,17 @@ describe('the dictionary settings', () => {
     );
 
     expect(page.text()).toContain('In Jitendex, on the Jellyfin server.');
+    // How the popup looks: smaller text, no tags, compact definitions.
+    await find(page, 'text-size').setValue('80');
+    expect(page.emitted('update:textSize')?.at(-1)).toEqual([80]);
+    await find(page, 'hide-tags').setValue(true);
+    expect(page.emitted('update:hideTags')?.at(-1)).toEqual([true]);
+    await find(page, 'compact').setValue(true);
+    expect(page.emitted('update:compact')?.at(-1)).toEqual([true]);
+
     await find(page, 'look-up').setValue(false);
     expect(page.emitted('update:lookUp')?.at(-1)).toEqual([false]);
+    expect(page.find('[data-testid="popup-look"]').exists()).toBe(false);
     expect(page.find('[data-testid="dictionary-address"]').exists()).toBe(false);
     expect(page.find('[aria-label="Remove Jitendex"]').exists()).toBe(false);
   });

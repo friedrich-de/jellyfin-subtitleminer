@@ -82,7 +82,16 @@ export interface MediaChoices {
 export interface DictionaryChoices {
   /** A tap on a word looks it up in the server's dictionaries. Off for those who use Yomitan. */
   lookUp: boolean;
+  /** The size of the popup's text, in percent of its usual size. */
+  textSize: number;
+  /** Leaves out the tags: ★, the dictionary's name, parts of speech and the like. */
+  hideTags: boolean;
+  /** Each definition's glosses on one line, as Yomitan's compact glossaries. */
+  compact: boolean;
 }
+
+/** The popup's text sizes to choose from, in percent. */
+export const TEXT_SIZES = [70, 80, 90, 100, 115, 130] as const;
 
 /** What only the page reads, kept on the server with the user's other settings. */
 export interface PageSettings {
@@ -106,7 +115,7 @@ export function defaultPageSettings(): PageSettings {
       padBeforeMs: 250,
       padAfterMs: 250,
     },
-    dictionary: { lookUp: true },
+    dictionary: { lookUp: true, textSize: 100, hideTags: false, compact: false },
   };
 }
 
@@ -168,7 +177,12 @@ export function readPageSettings(stored: unknown): PageSettings {
       padBeforeMs: whole(media.padBeforeMs, 250, 0, 2_000),
       padAfterMs: whole(media.padAfterMs, 250, 0, 2_000),
     },
-    dictionary: { lookUp: dictionary.lookUp !== false },
+    dictionary: {
+      lookUp: dictionary.lookUp !== false,
+      textSize: whole(dictionary.textSize, 100, Math.min(...TEXT_SIZES), Math.max(...TEXT_SIZES)),
+      hideTags: dictionary.hideTags === true,
+      compact: dictionary.compact === true,
+    },
   };
 }
 

@@ -20,9 +20,9 @@ function cutsApi(): Pick<PluginApi, 'picture' | 'sound' | 'wordAudio'> {
   return {
     picture: () => Promise.resolve(new Blob(['picture'], { type: 'image/jpeg' })),
     sound: () => Promise.resolve(new Blob(['sound'], { type: 'audio/mpeg' })),
-    wordAudio: (term) =>
+    wordAudio: (term, _reading, _signal, choice) =>
       term === '食べる'
-        ? Promise.resolve(new Blob(['word'], { type: 'audio/mpeg' }))
+        ? Promise.resolve(new Blob([choice ?? 'word'], { type: 'audio/mpeg' }))
         : Promise.reject(new HttpError(404, 'The audio source has no sound for this word.')),
   };
 }
@@ -87,6 +87,13 @@ describe('the Anki on the device', () => {
     expect(mediaName({ ...WORD, reading: '' }, 'audio/mpeg')).not.toBe(name);
     expect(atob(collection.media.get(name)!)).toBe('word');
 
+    // The sound chosen in the popup goes in under a name of its own.
+    const chosen = await anki.store({ ...WORD, choice: 'jpod' });
+    expect(chosen).not.toBe(name);
+    expect(atob(collection.media.get(chosen)!)).toBe('jpod');
+    expect(mediaName({ ...WORD, choice: '' }, 'audio/mpeg')).toBe(name);
+    collection.media.delete(chosen);
+
     // A word the source has no sound for is told apart from Anki failing.
     await expect(anki.store({ ...WORD, term: '猫' })).rejects.toBeInstanceOf(WordAudioMissingError);
     expect(collection.media.size).toBe(1);
@@ -112,13 +119,17 @@ describe('the Anki on a server', () => {
       },
       pictureToAnki: () => Promise.resolve({ FileName: 'stored.jpg' }),
       soundToAnki: () => Promise.reject(new Error('unused')),
-      wordAudioToAnki: (term, reading) => Promise.resolve({ FileName: `${term}-${reading}.mp3` }),
+      wordAudioToAnki: (term, reading, choice) =>
+        Promise.resolve({
+          FileName: `${term}-${reading}${choice === undefined ? '' : `-${choice}`}.mp3`,
+        }),
     });
 
     expect(await anki.invoke('findNotes', { query: 'added:1' })).toEqual([]);
     expect(calls).toEqual([['findNotes', { query: 'added:1' }]]);
     expect(await anki.store(CUT)).toBe('stored.jpg');
     expect(await anki.store(WORD)).toBe('食べる-たべる.mp3');
+    expect(await anki.store({ ...WORD, choice: 'jpod' })).toBe('食べる-たべる-jpod.mp3');
 
     const refusing = serverAnki({
       anki: () => Promise.resolve(json({ result: null, error: 'valid api key must be provided' })),

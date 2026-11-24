@@ -744,6 +744,7 @@ async function addWordCard(
   result: LookupResult,
   inLine: boolean,
   selection: string,
+  sound: string | undefined,
 ): Promise<string> {
   const target = anki.value;
   const watch = shown.value;
@@ -753,7 +754,11 @@ async function addWordCard(
     throw new Error('The line of this word is gone. Look the word up again.');
   }
   try {
-    const media = { ...mediaOf(watch, value), wordAudio: wordAudio.value };
+    const media = {
+      ...mediaOf(watch, value),
+      wordAudio: wordAudio.value,
+      ...(sound === undefined ? {} : { wordAudioChoice: sound }),
+    };
     const outcome = await addNew(target, pageSettings.value, content, media);
     const name = `"${outcome.label === '' ? result.term.expression : outcome.label}"`;
     return outcome.noWordAudio === true
@@ -995,6 +1000,7 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       :no-cards="wordCardProblem"
       :in-deck="wordCardProblem === '' ? wordsKnown : undefined"
       :word-audio="wordAudio"
+      :look="pageSettings.dictionary"
       @found="onFound"
       @close="closeWord"
     />

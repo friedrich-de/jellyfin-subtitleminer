@@ -57,6 +57,15 @@ public sealed record WordAudioSaved
 }
 
 /// <summary>
+/// The sounds the audio source has for a word, by name.
+/// </summary>
+public sealed record WordAudioSourcesView
+{
+    /// <summary>Gets the names, in the source's order.</summary>
+    public required IReadOnlyList<string> Sources { get; init; }
+}
+
+/// <summary>
 /// A dictionary of the server.
 /// </summary>
 public sealed record DictionaryView

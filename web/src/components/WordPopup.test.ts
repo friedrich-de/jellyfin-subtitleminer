@@ -17,6 +17,7 @@ const drawn = vi.hoisted(() => ({
   setCardState: vi.fn(),
   setResultState: vi.fn(),
   back: vi.fn(() => false),
+  setTheme: vi.fn(),
   destroy: vi.fn(),
 }));
 
@@ -157,7 +158,7 @@ describe('the word popup', () => {
     const onAddCard = drawn.options!.onAddCard as (word: LookupResult, index: number) => void;
     onAddCard(given[0]!, 0);
     await flushPromises();
-    expect(addCard).toHaveBeenCalledWith(given[0], true, '');
+    expect(addCard).toHaveBeenCalledWith(given[0], true, '', undefined);
     expect(drawn.setResultState).toHaveBeenLastCalledWith(
       given[0],
       'in-anki',
@@ -192,7 +193,7 @@ describe('the word popup', () => {
       0,
     );
     await flushPromises();
-    expect(addCard).toHaveBeenCalledWith(nested.results[0], false, '');
+    expect(addCard).toHaveBeenCalledWith(nested.results[0], false, '', undefined);
   });
 
   it("plays a word's sound from the server, while it has an audio source", async () => {
@@ -234,6 +235,73 @@ describe('the word popup', () => {
       'No sound of 猫: The audio source has no sound for this word.',
     );
     play.mockRestore();
+  });
+
+  it("lists a word's sounds to choose one, which plays from then on and goes on its card", async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const asked: string[] = [];
+    const eat = { ...result('食べる'), term: { ...result('食べる').term, reading: 'たべる' } };
+    const backend = fakeRoutes((sent: RoutedRequest) => {
+      if (sent.path === 'Dictionaries/Lookup') return json({ results: [eat] });
+      if (sent.path === 'WordAudio/Sources') {
+        return json({ Sources: ['nhk16', 'jpod', 'forvo (2)'] });
+      }
+      if (sent.path === 'WordAudio') {
+        asked.push(sent.query.get('source') ?? '(first)');
+        return new Response(new Blob(['mp3'], { type: 'audio/mpeg' }));
+      }
+      return undefined;
+    });
+    const addCard = vi.fn(() => Promise.resolve('Made a new card, "食べる".'));
+    const shown = open(backend, { wordAudio: true, addCard });
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+
+    const options = drawn.options!;
+    const given = (drawn.render.mock.calls[0]![0] as LookupResult[])[0]!;
+    const sources = options.audioSources as (word: LookupResult) => Promise<string[]>;
+    const chosen = options.chosenAudio as (word: LookupResult) => string | undefined;
+    const onPlayAudio = options.onPlayAudio as (
+      word: LookupResult,
+      index: number,
+      source?: string,
+    ) => void;
+    await expect(sources(given)).resolves.toEqual(['nhk16', 'jpod', 'forvo (2)']);
+    expect(chosen(given)).toBeUndefined();
+
+    onPlayAudio(given, 0);
+    await flushPromises();
+    onPlayAudio(given, 0, 'jpod');
+    await flushPromises();
+    expect(chosen(given)).toBe('jpod');
+    // A plain press now plays the sound chosen, as in Yomitan.
+    onPlayAudio(given, 0);
+    await flushPromises();
+    expect(asked).toEqual(['(first)', 'jpod', 'jpod']);
+
+    (options.onAddCard as (word: LookupResult, index: number) => void)(given, 0);
+    await flushPromises();
+    expect(addCard).toHaveBeenCalledWith(given, true, '', 'jpod');
+    play.mockRestore();
+  });
+
+  it('shows the text as large as the user chose, without tags or compact if they chose so', async () => {
+    const shown = open(server({ 食べる: [result('食べる')] }), {
+      look: { textSize: 80, hideTags: false, compact: false },
+    });
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+    expect(drawn.options).toMatchObject({
+      scale: 80,
+      display: { glossaryLayoutMode: 'default' },
+    });
+    expect(drawn.options!.css).not.toContain('part-of-speech-info');
+
+    await shown.setProps({ look: { textSize: 115, hideTags: true, compact: true } });
+    const look = drawn.setTheme.mock.calls.at(-1)![0] as { scale: number; css: string };
+    expect(look).toMatchObject({ scale: 115, display: { glossaryLayoutMode: 'compact' } });
+    expect(look.css).toContain('[data-sc-content="part-of-speech-info"]');
+    expect(look.css).toContain('overscroll-behavior: contain');
   });
 
   it('closes on Escape, and on a tap outside it but not on another word', async () => {

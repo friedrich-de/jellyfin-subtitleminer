@@ -2,12 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 
 import type { PluginApi } from '@/api/plugin';
+import { TEXT_SIZES } from '@/anki/pageSettings';
 import type { DictionariesView, DictionaryView, WordAudioSaved } from '@/api/types';
 
 const props = defineProps<{ api: PluginApi }>();
 
 /** Whether a tap on a word looks it up, as the user's page settings keep it. */
 const lookUp = defineModel<boolean>('lookUp', { required: true });
+/** How the popup looks, as the user's page settings keep it. */
+const textSize = defineModel<number>('textSize', { required: true });
+const hideTags = defineModel<boolean>('hideTags', { required: true });
+const compact = defineModel<boolean>('compact', { required: true });
 
 /** Dictionaries an administrator may add with one tap: free, and the ones most people use. */
 const SUGGESTED = [
@@ -245,6 +250,24 @@ onBeforeUnmount(stopPolling);
           the word can be made from there. Turn it off to look words up with your own Yomitan
           instead.
         </p>
+        <div v-if="lookUp" class="look" data-testid="popup-look">
+          <label class="field">
+            <span class="name">Text size in the popup</span>
+            <select v-model.number="textSize" data-testid="text-size">
+              <option v-for="size in TEXT_SIZES" :key="size" :value="size">
+                {{ size === 100 ? '100% (usual)' : `${size}%` }}
+              </option>
+            </select>
+          </label>
+          <label class="check">
+            <input v-model="hideTags" type="checkbox" data-testid="hide-tags" />
+            Hide the tags: ★, the dictionary's name, parts of speech and the like
+          </label>
+          <label class="check">
+            <input v-model="compact" type="checkbox" data-testid="compact" />
+            Compact definitions: each meaning's words on one line, as in Yomitan
+          </label>
+        </div>
       </template>
       <p v-else class="muted small" data-testid="no-dictionaries">
         This Jellyfin server has no dictionaries{{
@@ -520,6 +543,13 @@ h3 {
   accent-color: var(--accent);
 }
 
+.look {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+}
+
 .dictionaries {
   display: flex;
   flex-direction: column;
@@ -657,7 +687,8 @@ h3 {
   gap: 8px;
 }
 
-input[type='url'] {
+input[type='url'],
+select {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;

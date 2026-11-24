@@ -522,7 +522,13 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
         </label>
       </section>
 
-      <DictionarySettings v-model:look-up="page.dictionary.lookUp" :api="api" />
+      <DictionarySettings
+        v-model:look-up="page.dictionary.lookUp"
+        v-model:text-size="page.dictionary.textSize"
+        v-model:hide-tags="page.dictionary.hideTags"
+        v-model:compact="page.dictionary.compact"
+        :api="api"
+      />
 
       <section v-if="current.Everyone !== undefined" class="group" aria-labelledby="everyone-title">
         <h2 id="everyone-title">For everyone on this server</h2>

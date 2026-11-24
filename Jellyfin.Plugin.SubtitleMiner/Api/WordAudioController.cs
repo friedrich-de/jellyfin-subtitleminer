@@ -54,6 +54,7 @@ public class WordAudioController : ControllerBase
     /// </summary>
     /// <param name="term">The word as the dictionary writes it.</param>
     /// <param name="reading">Its reading. Leave it out when it is the word itself.</param>
+    /// <param name="source">The name of the sound wanted, from <see cref="GetWordAudioSources"/>; left out for the first that works.</param>
     /// <param name="cancellationToken">Ends with the request.</param>
     /// <returns>The sound.</returns>
     [HttpGet]
@@ -62,7 +63,7 @@ public class WordAudioController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<ActionResult> GetWordAudio([FromQuery, Required] string term, [FromQuery] string? reading = null, CancellationToken cancellationToken = default)
+    public async Task<ActionResult> GetWordAudio([FromQuery, Required] string term, [FromQuery] string? reading = null, [FromQuery] string? source = null, CancellationToken cancellationToken = default)
     {
         var caller = await _services.Callers.ResolveAsync(HttpContext).ConfigureAwait(false);
         if (caller is null)
@@ -70,7 +71,7 @@ public class WordAudioController : ControllerBase
             return Problem(SubtitleMinerController.NoUser, statusCode: StatusCodes.Status403Forbidden);
         }
 
-        var (sound, refusal) = await FindAsync(term, reading, cancellationToken).ConfigureAwait(false);
+        var (sound, refusal) = await FindAsync(term, reading, source, cancellationToken).ConfigureAwait(false);
         if (sound is null)
         {
             return refusal!;
@@ -83,10 +84,48 @@ public class WordAudioController : ControllerBase
     }
 
     /// <summary>
+    /// Gets the sounds the audio source has for a word, by name, for the user to choose one as in Yomitan.
+    /// </summary>
+    /// <param name="term">The word as the dictionary writes it.</param>
+    /// <param name="reading">Its reading. Leave it out when it is the word itself.</param>
+    /// <param name="cancellationToken">Ends with the request.</param>
+    /// <returns>The names, in the source's order; the addresses stay on the server.</returns>
+    [HttpGet("Sources")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    public async Task<ActionResult<WordAudioSourcesView>> GetWordAudioSources([FromQuery, Required] string term, [FromQuery] string? reading = null, CancellationToken cancellationToken = default)
+    {
+        var caller = await _services.Callers.ResolveAsync(HttpContext).ConfigureAwait(false);
+        if (caller is null)
+        {
+            return Problem(SubtitleMinerController.NoUser, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        if (Refuse(term, reading, null) is { } refused)
+        {
+            return refused;
+        }
+
+        var choices = await _services.WordAudio.ChoicesAsync(term, reading ?? string.Empty, cancellationToken).ConfigureAwait(false);
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return choices.Outcome switch
+        {
+            WordAudioOutcome.Found => new WordAudioSourcesView { Sources = choices.Names },
+            WordAudioOutcome.NoSource => Problem(NoSource, statusCode: StatusCodes.Status404NotFound),
+            _ => Problem(SourceFailed, statusCode: StatusCodes.Status502BadGateway),
+        };
+    }
+
+    /// <summary>
     /// Puts how a word sounds into the user's Anki on a server, for a card.
     /// </summary>
     /// <param name="term">The word as the dictionary writes it.</param>
     /// <param name="reading">Its reading. Leave it out when it is the word itself.</param>
+    /// <param name="source">The name of the sound wanted, from <see cref="GetWordAudioSources"/>; left out for the first that works.</param>
     /// <param name="cancellationToken">Ends with the request.</param>
     /// <returns>The name Anki stored the sound under.</returns>
     [HttpPost("Anki")]
@@ -99,7 +138,7 @@ public class WordAudioController : ControllerBase
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<ActionResult<StoredMediaView>> PostWordAudioToAnki([FromQuery, Required] string term, [FromQuery] string? reading = null, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<StoredMediaView>> PostWordAudioToAnki([FromQuery, Required] string term, [FromQuery] string? reading = null, [FromQuery] string? source = null, CancellationToken cancellationToken = default)
     {
         var caller = await _services.Callers.ResolveAsync(HttpContext).ConfigureAwait(false);
         if (caller is null)
@@ -113,13 +152,13 @@ public class WordAudioController : ControllerBase
             return Problem(message, statusCode: status);
         }
 
-        var (sound, refusal) = await FindAsync(term, reading, cancellationToken).ConfigureAwait(false);
+        var (sound, refusal) = await FindAsync(term, reading, source, cancellationToken).ConfigureAwait(false);
         if (sound is null)
         {
             return refusal!;
         }
 
-        return await AnkiMedia.StoreAsync(this, _services, caller, MediaName(term, reading) + "." + sound.Extension, sound.Content!, cancellationToken).ConfigureAwait(false);
+        return await AnkiMedia.StoreAsync(this, _services, caller, MediaName(term, reading, source) + "." + sound.Extension, sound.Content!, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -183,25 +222,34 @@ public class WordAudioController : ControllerBase
         Host = caller.IsAdministrator ? source.Host : null,
     };
 
-    /// <summary>The name a word's sound goes into Anki under: the same word gets the same name.</summary>
+    /// <summary>The name a word's sound goes into Anki under: the same word from the same sound gets the same name.</summary>
     /// <param name="term">The word.</param>
     /// <param name="reading">Its reading.</param>
+    /// <param name="source">The sound chosen, or null for the first that works.</param>
     /// <returns>The name, without its extension.</returns>
-    internal static string MediaName(string term, string? reading)
+    internal static string MediaName(string term, string? reading, string? source = null)
     {
         reading = string.IsNullOrWhiteSpace(reading) ? term.Trim() : reading.Trim();
-        var mark = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(term.Trim() + "|" + reading)), 0, 4);
+        var marked = term.Trim() + "|" + reading + (source is null ? string.Empty : "|" + source);
+        var mark = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(marked)), 0, 4);
         return "subtitle-miner_word_" + mark;
     }
 
-    private async Task<(WordAudio? Sound, ActionResult? Refusal)> FindAsync(string term, string? reading, CancellationToken cancellationToken)
+    private ObjectResult? Refuse(string term, string? reading, string? source)
     {
-        if (string.IsNullOrWhiteSpace(term) || term.Length > MaxWord || (reading?.Length ?? 0) > MaxWord)
+        return string.IsNullOrWhiteSpace(term) || term.Length > MaxWord || (reading?.Length ?? 0) > MaxWord || (source?.Length ?? 0) > MaxWord
+            ? Problem("Name a word of at most 64 characters.", statusCode: StatusCodes.Status400BadRequest)
+            : null;
+    }
+
+    private async Task<(WordAudio? Sound, ActionResult? Refusal)> FindAsync(string term, string? reading, string? source, CancellationToken cancellationToken)
+    {
+        if (Refuse(term, reading, source) is { } refused)
         {
-            return (null, Problem("Name a word of at most 64 characters.", statusCode: StatusCodes.Status400BadRequest));
+            return (null, refused);
         }
 
-        var sound = await _services.WordAudio.FindAsync(term, reading ?? string.Empty, cancellationToken).ConfigureAwait(false);
+        var sound = await _services.WordAudio.FindAsync(term, reading ?? string.Empty, string.IsNullOrEmpty(source) ? null : source, cancellationToken).ConfigureAwait(false);
         return sound.Outcome switch
         {
             WordAudioOutcome.Found => (sound, null),

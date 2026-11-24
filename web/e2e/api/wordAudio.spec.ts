@@ -1,7 +1,7 @@
 import { forgetAnki, saveSettings } from '../support/ankiSettings';
 import { expect, type Login, signIn, test, tokenHeader } from '../support/fixtures';
 import { API } from '../support/watching';
-import { AUDIO_KEY, aSound, setWordAudio, startAudioSource } from '../support/wordAudio';
+import { AUDIO_KEY, aSound, jpodOf, setWordAudio, startAudioSource } from '../support/wordAudio';
 
 let viewer: Login;
 let admin: Login;
@@ -98,6 +98,67 @@ test.describe('word audio', () => {
         data: { Address: `${source.url}/audio/list?reading={reading}` },
       });
       expect(wrong.status()).toBe(400);
+    } finally {
+      await source.stop();
+    }
+  });
+
+  test('lists its sounds by name, as Yomitan does, and gives the one chosen', async ({
+    request,
+    jellyfin,
+    anki,
+  }) => {
+    const sound = await aSound(request, viewer, jellyfin.media.episode1.id);
+    const source = await startAudioSource({ 食べる: sound });
+    const server = await anki();
+    try {
+      const unset = await request.get(`${API}/WordAudio/Sources?term=食べる&reading=たべる`, {
+        headers: tokenHeader(viewer.token),
+      });
+      expect(unset.status()).toBe(404);
+      await setWordAudio(request, admin, source.address);
+
+      const listed = await request.get(`${API}/WordAudio/Sources?term=食べる&reading=たべる`, {
+        headers: tokenHeader(viewer.token),
+      });
+      expect(listed.status(), await listed.text()).toBe(200);
+      // Only the names: the addresses, and the key in them, stay on the server.
+      expect(await listed.json()).toEqual({ Sources: ['gone', 'nhk16', 'jpod'] });
+      expect(await listed.text()).not.toContain(AUDIO_KEY);
+
+      const none = await request.get(`${API}/WordAudio/Sources?term=猫&reading=ねこ`, {
+        headers: tokenHeader(viewer.token),
+      });
+      expect(await none.json()).toEqual({ Sources: [] });
+
+      const chosen = await request.get(`${API}/WordAudio?term=食べる&reading=たべる&source=jpod`, {
+        headers: tokenHeader(viewer.token),
+      });
+      expect(chosen.status()).toBe(200);
+      expect(Buffer.compare(await chosen.body(), jpodOf(sound))).toBe(0);
+
+      // A sound chosen that is gone is not swapped for another.
+      const gone = await request.get(`${API}/WordAudio?term=食べる&reading=たべる&source=gone`, {
+        headers: tokenHeader(viewer.token),
+      });
+      expect(gone.status()).toBe(404);
+
+      // Into Anki, the chosen sound goes under a name of its own.
+      await saveSettings(request, admin, {
+        Anki: { Where: 'server', ServerAddress: server.url, ServerKey: '' },
+      });
+      const names: string[] = [];
+      for (const query of ['', '&source=jpod']) {
+        const stored = await request.post(
+          `${API}/WordAudio/Anki?term=食べる&reading=たべる${query}`,
+          { headers: tokenHeader(admin.token) },
+        );
+        expect(stored.status(), await stored.text()).toBe(200);
+        names.push(((await stored.json()) as { FileName: string }).FileName);
+      }
+      expect(names[0]).not.toBe(names[1]);
+      expect(Buffer.compare(server.media(names[0]!), sound)).toBe(0);
+      expect(Buffer.compare(server.media(names[1]!), jpodOf(sound))).toBe(0);
     } finally {
       await source.stop();
     }

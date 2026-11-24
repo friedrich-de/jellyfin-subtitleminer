@@ -14,7 +14,7 @@ import { COLOURS } from '../support/media';
 import { colourOf, isColour } from '../support/probe';
 import { signInToJellyfin } from '../support/webClient';
 import { tapCharacter } from '../support/lines';
-import { aSound, setWordAudio, startAudioSource } from '../support/wordAudio';
+import { aSound, jpodOf, setWordAudio, startAudioSource } from '../support/wordAudio';
 import { yomitanZip } from '../support/yomitanZip';
 
 let admin: Login;
@@ -274,6 +274,19 @@ test.describe('a word tapped in a line', () => {
       expect((await heard).status()).toBe(200);
       await expect(page.getByTestId('word-status')).toHaveCount(0);
 
+      // Held, it lists the word's sounds, as Yomitan's does; the one chosen plays and is kept.
+      const box = (await play.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(700);
+      await page.mouse.up();
+      const sounds = popup(page).locator('.gsm-hoshidicts-audio-menu-item');
+      await expect(sounds).toHaveText(['gone', 'nhk16', 'jpod']);
+      const chosen = page.waitForResponse((response) => response.url().includes('source=jpod'));
+      await sounds.filter({ hasText: 'jpod' }).click();
+      expect((await chosen).status()).toBe(200);
+      await expect(sounds).toHaveCount(0);
+
       await selectInPopup(page, 'story', info.project.name !== 'phone');
       await popup(page).locator('.gsm-hoshidicts-mine-button').first().click();
       await expect(page.getByTestId('word-status')).toHaveText('Made a new card, "話".');
@@ -283,7 +296,8 @@ test.describe('a word tapped in a line', () => {
       expect(note.fields.MainDefinition).toContain('talk; story');
       const name = /^\[sound:([^\]]+)\]$/.exec(note.fields.ExpressionAudio ?? '')?.[1];
       expect(name).toMatch(/^subtitle-miner_word_[0-9a-f]{8}\.mp3$/);
-      expect(Buffer.compare(server.media(name!), sound)).toBe(0);
+      // The card has the sound chosen.
+      expect(Buffer.compare(server.media(name!), jpodOf(sound))).toBe(0);
 
       // A word the source has no sound for still gets its card, without one.
       await page.keyboard.press('Escape');
