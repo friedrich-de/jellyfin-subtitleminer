@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 
+import { addNew, addToNewest, type CardOutcome, undoUpdate } from '@/anki/cards';
+import { type AnkiConnect, deviceAnki, serverAnki } from '@/anki/connect';
+import { readPageSettings } from '@/anki/pageSettings';
 import { HttpError, UnreachableError } from '@/api/http';
-import { createPluginApi } from '@/api/plugin';
-import type { Line, Subtitles, Track, Watch } from '@/api/types';
+import { createPluginApi, type PictureOptions, type SoundOptions } from '@/api/plugin';
+import type { Line, SettingsView, Subtitles, Track, Watch } from '@/api/types';
 import type { AuthEnv, Session } from '@/auth/signIn';
 import { createWatchFeed, type FeedStatus, type Received } from '@/watch/feed';
 import { recall, remember, showKeyOf } from '@/watch/remembered';
@@ -18,6 +21,7 @@ import {
   lastStartedAt,
   linesAt,
   pairLines,
+  secondOf,
   type Pick,
   pickFor,
   positionOf,
@@ -26,8 +30,9 @@ import {
 } from '@/watch/watches';
 
 import AccountMenu from './AccountMenu.vue';
-import type { Making } from './making';
+import type { Making, Sending } from './making';
 import SelectionBar from './SelectionBar.vue';
+import SettingsScreen from './SettingsScreen.vue';
 import TranscriptView from './TranscriptView.vue';
 
 const props = defineProps<{ env: AuthEnv; session: Session }>();
@@ -44,6 +49,9 @@ const LEARNING = 'japanese';
 /** The longest sound the plugin cuts. */
 const MAX_SOUND_MS = 60_000;
 
+/** The longest moving picture the plugin cuts. */
+const MAX_MOVING_MS = 15_000;
+
 const api = createPluginApi(props.env.fetch, props.env.base, props.session.token);
 
 function messageOf(error: unknown): string {
@@ -54,6 +62,34 @@ function messageOf(error: unknown): string {
 
   if (error instanceof UnreachableError) return 'The server could not be reached.';
   return error instanceof Error ? error.message : String(error);
+}
+
+// The user's settings, kept on the server, and where the cards go.
+
+const settings = shallowRef<SettingsView | null>(null);
+const view = ref<'lines' | 'settings'>('lines');
+const pageSettings = computed(() => readPageSettings(settings.value?.Page));
+const anki = computed<AnkiConnect | null>(() => {
+  const value = settings.value?.Anki;
+  if (value?.Where === 'device') {
+    return deviceAnki(props.env.fetch, value.DeviceAddress, value.DeviceKey, api);
+  }
+  return value?.Where === 'server' ? serverAnki(api) : null;
+});
+
+async function loadSettings(): Promise<boolean> {
+  try {
+    settings.value = await api.settings();
+    return true;
+  } catch {
+    // The page works without them; the feed tells when the login has ended.
+    return false;
+  }
+}
+
+async function openSettings(): Promise<void> {
+  if (settings.value === null && !(await loadSettings())) return;
+  view.value = 'settings';
 }
 
 // What the user's players play, as the server tells it.
@@ -343,21 +379,46 @@ async function make(
   }
 }
 
+/** The picture of the chosen lines, as the settings want it cut. */
+const pictureOptions = computed<PictureOptions | undefined>(() => {
+  const value = span.value;
+  if (value === undefined) return undefined;
+  const media = pageSettings.value.media;
+  const look = {
+    format: media.pictureFormat,
+    width: media.pictureWidth,
+    quality: media.pictureQuality,
+  };
+  return media.moving
+    ? { atMs: value.start, endMs: Math.min(value.end, value.start + MAX_MOVING_MS), ...look }
+    : { atMs: value.still, ...look };
+});
+
+/** The sound of the chosen lines, a little before and after them as the settings say. */
+const soundOptions = computed<SoundOptions | undefined>(() => {
+  const value = span.value;
+  const track = shown.value?.AudioKey;
+  if (value === undefined) return undefined;
+  const media = pageSettings.value.media;
+  return {
+    startMs: Math.max(0, value.start - media.padBeforeMs),
+    endMs: value.end + media.padAfterMs,
+    format: media.soundFormat,
+    normalize: media.normalize,
+    ...(track === undefined ? {} : { track }),
+  };
+});
+
 const previewKey = computed(() => {
   const watch = shown.value;
-  const value = span.value;
-  if (watch === undefined || value === undefined) return '';
-  return [
+  if (watch === undefined || span.value === undefined) return '';
+  return JSON.stringify([
     watch.ItemId,
     watch.MediaSourceId,
-    watch.AudioKey ?? '',
     watch.CanCut,
-    value.start,
-    value.end,
-    value.still,
-  ]
-    .map(String)
-    .join('|');
+    pictureOptions.value,
+    soundOptions.value,
+  ]);
 });
 
 watch(previewKey, (key) => {
@@ -378,33 +439,95 @@ watch(previewKey, (key) => {
     return;
   }
 
+  const pictureCut = pictureOptions.value!;
+  const soundCut = soundOptions.value!;
   settle = window.setTimeout(() => {
     settle = null;
     const controller = new AbortController();
     making = controller;
-    const { ItemId: item, MediaSourceId: source, AudioKey: track } = watch;
+    const { ItemId: item, MediaSourceId: source } = watch;
     void make(
       picture,
-      (signal) => api.picture(item, source, { atMs: value.still, width: 640 }, signal),
+      (signal) => api.picture(item, source, pictureCut, signal),
       controller.signal,
     );
-    if (value.end - value.start > MAX_SOUND_MS) {
+    if (soundCut.endMs - soundCut.startMs > MAX_SOUND_MS) {
       sound.value = { kind: 'none', message: 'More than a minute. Choose fewer lines.' };
     } else {
-      void make(
-        sound,
-        (signal) =>
-          api.sound(
-            item,
-            source,
-            { startMs: value.start, endMs: value.end, ...(track === undefined ? {} : { track }) },
-            signal,
-          ),
-        controller.signal,
-      );
+      void make(sound, (signal) => api.sound(item, source, soundCut, signal), controller.signal);
     }
   }, 300);
 });
+
+// Sending the chosen lines to Anki.
+
+const sending = shallowRef<Sending>({ kind: 'idle' });
+let lastUpdate: { anki: AnkiConnect; outcome: CardOutcome } | null = null;
+
+watch(previewKey, () => {
+  if (sending.value.kind !== 'busy') sending.value = { kind: 'idle' };
+  lastUpdate = null;
+});
+
+async function send(mode: 'newest' | 'new'): Promise<void> {
+  const target = anki.value;
+  const watch = shown.value;
+  const value = span.value;
+  if (target === null || watch === undefined || value === undefined) return;
+
+  sending.value = {
+    kind: 'busy',
+    text: mode === 'newest' ? 'Adding to your newest card…' : 'Making a new card…',
+  };
+  lastUpdate = null;
+  const content = {
+    sentence: chosen.value.map((line) => line.Text).join('\n'),
+    translation: secondOf(
+      chosen.value,
+      secondLines.value?.kind === 'ready' ? secondLines.value.subtitles.Lines : undefined,
+    ).join('\n'),
+    source: `${titleOf(watch)} · ${clockOf(value.start)}`,
+  };
+  const sound = soundOptions.value;
+  const media = {
+    itemId: watch.ItemId,
+    source: watch.MediaSourceId,
+    picture: watch.CanCut ? pictureOptions.value : undefined,
+    sound:
+      watch.CanCut && sound !== undefined && sound.endMs - sound.startMs <= MAX_SOUND_MS
+        ? sound
+        : undefined,
+  };
+
+  try {
+    const outcome =
+      mode === 'newest'
+        ? await addToNewest(target, pageSettings.value, content, media, Date.now())
+        : await addNew(target, pageSettings.value, content, media);
+    const name = outcome.label === '' ? 'the card' : `"${outcome.label}"`;
+    if (outcome.kind === 'updated') lastUpdate = { anki: target, outcome };
+    sending.value = {
+      kind: 'done',
+      text: outcome.kind === 'updated' ? `Added to ${name}.` : `Made a new card, ${name}.`,
+      canUndo: outcome.kind === 'updated',
+    };
+  } catch (error) {
+    sending.value = { kind: 'failed', text: messageOf(error) };
+  }
+}
+
+async function undo(): Promise<void> {
+  const update = lastUpdate;
+  if (update === null) return;
+  lastUpdate = null;
+  sending.value = { kind: 'busy', text: 'Putting the card back…' };
+  try {
+    await undoUpdate(update.anki, update.outcome);
+    sending.value = { kind: 'done', text: 'The card is as it was.', canUndo: false };
+  } catch (error) {
+    sending.value = { kind: 'failed', text: messageOf(error) };
+  }
+}
 
 // The connection lives while the page is in view.
 
@@ -425,6 +548,7 @@ onMounted(() => {
   window.addEventListener('online', onOnline);
   window.addEventListener('keydown', onKey);
   if (document.visibilityState !== 'hidden') feed.start();
+  void loadSettings();
 });
 
 onBeforeUnmount(() => {
@@ -450,14 +574,43 @@ const secondLang = computed(() => languageTag(secondTrack.value));
         <p class="title" data-testid="title">{{ titleOf(shown) }}</p>
         <p class="where muted" data-testid="where">{{ where }}</p>
       </div>
-      <AccountMenu :session="session" @sign-out="emit('signOut')" />
+      <div class="bar-end">
+        <button
+          class="button icon"
+          type="button"
+          aria-label="Settings"
+          title="Settings"
+          data-testid="open-settings"
+          :aria-pressed="view === 'settings'"
+          @click="view === 'settings' ? (view = 'lines') : openSettings()"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.3 7.3 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.3 7.3 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.6h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5ZM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7Z"
+              transform="translate(-1 0)"
+            />
+          </svg>
+        </button>
+        <AccountMenu :session="session" @sign-out="emit('signOut')" />
+      </div>
     </header>
+
+    <SettingsScreen
+      v-if="view === 'settings' && settings !== null"
+      :api="api"
+      :fetch="env.fetch"
+      :base="env.base"
+      :settings="settings"
+      @close="view = 'lines'"
+      @saved="(next) => (settings = next)"
+    />
 
     <p v-if="status === 'retrying' && received !== null" class="banner" role="status">
       The connection to the server broke. Trying again…
     </p>
 
-    <div v-if="shown !== undefined" class="toolbar">
+    <div v-if="view === 'lines' && shown !== undefined" class="toolbar">
       <label class="picker">
         <span class="picker-name">Player</span>
         <select :value="shown.Id" data-testid="pick-watch" @change="onPickWatch">
@@ -520,7 +673,12 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       </div>
     </div>
 
-    <main class="main" @wheel.passive="userScrolled" @touchmove.passive="userScrolled">
+    <main
+      v-if="view === 'lines'"
+      class="main"
+      @wheel.passive="userScrolled"
+      @touchmove.passive="userScrolled"
+    >
       <section v-if="received === null" class="note" role="status">
         <p class="muted">
           {{
@@ -577,13 +735,19 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       />
     </main>
 
-    <footer v-if="chosen.length > 0" class="bottom">
+    <footer v-if="view === 'lines' && chosen.length > 0" class="bottom">
       <SelectionBar
         :count="chosen.length"
         :span="spanText"
         :picture="picture"
         :sound="sound"
+        :anki-ready="anki !== null"
+        :sending="sending"
         @clear="clear"
+        @newest="send('newest')"
+        @add="send('new')"
+        @undo="undo"
+        @settings="openSettings"
       />
     </footer>
   </div>
@@ -637,8 +801,21 @@ const secondLang = computed(() => languageTag(secondTrack.value));
   white-space: nowrap;
 }
 
-.bar > :last-child {
+.bar-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
+}
+
+.icon {
+  width: 44px;
+  padding: 0;
+  background: transparent;
+}
+
+.icon[aria-pressed='true'] {
+  background: var(--raised);
 }
 
 .banner {

@@ -15,6 +15,7 @@ import {
   lastStartedAt,
   linesAt,
   pairLines,
+  secondOf,
   pickFor,
   positionOf,
   titleOf,
@@ -184,6 +185,18 @@ describe('the lines', () => {
       undefined,
     ]);
     expect(pairLines(main, undefined)).toEqual(main);
+  });
+
+  it('give a card the second track’s lines once, though one spans several chosen', () => {
+    const second = [
+      line(10, 900, 5_100, 'one and two'),
+      line(11, 7_900, 9_100, 'three'),
+      line(12, 20_000, 21_000, 'later'),
+    ];
+
+    expect(secondOf(main.slice(0, 2), second)).toEqual(['one and two']);
+    expect(secondOf([main[2]!, main[0]!], second)).toEqual(['one and two', 'three']);
+    expect(secondOf(main.slice(0, 2), undefined)).toEqual([]);
   });
 
   it('are found by the moment they are on screen', () => {

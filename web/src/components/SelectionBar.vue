@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, useTemplateRef, watch } from 'vue';
 
-import type { Making } from './making';
+import type { Making, Sending } from './making';
 
 const props = defineProps<{
   count: number;
@@ -9,9 +9,20 @@ const props = defineProps<{
   span: string;
   picture: Making;
   sound: Making;
+  /** Whether cards go anywhere. */
+  ankiReady: boolean;
+  sending: Sending;
 }>();
 
-const emit = defineEmits<{ clear: [] }>();
+const emit = defineEmits<{
+  clear: [];
+  /** Add the lines to the card made last, with Yomitan for one. */
+  newest: [];
+  /** Make a new card of the lines. */
+  add: [];
+  undo: [];
+  settings: [];
+}>();
 
 const player = useTemplateRef<HTMLAudioElement>('player');
 const playing = ref(false);
@@ -90,6 +101,55 @@ async function play(): Promise<void> {
         />
       </div>
     </div>
+
+    <div class="send">
+      <template v-if="ankiReady">
+        <button
+          class="button primary"
+          type="button"
+          data-testid="add-to-newest"
+          :disabled="sending.kind === 'busy'"
+          @click="emit('newest')"
+        >
+          Add to my newest card
+        </button>
+        <button
+          class="button"
+          type="button"
+          data-testid="add-new"
+          :disabled="sending.kind === 'busy'"
+          @click="emit('add')"
+        >
+          New card
+        </button>
+      </template>
+      <button
+        v-else
+        class="button"
+        type="button"
+        data-testid="set-up-anki"
+        @click="emit('settings')"
+      >
+        Set up Anki to make cards
+      </button>
+      <p
+        class="sent small"
+        :class="{ error: sending.kind === 'failed' }"
+        :role="sending.kind === 'failed' ? 'alert' : 'status'"
+        data-testid="sending"
+      >
+        <template v-if="sending.kind !== 'idle'">{{ sending.text }}</template>
+        <button
+          v-if="sending.kind === 'done' && sending.canUndo"
+          class="link"
+          type="button"
+          data-testid="undo"
+          @click="emit('undo')"
+        >
+          Undo
+        </button>
+      </p>
+    </div>
   </section>
 </template>
 
@@ -164,5 +224,34 @@ async function play(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.send {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  flex: 1 1 100%;
+}
+
+.sent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+.sent:empty {
+  display: none;
+}
+
+.small {
+  font-size: 13px;
+}
+
+.error {
+  color: var(--danger);
 }
 </style>

@@ -198,4 +198,78 @@ public sealed class ItemsControllerTests : IDisposable
             Problem(result, StatusCodes.Status500InternalServerError);
         }
     }
+
+    [Fact]
+    public async Task A_picture_for_a_card_goes_straight_into_the_users_Anki_on_a_server()
+    {
+        _test.SignInAs(administrator: true);
+        _test.UseServerAnki();
+        _test.AnkiNetwork.AnswerWith(request => "\"" + request.Json.GetProperty("params").GetProperty("filename").GetString() + "\"");
+
+        var view = (await Controller().PostPictureToAnki(Sample.ItemId, 2_250, null, "jpeg", 640, 85, null, _none)).Value!;
+
+        var sent = Assert.Single(_test.AnkiNetwork.Requests);
+        Assert.Equal("storeMediaFile", sent.Action);
+        var parameters = sent.Json.GetProperty("params");
+        Assert.Equal(view.FileName, parameters.GetProperty("filename").GetString());
+        Assert.StartsWith("subtitle-miner_aaaaaaaa_2250_", view.FileName, StringComparison.Ordinal);
+        Assert.EndsWith(".jpg", view.FileName, StringComparison.Ordinal);
+        Assert.Equal(new byte[] { 1, 2, 3 }, parameters.GetProperty("data").GetBytesFromBase64());
+        Assert.Equal("scale='min(640,iw)':-2", After(Assert.Single(_test.Ffmpeg.Runs), "-vf"));
+
+        // The cut is gone once it is sent.
+        Assert.Empty(Directory.GetFiles(Path.Combine(_test.Scratch, "work")));
+    }
+
+    [Fact]
+    public async Task Sound_for_a_card_goes_into_Anki_under_the_name_Anki_gives_it()
+    {
+        _test.SignInAs(administrator: true);
+        _test.UseServerAnki();
+        _test.AnkiNetwork.AnswerWith(_ => "\"renamed.mp3\"");
+
+        var view = (await Controller().PostAudioToAnki(Sample.ItemId, 1_000, 6_000, "a1", "mp3", 128, false, null, _none)).Value!;
+
+        Assert.Equal("renamed.mp3", view.FileName);
+        Assert.Equal("0:a:1", After(Assert.Single(_test.Ffmpeg.Runs), "-map"));
+    }
+
+    [Fact]
+    public void The_same_cut_gets_the_same_name_and_another_cut_another()
+    {
+        var one = ItemsController.MediaName(Sample.ItemId, null, 1_000, "audio|1000|6000|a1|mp3|128|False");
+
+        Assert.Equal(one, ItemsController.MediaName(Sample.ItemId, null, 1_000, "audio|1000|6000|a1|mp3|128|False"));
+        Assert.NotEqual(one, ItemsController.MediaName(Sample.ItemId, null, 1_000, "audio|1000|6000|a0|mp3|128|False"));
+        Assert.Matches("^subtitle-miner_aaaaaaaa_1000_[0-9a-f]{8}$", one);
+    }
+
+    [Fact]
+    public async Task Nothing_is_cut_for_Anki_when_it_could_not_go_anywhere()
+    {
+        // No server Anki set, then one the user may not use.
+        Problem((await Controller().PostPictureToAnki(Sample.ItemId, 2_250, null, "jpeg", 640, 85, null, _none)).Result, StatusCodes.Status403Forbidden);
+        _test.SignInAs(administrator: true);
+        Problem((await Controller().PostAudioToAnki(Sample.ItemId, 1_000, 6_000, null, "mp3", 128, false, null, _none)).Result, StatusCodes.Status409Conflict);
+
+        // A video the user may not see answers as before.
+        _test.UseServerAnki();
+        Problem((await Controller().PostPictureToAnki(Guid.NewGuid(), 2_250, null, "jpeg", 640, 85, null, _none)).Result, StatusCodes.Status404NotFound);
+
+        Assert.Empty(_test.Ffmpeg.Runs);
+        Assert.Empty(_test.AnkiNetwork.Requests);
+    }
+
+    [Fact]
+    public async Task A_refused_key_is_put_into_words()
+    {
+        _test.SignInAs(administrator: true);
+        _test.UseServerAnki();
+        _test.AnkiNetwork.OnRequest = (_, _) => Task.FromResult(FakeAnkiHandler.Answer("""{"result":null,"error":"valid api key must be provided"}"""));
+
+        var problem = Problem((await Controller().PostPictureToAnki(Sample.ItemId, 2_250, null, "jpeg", 640, 85, null, _none)).Result, StatusCodes.Status422UnprocessableEntity);
+
+        Assert.Contains("did not take the key", problem.Detail, StringComparison.Ordinal);
+        Assert.Empty(Directory.GetFiles(Path.Combine(_test.Scratch, "work")));
+    }
 }

@@ -2,13 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.SubtitleMiner.Anki;
 using Jellyfin.Plugin.SubtitleMiner.Api;
 using Jellyfin.Plugin.SubtitleMiner.Library;
 using Jellyfin.Plugin.SubtitleMiner.Media;
 using Jellyfin.Plugin.SubtitleMiner.Playback;
+using Jellyfin.Plugin.SubtitleMiner.Settings;
 using Jellyfin.Plugin.SubtitleMiner.Subtitles;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -104,6 +110,55 @@ internal sealed class FakeFfmpeg : IFfmpeg
     }
 }
 
+/// <summary>The settings for everyone, held in memory.</summary>
+internal sealed class FakeSharedSettings : ISharedSettings
+{
+    public bool AnkiThroughServerForEveryone { get; set; }
+
+    public void SetAnkiThroughServerForEveryone(bool allowed) => AnkiThroughServerForEveryone = allowed;
+}
+
+/// <summary>A request an AnkiConnect got: where it went and its body.</summary>
+internal sealed record AnkiRequest(Uri Address, string Body)
+{
+    public JsonElement Json => JsonDocument.Parse(Body).RootElement;
+
+    public string Action => Json.GetProperty("action").GetString()!;
+}
+
+/// <summary>
+/// The network as an AnkiConnect sees it: every request is remembered, and the test says what is answered. By
+/// default it answers as AnkiConnect does, with a null result.
+/// </summary>
+internal sealed class FakeAnkiHandler : HttpMessageHandler
+{
+    private readonly object _lock = new();
+
+    public List<AnkiRequest> Requests { get; } = [];
+
+    /// <summary>Gets or sets what is answered to a request.</summary>
+    public Func<AnkiRequest, CancellationToken, Task<HttpResponseMessage>> OnRequest { get; set; } = (_, _) => Task.FromResult(Answer("""{"result":null,"error":null}"""));
+
+    public static HttpResponseMessage Answer(string json, HttpStatusCode status = HttpStatusCode.OK) =>
+        new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+
+    /// <summary>Answers every request with a result, as AnkiConnect would.</summary>
+    public void AnswerWith(Func<AnkiRequest, string> result) =>
+        OnRequest = (request, _) => Task.FromResult(Answer("{\"result\":" + result(request) + ",\"error\":null}"));
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var seen = new AnkiRequest(request.RequestUri!, body);
+        lock (_lock)
+        {
+            Requests.Add(seen);
+        }
+
+        return await OnRequest(seen, cancellationToken).ConfigureAwait(false);
+    }
+}
+
 /// <summary>The plugin's services over fakes, with a scratch folder that goes away with the test.</summary>
 internal sealed class TestServices : IDisposable
 {
@@ -114,6 +169,10 @@ internal sealed class TestServices : IDisposable
         Tracker = new PlaybackTracker(Time);
         Subtitles = new SubtitleStore(Ffmpeg, Path.Combine(Scratch, "work"), NullLogger<SubtitleStore>.Instance);
         Cutter = new MediaCutter(Ffmpeg, Path.Combine(Scratch, "work"), NullLogger<MediaCutter>.Instance);
+        Keys = new KeyProtector(RandomNumberGenerator.GetBytes(32));
+        Settings = new UserSettingsStore(Path.Combine(Scratch, "users"), Keys, NullLogger<UserSettingsStore>.Instance);
+        AnkiClient = new AnkiClient(AnkiNetwork, NullLogger<AnkiClient>.Instance);
+        Anki = new AnkiGate(Settings, Shared);
     }
 
     public static Guid UserId { get; } = Guid.Parse("11111111-2222-3333-4444-555555555555");
@@ -136,6 +195,32 @@ internal sealed class TestServices : IDisposable
 
     public MediaCutter Cutter { get; }
 
+    public KeyProtector Keys { get; }
+
+    public UserSettingsStore Settings { get; }
+
+    public FakeSharedSettings Shared { get; } = new();
+
+    public FakeAnkiHandler AnkiNetwork { get; } = new();
+
+    public AnkiClient AnkiClient { get; }
+
+    /// <summary>Gets the one gate of the server, as there is one in Jellyfin.</summary>
+    public AnkiGate Anki { get; }
+
+    /// <summary>Signs the test in as an administrator, or as a user who is not one.</summary>
+    public void SignInAs(bool administrator) => Callers.Caller = new Caller(TestServices.UserId, "mika", administrator);
+
+    /// <summary>Makes the user's cards go to an AnkiConnect on a server.</summary>
+    public void UseServerAnki(string address = "https://anki.example.org/", string key = "server-key")
+    {
+        var settings = Settings.Load(UserId);
+        settings.Where = AnkiWhere.Server;
+        settings.ServerAddress = address;
+        settings.ServerKey = Keys.Protect(key);
+        Settings.Save(UserId, settings);
+    }
+
     public PluginServices Build(params string[] pageFiles) => new(
         new PageFiles(new FakePageFileSource(pageFiles)),
         Callers,
@@ -144,6 +229,10 @@ internal sealed class TestServices : IDisposable
         Library,
         Subtitles,
         Cutter,
+        Settings,
+        Shared,
+        AnkiClient,
+        Anki,
         Time);
 
     /// <summary>Makes a file in the scratch folder and returns its path.</summary>
@@ -158,6 +247,7 @@ internal sealed class TestServices : IDisposable
     {
         Subtitles.Dispose();
         Cutter.Dispose();
+        AnkiClient.Dispose();
         Directory.Delete(Scratch, recursive: true);
     }
 }

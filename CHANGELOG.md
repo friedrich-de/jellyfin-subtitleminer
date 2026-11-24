@@ -15,6 +15,10 @@ Done so far:
 - The Japanese track is chosen by itself, a second track can be shown under each line for its meaning, and both choices are remembered for the next episode of the show.
 - Pick lines one by one or as a range (shift), and the page shows the picture and plays the sound that the card will get. Pictures (jpeg, webp, avif, still or moving) and sound (mp3, opus) are cut on the server, at most two at a time, and only from videos you may watch.
 - The new look: Jellyfin's own dark greys and blue, made for a phone or a second screen.
+- Anki cards from the chosen lines: "Add to my newest card" puts the lines, the picture and the sound into the card you just made with Yomitan, keeping the word Yomitan marked, and Undo puts the card back. "New card" makes one in the deck and note type you choose. A card made too long ago (15 minutes by default) is not taken for the newest one.
+- Cards go to an AnkiConnect on the device you use the page on (desktop Anki or AnkiConnect for Android), or to an AnkiConnect on a server, which the Jellyfin server calls for you with its key. Nothing has to run on your device then: the server's AnkiConnect gets the cards and the pictures and sound. The key stays on the Jellyfin server, encrypted, and the page never gets it back. Only the calls that read and add notes go through, never ones that delete or open windows.
+- Sending cards through the server is for administrators unless an administrator lets everyone, since the server then calls whatever address a user types.
+- Settings are kept on the Jellyfin server for each user, so they follow you from device to device: where cards go, the deck, the note type and what goes into each field (guessed from the field names, for Lapis and most mining note types), tags, the picture's format and width, and how much sound to keep before and after the lines.
 
 ## 1.1.0.1
 

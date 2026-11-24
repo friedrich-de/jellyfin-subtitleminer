@@ -1,8 +1,9 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Line, Watch } from '@/api/types';
+import type { Line, SettingsView, Watch } from '@/api/types';
 import type { Session } from '@/auth/signIn';
+import { type Collection, createCollection } from '@/testing/ankiCollection';
 import {
   env,
   eventStream,
@@ -35,10 +36,43 @@ const ENGLISH: Line[] = [
 
 const session: Session = { token: 'token-1', source: 'jellyfin', status: status() };
 
+/** Cards go to an AnkiConnect on a server, which the plugin calls with the key. */
+function serverSettings(page?: unknown): SettingsView {
+  return {
+    Anki: {
+      Where: 'server',
+      DeviceAddress: 'http://127.0.0.1:8765',
+      DeviceKey: '',
+      ServerAddress: 'https://anki.example.org',
+      ServerKeySet: true,
+      ServerAllowed: true,
+    },
+    ...(page === undefined ? {} : { Page: page }),
+  };
+}
+
 /** The plugin behind the page: a stream of news the test writes to, and the item endpoints. */
-function plugin(lines: Record<string, Line[] | Response> = {}) {
+function plugin(
+  lines: Record<string, Line[] | Response> = {},
+  user: { settings?: SettingsView; anki?: Collection } = {},
+) {
   const streams: EventStream[] = [];
   const server = fakeRoutes((request: RoutedRequest) => {
+    if (request.path === 'Settings' && user.settings !== undefined) return json(user.settings);
+
+    // The plugin passes the call on to the user's AnkiConnect, with the key.
+    if (request.path === 'Anki' && user.anki !== undefined) {
+      const call = request.body as { Action: string; Params?: unknown };
+      return json(user.anki.answer({ action: call.Action, version: 6, params: call.Params }));
+    }
+
+    const toAnki = /^Items\/([^/]+)\/(Picture|Audio)\/Anki$/.exec(request.path);
+    if (toAnki !== null && user.anki !== undefined) {
+      const name = `subtitle-miner_${toAnki[2] === 'Picture' ? 'picture.jpg' : 'sound.mp3'}`;
+      user.anki.handle('storeMediaFile', { filename: name, data: btoa(toAnki[2]!) });
+      return json({ FileName: name });
+    }
+
     if (request.path === 'Events') {
       const stream = eventStream();
       request.signal?.addEventListener('abort', () =>
@@ -284,9 +318,10 @@ describe('the main screen', () => {
     expect(picture.query.get('at')).toBe('2250');
     expect(picture.query.get('width')).toBe('640');
     const sound = server.asked('Audio')[0]!;
+    // A quarter of a second more on each side, as the settings have it by default.
     expect([sound.query.get('start'), sound.query.get('end'), sound.query.get('track')]).toEqual([
-      '1000',
-      '13000',
+      '750',
+      '13250',
       'a0',
     ]);
     expect(screen.get('[data-testid="preview-picture"] img').attributes('src')).toMatch(/^blob:/);
@@ -296,7 +331,7 @@ describe('the main screen', () => {
     // One line less: the old cut is thrown away and a new one made.
     await checks[0]!.trigger('click');
     await settle(300);
-    expect(server.asked('Audio').at(-1)?.query.get('start')).toBe('4000');
+    expect(server.asked('Audio').at(-1)?.query.get('start')).toBe('3750');
     expect(revoked).toContain('blob:test/1');
 
     await screen
@@ -396,6 +431,162 @@ describe('the main screen', () => {
     server.send([sampleWatch()]);
     await settle();
     expect(screen.find('.banner').exists()).toBe(false);
+  });
+
+  it('adds the lines, picture and sound to the card Yomitan just made, and takes it back', async () => {
+    const anki = createCollection();
+    anki.makeNote({
+      deck: 'Mining',
+      modelName: 'Lapis',
+      fields: {
+        Expression: '約束',
+        Sentence: '<b>約束</b>したからね。',
+        MainDefinition: 'promise',
+      },
+    });
+    const server = plugin({}, { settings: serverSettings(), anki });
+    const screen = await open(server);
+    server.send([sampleWatch({ AudioKey: 'a0' })]);
+    await settle();
+
+    await screen.findAll('.line .check')[1]!.trigger('click');
+    await settle(300);
+    await screen.get('[data-testid="add-to-newest"]').trigger('click');
+    await settle();
+
+    // Lapis's fields are guessed by their names; the word Yomitan looked up stays bold.
+    const note = [...anki.notes.values()][0]!;
+    expect(note.fields).toMatchObject({
+      Expression: '約束',
+      MainDefinition: 'promise',
+      Sentence: 'もちろん。<br><b>約束</b>したからね。',
+      Picture: '<img src="subtitle-miner_picture.jpg">',
+      SentenceAudio: '[sound:subtitle-miner_sound.mp3]',
+      MiscInfo: 'Sample Show · S1 E3 · 00:04',
+    });
+    expect([...anki.media.keys()]).toEqual([
+      'subtitle-miner_picture.jpg',
+      'subtitle-miner_sound.mp3',
+    ]);
+    // The sound is cut with the quarter second before and after it, as previewed.
+    const cut = server.asked('Audio/Anki')[0]!;
+    expect([cut.query.get('start'), cut.query.get('end')]).toEqual(['3750', '6250']);
+    expect(screen.get('[data-testid="sending"]').text()).toContain('Added to "約束".');
+
+    await screen.get('[data-testid="undo"]').trigger('click');
+    await settle();
+    expect(note.fields.Sentence).toBe('<b>約束</b>したからね。');
+    expect(note.fields.Picture).toBe('');
+    expect(screen.get('[data-testid="sending"]').text()).toContain('The card is as it was.');
+  });
+
+  it('makes a new card in the chosen deck, and refuses a card made too long ago', async () => {
+    // In the afternoon, so that the card of an hour ago was made today.
+    vi.setSystemTime(new Date(2026, 10, 24, 15, 0));
+    const anki = createCollection();
+    anki.makeNote({
+      id: Date.now() - 60 * 60_000,
+      deck: 'Mining',
+      modelName: 'Lapis',
+      fields: { Expression: '昨日' },
+    });
+    const page = {
+      anki: {
+        deck: 'Mining',
+        noteType: 'Lapis',
+        fields: { Expression: 'sentence', Sentence: 'sentence', Picture: 'picture' },
+        tags: ['mined'],
+        newestWithinMinutes: 15,
+      },
+    };
+    const server = plugin({}, { settings: serverSettings(page), anki });
+    const screen = await open(server);
+    server.send([sampleWatch()]);
+    await settle();
+
+    await screen.findAll('.line .check')[0]!.trigger('click');
+    await settle(300);
+    await screen.get('[data-testid="add-to-newest"]').trigger('click');
+    await settle();
+    expect(screen.get('[data-testid="sending"]').text()).toContain(
+      'Your newest card was made 60 minutes ago',
+    );
+    expect(anki.calls.map((call) => call.action)).not.toContain('updateNoteFields');
+
+    await screen.get('[data-testid="add-new"]').trigger('click');
+    await settle();
+    const added = [...anki.notes.values()].at(-1)!;
+    expect(added).toMatchObject({
+      deck: 'Mining',
+      modelName: 'Lapis',
+      tags: ['mined'],
+      fields: { Expression: '昨日の話、覚えてる？', Sentence: '昨日の話、覚えてる？' },
+    });
+    expect(added.fields.Picture).toBe('<img src="subtitle-miner_picture.jpg">');
+    // Nothing asks for the sound, so none is cut.
+    expect(server.asked('Audio/Anki')).toHaveLength(0);
+    expect(screen.get('[data-testid="sending"]').text()).toContain(
+      'Made a new card, "昨日の話、覚えてる？".',
+    );
+    expect(screen.find('[data-testid="undo"]').exists()).toBe(false);
+
+    // The same card again would be a duplicate in the deck.
+    await screen.get('[data-testid="add-new"]').trigger('click');
+    await settle();
+    expect(screen.get('[data-testid="sending"]').text()).toContain(
+      'This deck has a card like this already.',
+    );
+  });
+
+  it('gives a new card the meaning once, though it spans two chosen lines', async () => {
+    const anki = createCollection();
+    const page = {
+      anki: {
+        deck: 'Mining',
+        noteType: 'Basic',
+        fields: { Front: 'sentence', Back: 'translation' },
+      },
+    };
+    const both = [line(0, 1_000, 6_000, 'Do you remember? Of course.')];
+    const server = plugin({ s1: both }, { settings: serverSettings(page), anki });
+    const screen = await open(server);
+    server.send([sampleWatch()]);
+    await settle();
+    await screen.get('[data-testid="pick-second"]').setValue('s1');
+    await settle();
+
+    const checks = screen.findAll('.line .check');
+    await checks[0]!.trigger('click');
+    await checks[1]!.trigger('click');
+    await settle(300);
+    await screen.get('[data-testid="add-new"]').trigger('click');
+    await settle();
+
+    expect([...anki.notes.values()][0]!.fields).toEqual({
+      Front: '昨日の話、覚えてる？<br>もちろん。<br>約束したからね。',
+      Back: 'Do you remember? Of course.',
+    });
+  });
+
+  it('offers to set up Anki when cards go nowhere, and opens the settings', async () => {
+    const settings = {
+      ...serverSettings(),
+      Anki: { ...serverSettings().Anki, Where: 'off' as const },
+    };
+    const server = plugin({}, { settings });
+    const screen = await open(server);
+    server.send([sampleWatch()]);
+    await settle();
+
+    await screen.findAll('.line .check')[0]!.trigger('click');
+    expect(screen.find('[data-testid="add-to-newest"]').exists()).toBe(false);
+    await screen.get('[data-testid="set-up-anki"]').trigger('click');
+    await settle();
+    expect(screen.find('[data-testid="where-off"]').exists()).toBe(true);
+    expect(screen.get('[data-testid="open-settings"]').attributes('aria-pressed')).toBe('true');
+
+    await screen.get('[data-testid="settings-back"]').trigger('click');
+    expect(screen.findAll('.line .check')).not.toHaveLength(0);
   });
 
   it('tells the app when the login has ended', async () => {

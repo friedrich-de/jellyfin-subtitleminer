@@ -71,3 +71,41 @@ export interface Subtitles {
   Format: string;
   Lines: Line[];
 }
+
+/** Where a user's cards go. */
+export type AnkiWhere = 'off' | 'device' | 'server';
+
+export interface AnkiView {
+  Where: AnkiWhere;
+  DeviceAddress: string;
+  /** The browser sends it, so the page gets it back. */
+  DeviceKey: string;
+  ServerAddress: string;
+  /** Whether a key for the server's AnkiConnect is stored. The key itself stays on the server. */
+  ServerKeySet: boolean;
+  /** Whether this user may have the server send their cards. */
+  ServerAllowed: boolean;
+}
+
+/** A user's settings, kept on the server so they follow the user from device to device. */
+export interface SettingsView {
+  Anki: AnkiView;
+  /** What only the page reads, as it saved it. */
+  Page?: unknown;
+  /** Only administrators get it. */
+  Everyone?: { AnkiThroughServer: boolean };
+}
+
+/** A change of the settings. What is left out stays as it is. */
+export interface SettingsChange {
+  Anki?: Partial<Omit<AnkiView, 'ServerKeySet' | 'ServerAllowed'>> & {
+    /** Empty takes it away. */
+    ServerKey?: string;
+  };
+  Page?: unknown;
+}
+
+/** A file the server put into the user's Anki. */
+export interface StoredMedia {
+  FileName: string;
+}

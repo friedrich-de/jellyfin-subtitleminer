@@ -1,5 +1,6 @@
 import { type APIRequestContext, expect, test as base } from '@playwright/test';
 
+import { startAnkiConnect, type StandInAnki, type StandInOptions } from './ankiConnect';
 import { PretendPlayer } from './player';
 import type { Account, ServerState } from './server';
 import { readState } from './state';
@@ -47,6 +48,8 @@ interface Fixtures {
    * video when the test ends, passed or failed, so no test finds another's playback.
    */
   player: (account: Account, device: string, client?: string) => PretendPlayer;
+  /** Starts an AnkiConnect of the test's own, stopped when the test ends. */
+  anki: (options?: StandInOptions) => Promise<StandInAnki>;
 }
 
 export const test = base.extend<Fixtures>({
@@ -70,6 +73,17 @@ export const test = base.extend<Fixtures>({
     await Promise.allSettled(made.map((player) => player.stop()));
   },
 
+  // eslint-disable-next-line no-empty-pattern
+  anki: async ({}, use) => {
+    const started: StandInAnki[] = [];
+    await use(async (options) => {
+      const anki = await startAnkiConnect(options);
+      started.push(anki);
+      return anki;
+    });
+    await Promise.allSettled(started.map((anki) => anki.stop()));
+  },
+
   pageErrors: [
     async ({ page }, use) => {
       const errors: string[] = [];
@@ -78,10 +92,17 @@ export const test = base.extend<Fixtures>({
         if (onOurPage()) errors.push(`uncaught: ${error.message}`);
       });
       page.on('console', (message) => {
-        // A refused request is the browser's own line, and the tests that expect one assert on
-        // what the page shows. Everything else, a refused script or style above all, is a fault.
+        // A refused request, also one that CORS refuses, is the browser's own line, and the tests
+        // that expect one assert on what the page shows. Everything else, a refused script or
+        // style above all, is a fault.
         if (message.type() !== 'error' || !onOurPage()) return;
         if (message.text().startsWith('Failed to load resource:')) return;
+        if (
+          /^Access to fetch at '[^']+' from origin '[^']+' has been blocked by CORS/.test(
+            message.text(),
+          )
+        )
+          return;
         errors.push(message.text());
       });
       await use(errors);

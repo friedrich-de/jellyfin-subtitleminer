@@ -22,8 +22,9 @@ What version 2 can do today:
 - The page lives at `/SubtitleMiner/` at your Jellyfin address. The address of version 1, `/Plugins/JellyfinMiner/`, leads there.
 - No separate sign-in. The page uses the login of Jellyfin's web client in the same browser. Where there is none, it asks for your Jellyfin name and password once.
 - It follows what you play on any Jellyfin app, line by line, and keeps what you watched in the last hours. You pick lines and see the picture and hear the sound the card will get.
+- It makes Anki cards: it adds the lines, the picture and the sound to the card you just made with Yomitan, or makes a new one. Cards go to AnkiConnect on your device, or to an AnkiConnect on a server with its API key, which the Jellyfin server calls for you, so nothing needs to run on your device.
 
-What comes next, in this order: making Anki cards (through an AnkiConnect on this device or on a server, with an API key), installing the page as an app, and a dictionary hosted on the Jellyfin server. [CHANGELOG.md](CHANGELOG.md) lists what is done.
+What comes next, in this order: installing the page as an app, and a dictionary hosted on the Jellyfin server. [CHANGELOG.md](CHANGELOG.md) lists what is done.
 
 ## Development
 
