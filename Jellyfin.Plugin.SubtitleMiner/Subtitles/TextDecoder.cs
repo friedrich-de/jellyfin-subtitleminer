@@ -39,14 +39,16 @@ internal static class TextDecoder
             return Encoding.BigEndianUnicode.GetString(bytes[2..]);
         }
 
-        if (TryDecode(_strictUtf8, bytes, out var utf8))
-        {
-            return utf8;
-        }
-
+        // UTF-16 first: where it holds only Latin letters, every byte of it is valid UTF-8 as well, zeros
+        // included. Text in UTF-8 has no zeros in it.
         if (LooksLikeUtf16(bytes, out var bigEndian))
         {
             return (bigEndian ? Encoding.BigEndianUnicode : Encoding.Unicode).GetString(bytes);
+        }
+
+        if (TryDecode(_strictUtf8, bytes, out var utf8))
+        {
+            return utf8;
         }
 
         // Not UTF-8. The Japanese code pages come first, because that is what this plugin is used with:

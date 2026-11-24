@@ -211,6 +211,28 @@ public class PlaybackTrackerTests
     }
 
     [Fact]
+    public void A_sweep_tells_the_pages_when_a_player_went_silent()
+    {
+        _tracker.Report(Sample.Report(positionMs: 100_000));
+        using var listener = _tracker.Listen(TestServices.UserId);
+        using var other = _tracker.Listen(TestServices.OtherUserId);
+
+        _tracker.Sweep();
+        Assert.False(listener.News.TryRead(out _));
+
+        _time.Advance(PlaybackTracker.SilentAfter + TimeSpan.FromSeconds(1));
+        _tracker.Sweep();
+
+        Assert.True(listener.News.TryRead(out _));
+        Assert.False(other.News.TryRead(out _));
+        Assert.False(Assert.Single(_tracker.ListFor(TestServices.UserId)).Playing);
+
+        // Told once: the watch has ended, and a second sweep finds nothing new.
+        _tracker.Sweep();
+        Assert.False(listener.News.TryRead(out _));
+    }
+
+    [Fact]
     public void No_more_than_twelve_watches_are_listed()
     {
         for (var number = 1; number <= 20; number++)

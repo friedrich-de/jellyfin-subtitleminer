@@ -39,6 +39,18 @@ public class TextDecoderTests
         Assert.Equal(Japanese, TextDecoder.Decode(bytes));
     }
 
+    [Theory]
+    [InlineData("utf-16")]
+    [InlineData("utf-16BE")]
+    public void Utf16_without_a_byte_order_mark_is_read_when_it_holds_only_latin_letters(string encoding)
+    {
+        const string English = "1\n00:00:01,000 --> 00:00:02,000\nDo you remember yesterday?\n";
+        var bytes = Encoding.GetEncoding(encoding).GetBytes(English);
+
+        Assert.Equal(English, TextDecoder.Decode(bytes));
+        Assert.Equal("Do you remember yesterday?", Assert.Single(SubtitleReader.Read(bytes).Lines).Text);
+    }
+
     [Fact]
     public void A_shift_jis_subtitle_file_gives_readable_lines()
     {

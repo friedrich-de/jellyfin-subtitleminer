@@ -150,6 +150,34 @@ describe('the feed of what plays', () => {
     feed.stop();
   });
 
+  it('keeps one connection when stopped and started again before the old one has wound down', async () => {
+    const server = fakeEvents();
+    const { feed, lists } = start(server);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The page goes out of view and back at once: the old stream is still closing.
+    feed.stop();
+    feed.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(server.opened).toHaveLength(2);
+
+    // No third stream opens behind the new one's back.
+    await vi.advanceTimersByTimeAsync(RETRY_DELAYS.at(-1)!);
+    expect(server.opened).toHaveLength(2);
+    expect(server.opened[1]!.signal.aborted).toBe(false);
+    server.last.send([sampleWatch()]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lists).toHaveLength(1);
+
+    // The new one still has its watch for silence, and stop still reaches it.
+    await vi.advanceTimersByTimeAsync(SILENCE_MS);
+    expect(server.opened[1]!.signal.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(RETRY_DELAYS[0]);
+    expect(server.opened).toHaveLength(3);
+    feed.stop();
+    expect(server.opened[2]!.signal.aborted).toBe(true);
+  });
+
   it('gives up waiting when told the device is back online', async () => {
     const server = fakeEvents();
     server.answers.push(new TypeError('Failed to fetch'), new TypeError('Failed to fetch'));

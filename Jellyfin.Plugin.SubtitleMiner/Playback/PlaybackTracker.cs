@@ -49,6 +49,7 @@ internal sealed class PlaybackTracker
     {
         var now = _time.GetUtcNow();
         var news = false;
+        HashSet<Guid> silent;
         lock (_lock)
         {
             var id = IdOf(report);
@@ -82,12 +83,17 @@ internal sealed class PlaybackTracker
                 entry.Told = entry.Watch;
             }
 
-            Forget(now);
+            silent = Forget(now);
         }
 
         if (news)
         {
-            Tell(report.UserId);
+            silent.Add(report.UserId);
+        }
+
+        foreach (var user in silent)
+        {
+            Tell(user);
         }
     }
 
@@ -132,9 +138,11 @@ internal sealed class PlaybackTracker
     public IReadOnlyList<Watch> ListFor(Guid userId)
     {
         var now = _time.GetUtcNow();
+        IReadOnlyList<Watch> list;
+        HashSet<Guid> silent;
         lock (_lock)
         {
-            Forget(now);
+            silent = Forget(now);
             var mine = _entries.Values.Select(entry => entry.Watch).Where(watch => watch.Report.UserId == userId).ToList();
             var playing = mine.Where(watch => watch.Playing).OrderByDescending(watch => watch.At).ToList();
             var open = playing.Select(watch => (watch.Report.ItemId, watch.Report.MediaSourceId)).ToHashSet();
@@ -143,7 +151,32 @@ internal sealed class PlaybackTracker
                 .GroupBy(watch => (watch.Report.ItemId, watch.Report.MediaSourceId))
                 .Select(group => group.MaxBy(watch => watch.StoppedAt)!)
                 .OrderByDescending(watch => watch.StoppedAt);
-            return [.. playing.Concat(over).Take(MaxPerUser)];
+            list = [.. playing.Concat(over).Take(MaxPerUser)];
+        }
+
+        foreach (var user in silent)
+        {
+            Tell(user);
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// Ends the watches of players that went silent without saying they stopped, and tells the pages. A
+    /// player that loses its network sends no stop, and the pages would show it playing on.
+    /// </summary>
+    public void Sweep()
+    {
+        HashSet<Guid> silent;
+        lock (_lock)
+        {
+            silent = Forget(_time.GetUtcNow());
+        }
+
+        foreach (var user in silent)
+        {
+            Tell(user);
         }
     }
 
@@ -220,8 +253,10 @@ internal sealed class PlaybackTracker
     /// <summary>
     /// Ends the watches of players that went silent and drops what is too old. Call with the lock held.
     /// </summary>
-    private void Forget(DateTimeOffset now)
+    /// <returns>The users whose watches ended here, for the pages to be told.</returns>
+    private HashSet<Guid> Forget(DateTimeOffset now)
     {
+        var silent = new HashSet<Guid>();
         foreach (var (id, entry) in _entries.ToList())
         {
             var watch = entry.Watch;
@@ -229,12 +264,15 @@ internal sealed class PlaybackTracker
             {
                 entry.Watch = watch with { Playing = false, StoppedAt = watch.At };
                 entry.Told = entry.Watch;
+                silent.Add(watch.Report.UserId);
             }
             else if (!watch.Playing && now - watch.StoppedAt > KeepStopped)
             {
                 _entries.Remove(id);
             }
         }
+
+        return silent;
     }
 
     /// <summary>

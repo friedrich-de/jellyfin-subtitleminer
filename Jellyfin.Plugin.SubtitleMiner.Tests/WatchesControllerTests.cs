@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.SubtitleMiner.Api;
 using Jellyfin.Plugin.SubtitleMiner.Library;
+using Jellyfin.Plugin.SubtitleMiner.Playback;
 using Jellyfin.Plugin.SubtitleMiner.Tests.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -226,6 +227,32 @@ public sealed class WatchesControllerTests : IDisposable
         await gone.CancelAsync();
         await stream.WaitAsync(TimeSpan.FromSeconds(10), _none);
         Assert.Equal(0, _test.Tracker.ListenerCountOf(TestServices.UserId));
+    }
+
+    [Fact]
+    public async Task The_stream_says_so_when_a_player_went_silent_while_nothing_else_happened()
+    {
+        _test.Tracker.Report(Sample.Report(positionMs: 60_000));
+        var pipe = new Pipe();
+        using var reader = new StreamReader(pipe.Reader.AsStream(), Encoding.UTF8);
+        using var gone = CancellationTokenSource.CreateLinkedTokenSource(_none);
+        var stream = Controller(pipe.Writer.AsStream(), TimeSpan.FromMilliseconds(40)).GetEvents(gone.Token);
+
+        Assert.True(Data(await NextAsync(reader)).GetProperty("Watches")[0].GetProperty("Playing").GetBoolean());
+        Assert.Equal(": beat\n", await NextAsync(reader));
+
+        // The player lost its network: no stop comes. The stream ends the watch by itself.
+        _test.Time.Advance(PlaybackTracker.SilentAfter + TimeSpan.FromSeconds(1));
+        string next;
+        do
+        {
+            next = await NextAsync(reader);
+        }
+        while (next == ": beat\n");
+        Assert.False(Data(next).GetProperty("Watches")[0].GetProperty("Playing").GetBoolean());
+
+        await gone.CancelAsync();
+        await stream.WaitAsync(TimeSpan.FromSeconds(10), _none);
     }
 
     [Fact]

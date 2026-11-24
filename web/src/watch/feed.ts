@@ -66,9 +66,11 @@ export function createWatchFeed(env: FeedEnv, handlers: FeedHandlers) {
     silenceTimer = null;
   }
 
-  function heardFromServer(): void {
+  /** Each sign of life puts off the moment the connection is taken to be dead. */
+  function heardFromServer(connection: AbortController): void {
+    if (abort !== connection) return;
     if (silenceTimer !== null) env.clearTimeout(silenceTimer);
-    silenceTimer = env.setTimeout(() => abort?.abort(), SILENCE_MS);
+    silenceTimer = env.setTimeout(() => connection.abort(), SILENCE_MS);
   }
 
   function retryLater(): void {
@@ -87,8 +89,9 @@ export function createWatchFeed(env: FeedEnv, handlers: FeedHandlers) {
     const mine = new AbortController();
     abort = mine;
     try {
-      heardFromServer();
+      heardFromServer(mine);
       const response = await env.api.events(mine.signal);
+      if (abort !== mine) return;
       if (response.status === 401 || response.status === 403) {
         running = false;
         clearTimers();
@@ -100,20 +103,23 @@ export function createWatchFeed(env: FeedEnv, handlers: FeedHandlers) {
       await readEvents(
         response.body,
         (event) => {
-          if (event.name !== 'watches') return;
+          if (event.name !== 'watches' || abort !== mine) return;
           const list = JSON.parse(event.data) as WatchList;
           tries = 0;
           setStatus('live');
           handlers.onList({ watches: list.Watches, at: env.now() });
         },
-        heardFromServer,
+        () => heardFromServer(mine),
       );
     } catch {
       // Broken, refused, unreadable or called off: the same for the page. It tries again.
     }
 
-    // The stream ended, broke or fell silent. Unless the page stopped it, it is opened again.
-    if (abort === mine) abort = null;
+    // A connection the page stopped, or one that another took the place of, leaves the rest alone.
+    if (abort !== mine) return;
+
+    // The stream ended, broke or fell silent. It is opened again.
+    abort = null;
     if (silenceTimer !== null) env.clearTimeout(silenceTimer);
     silenceTimer = null;
     if (running) retryLater();

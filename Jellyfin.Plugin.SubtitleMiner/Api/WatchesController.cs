@@ -119,7 +119,9 @@ public class WatchesController : ControllerBase
                 catch (OperationCanceledException) when (!ended.IsCancellationRequested)
                 {
                     // Nothing happened for a while. A comment keeps the connection alive and shows the page it is.
+                    // A player that went silent ends here, and the next read has that news.
                     await WriteAsync(": beat\n\n", ended.Token).ConfigureAwait(false);
+                    _services.Tracker.Sweep();
                     continue;
                 }
 
