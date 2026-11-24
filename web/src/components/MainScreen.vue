@@ -608,6 +608,8 @@ async function send(mode: 'newest' | 'new'): Promise<void> {
   lastUpdate = null;
   const content = contentOf(watch, chosen.value, value);
   const media = mediaOf(watch, value);
+  // Every change of the lines chosen makes a new set, so this tells whether they are still the ones sent.
+  const sent = selected.value;
 
   try {
     const outcome =
@@ -621,9 +623,12 @@ async function send(mode: 'newest' | 'new'): Promise<void> {
       text: outcome.kind === 'updated' ? `Added to ${name}.` : `Made a new card, ${name}.`,
       canUndo: outcome.kind === 'updated',
     };
-    // The lines are done with, so they are let go of, ready for the next card.
-    madeCard.value = true;
-    clear();
+    // The lines are done with, so they are let go of, ready for the next card. Lines chosen while the
+    // card was on its way are the next card's, and stay.
+    if (selected.value === sent) {
+      madeCard.value = true;
+      clear();
+    }
   } catch (error) {
     sending.value = { kind: 'failed', text: messageOf(error) };
   }

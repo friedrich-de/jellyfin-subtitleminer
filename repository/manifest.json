@@ -13,8 +13,8 @@
         "changelog": "- Once a card has the chosen lines, through \"Add to my newest card\" or \"New card\", the lines are unselected, ready for the next card. What happened to the card stays at the bottom, with Undo where there is one, until you choose other lines or close it. A card that fails leaves the lines chosen, to try again.",
         "targetAbi": "12.4.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/friedrich-de/jellyfin-subtitleminer/main/repository/subtitle-miner_2.0.2.0.zip",
-        "checksum": "3115f1a8df15f78d0c29f1011cf95283",
-        "timestamp": "2026-11-24T18:49:21Z"
+        "checksum": "593a2ea369ceae3579953cea2857fac1",
+        "timestamp": "2026-11-24T18:54:20Z"
       },
       {
         "version": "2.0.1.1",
