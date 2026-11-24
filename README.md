@@ -66,3 +66,5 @@ A lot of great tools for language learning and media mining exist, but they plac
 ## Licence
 
 GPL-3.0, see [LICENSE](LICENSE). Jellyfin plugins link Jellyfin's libraries, which are GPL-3.0.
+
+The rules the dictionary uses to undo Japanese conjugations are [Yomitan](https://github.com/yomidevs/yomitan)'s, as the [Hoshidicts](https://github.com/bee-san/hoshidicts) Japanese language pack writes them (GPL-3.0-or-later); [Dictionary/Japanese/SOURCES.md](Jellyfin.Plugin.SubtitleMiner/Dictionary/Japanese/SOURCES.md) says where each file comes from. No dictionary comes with the plugin: an administrator downloads or uploads the ones they want, under their own licences.

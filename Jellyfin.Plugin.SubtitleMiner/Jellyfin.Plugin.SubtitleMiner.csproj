@@ -15,10 +15,16 @@
     <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <!-- SQLite for the dictionaries: the server ships it (with SQLitePCLRaw and its native library) for its own database. -->
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="$(SqliteVersion)">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <!-- Yomitan's rules for undoing Japanese inflections, as the Hoshidicts language pack writes them (Dictionary/Japanese/SOURCES.md). -->
+    <EmbeddedResource Include="Dictionary\Japanese\transforms.json" LogicalName="dictionary/ja/transforms.json" />
     <!-- The page, as "npm run build" in web/ leaves it in web/dist. dev/package.sh builds it first.
          Without that folder the plugin still builds, and says on its address that it holds no page. -->
     <EmbeddedResource Include="..\web\dist\**\*" LogicalName="page/%(RecursiveDir)%(Filename)%(Extension)" />

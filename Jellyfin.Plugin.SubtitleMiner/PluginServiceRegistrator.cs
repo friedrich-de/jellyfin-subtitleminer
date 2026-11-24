@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Jellyfin.Plugin.SubtitleMiner.Anki;
 using Jellyfin.Plugin.SubtitleMiner.Api;
+using Jellyfin.Plugin.SubtitleMiner.Dictionary;
 using Jellyfin.Plugin.SubtitleMiner.Library;
 using Jellyfin.Plugin.SubtitleMiner.Media;
 using Jellyfin.Plugin.SubtitleMiner.Playback;
@@ -58,6 +59,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISharedSettings, PluginSharedSettings>();
         serviceCollection.AddSingleton(provider => new AnkiClient(AnkiClient.CreateHandler(), provider.GetRequiredService<ILogger<AnkiClient>>()));
         serviceCollection.AddSingleton(provider => new AnkiGate(provider.GetRequiredService<UserSettingsStore>(), provider.GetRequiredService<ISharedSettings>()));
+        serviceCollection.AddSingleton(provider => new DictionaryServices(
+            new DictionaryLibrary(Path.Combine(Data(provider), "dictionaries"), provider.GetRequiredService<ILogger<DictionaryLibrary>>()),
+            new DictionaryDownloader(DictionaryDownloader.CreateHandler()),
+            Path.Combine(Scratch(provider), "dictionaries")));
         serviceCollection.AddSingleton(provider => new PluginServices(
             new PageFiles(new EmbeddedPageFiles(typeof(Plugin).Assembly)),
             provider.GetRequiredService<ICallerResolver>(),
@@ -70,6 +75,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ISharedSettings>(),
             provider.GetRequiredService<AnkiClient>(),
             provider.GetRequiredService<AnkiGate>(),
+            provider.GetRequiredService<DictionaryServices>(),
             TimeProvider.System));
     }
 }
