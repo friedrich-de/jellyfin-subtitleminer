@@ -14,6 +14,7 @@ import {
 } from '@/anki/cards';
 import { AnkiError, type AnkiConnect, deviceAnki, serverAnki } from '@/anki/connect';
 import { readPageSettings } from '@/anki/pageSettings';
+import { syncAnki } from '@/anki/sync';
 import { HttpError, UnreachableError } from '@/api/http';
 import { createPluginApi, type PictureOptions, type SoundOptions } from '@/api/plugin';
 import type {
@@ -677,6 +678,32 @@ async function undo(): Promise<void> {
   }
 }
 
+// Syncing Anki with AnkiWeb now, from the bar, rather than when it next would by itself.
+
+type Syncing = { kind: 'idle' } | { kind: 'busy' } | { kind: 'done' | 'failed'; text: string };
+
+const syncing = shallowRef<Syncing>({ kind: 'idle' });
+let syncShown: number | null = null;
+
+function endSyncNote(): void {
+  if (syncShown !== null) window.clearTimeout(syncShown);
+  syncShown = null;
+  syncing.value = { kind: 'idle' };
+}
+
+async function syncNow(): Promise<void> {
+  const target = anki.value;
+  if (target === null || syncing.value.kind === 'busy') return;
+  endSyncNote();
+  syncing.value = { kind: 'busy' };
+  try {
+    syncing.value = { kind: 'done', text: await syncAnki(target) };
+    syncShown = window.setTimeout(endSyncNote, 6_000);
+  } catch (error) {
+    syncing.value = { kind: 'failed', text: messageOf(error) };
+  }
+}
+
 // Looking a word up: a tap on it opens the popup, from which a card of it is made.
 
 const wordRequest = shallowRef<WordRequest | null>(null);
@@ -808,6 +835,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey);
   window.removeEventListener('focus', onFocus);
   stopNewest();
+  if (syncShown !== null) window.clearTimeout(syncShown);
   feed.stop();
   if (ticker !== null) window.clearInterval(ticker);
   if (settle !== null) window.clearTimeout(settle);
@@ -828,6 +856,25 @@ const secondLang = computed(() => languageTag(secondTrack.value));
         <p class="where muted" data-testid="where">{{ where }}</p>
       </div>
       <div class="bar-end">
+        <button
+          v-if="anki !== null"
+          class="button icon"
+          :class="{ turning: syncing.kind === 'busy' }"
+          type="button"
+          aria-label="Sync Anki now"
+          title="Sync Anki now"
+          data-testid="sync-anki"
+          :disabled="syncing.kind === 'busy'"
+          :aria-busy="syncing.kind === 'busy'"
+          @click="syncNow"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M12 4a8 8 0 0 0-7.4 5h2.2A6 6 0 0 1 17.7 8.3L15 11h7V4l-2.9 2.9A8 8 0 0 0 12 4Zm7.4 11h-2.2A6 6 0 0 1 6.3 15.7L9 13H2v7l2.9-2.9A8 8 0 0 0 19.4 15Z"
+            />
+          </svg>
+        </button>
         <button
           class="button icon"
           type="button"
@@ -858,6 +905,25 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       @close="closeSettings"
       @saved="(next) => (settings = next)"
     />
+
+    <p
+      v-if="syncing.kind !== 'idle'"
+      class="sync-note"
+      :class="{ error: syncing.kind === 'failed' }"
+      :role="syncing.kind === 'failed' ? 'alert' : 'status'"
+      data-testid="sync-status"
+    >
+      <span>{{ syncing.kind === 'busy' ? 'Syncing Anki with AnkiWeb…' : syncing.text }}</span>
+      <button
+        v-if="syncing.kind !== 'busy'"
+        class="link"
+        type="button"
+        data-testid="close-sync-status"
+        @click="endSyncNote"
+      >
+        Close
+      </button>
+    </p>
 
     <p v-if="status === 'retrying' && received !== null" class="banner" role="status">
       The connection to the server broke. Trying again…
@@ -1113,6 +1179,41 @@ const secondLang = computed(() => languageTag(secondTrack.value));
   text-align: center;
 }
 
+.sync-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  padding: 4px 16px;
+  background: var(--raised);
+  font-size: 13px;
+  text-align: center;
+}
+
+.sync-note.error {
+  color: var(--danger);
+}
+
+.sync-note .link {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.turning svg {
+  animation: turn 1s linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1270,6 +1371,10 @@ select:hover {
 @media (prefers-reduced-motion: reduce) {
   .knob::after {
     transition: none;
+  }
+
+  .turning svg {
+    animation: none;
   }
 }
 </style>

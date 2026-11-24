@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1.0
+
+- A "Sync Anki now" button in the top bar, next to the settings, whenever cards go to an Anki. It has that Anki sync with AnkiWeb right away instead of when it next would by itself, and says how it went: synced, already the same as AnkiWeb, or why it could not, such as a sync already running or AnkiWeb asking for a full sync that would replace changes not on AnkiWeb yet (then nothing is replaced). For an AnkiConnect on a server the Jellyfin server makes the call with its key, as for cards; desktop Anki starts its own sync.
+
 ## 2.0.0.0
 
 Version 2, a rewrite for Jellyfin 12.4 and later. It installs from the new repository address, `https://raw.githubusercontent.com/friedrich-de/jellyfin-subtitleminer/main/repository/manifest.json`, and takes the place of version 1. Version 1's settings are not carried over.

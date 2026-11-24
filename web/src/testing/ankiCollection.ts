@@ -59,6 +59,11 @@ export function createCollection(options: { key?: string; now?: () => number } =
   const media = new Map<string, string>();
   const calls: { action: string; params: Record<string, unknown> }[] = [];
   let lastId = 0;
+  /**
+   * Syncs with AnkiWeb, as the server AnkiConnect answers them: how many there were, and an error
+   * for the next ones to give.
+   */
+  const sync = { count: 0, error: undefined as string | undefined, changed: false };
 
   function nextId(): number {
     lastId = Math.max(lastId + 1, now());
@@ -69,6 +74,7 @@ export function createCollection(options: { key?: string; now?: () => number } =
   function makeNote(note: Omit<StoredNote, 'id' | 'tags'> & { tags?: string[]; id?: number }) {
     const id = note.id ?? nextId();
     lastId = Math.max(lastId, id);
+    sync.changed = true;
     const fields = Object.fromEntries((models[note.modelName] ?? []).map((name) => [name, '']));
     notes.set(id, { tags: [], ...note, id, fields: { ...fields, ...note.fields } });
     return id;
@@ -159,7 +165,19 @@ export function createCollection(options: { key?: string; now?: () => number } =
         const note = notes.get(update.id);
         if (note === undefined) throw new AnkiConnectError('Note was not found: ' + update.id);
         Object.assign(note.fields, update.fields);
+        sync.changed = true;
         return null;
+      }
+      case 'sync': {
+        if (sync.error !== undefined) throw new AnkiConnectError(sync.error);
+        sync.count += 1;
+        const outcome = sync.changed ? 'merged' : 'no_changes';
+        sync.changed = false;
+        return {
+          status: 'completed',
+          collection: { outcome, local_data_replaced: false },
+          media: { outcome: 'completed' },
+        };
       }
       case 'canAddNotesWithErrorDetail':
         return (params.notes as NewNote[]).map((note) => {
@@ -213,7 +231,7 @@ export function createCollection(options: { key?: string; now?: () => number } =
     }
   }
 
-  return { decks, models, notes, media, calls, makeNote, handle, answer };
+  return { decks, models, notes, media, calls, sync, makeNote, handle, answer };
 }
 
 export type Collection = ReturnType<typeof createCollection>;
