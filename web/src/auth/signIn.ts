@@ -48,34 +48,65 @@ export interface AuthEnv {
 }
 
 /**
- * Signs in with a login this browser already holds: the page's own first, then the web client's.
- * A login the server no longer accepts is skipped.
+ * This server's id, which Jellyfin's web client keeps its login under. Jellyfin says it to anyone;
+ * null when it does not.
+ */
+async function serverIdOf(env: AuthEnv): Promise<string | null> {
+  const response = await send(env.fetch, jellyfinUrl(env.base, 'System/Info/Public'), {
+    headers: { Accept: 'application/json' },
+  });
+  const info = (await response.json()) as { Id?: unknown };
+  return typeof info.Id === 'string' && info.Id.length > 0 ? info.Id : null;
+}
+
+/**
+ * Signs in with a login this browser already holds: the page's own first, then the web client's
+ * login to this server. A login the server no longer accepts is skipped.
  */
 export async function resolveSession(env: AuthEnv): Promise<Resolution> {
   const own = readOwnSession(env.storage);
-  const candidates: { token: string; source: Session['source'] }[] = [];
-  if (own !== null) candidates.push({ token: own.accessToken, source: 'page' });
-  for (const token of readWebClientTokens(env.storage)) {
-    if (!candidates.some((candidate) => candidate.token === token)) {
-      candidates.push({ token, source: 'jellyfin' });
+  const tried: string[] = [];
+  try {
+    if (own !== null && (own.base === undefined || own.base === env.base)) {
+      tried.push(own.accessToken);
+      const signedIn = await withToken(env, own.accessToken, 'page');
+      if (signedIn !== null) return signedIn;
     }
-  }
 
-  for (const candidate of candidates) {
-    try {
-      const status = await getJson<Status>(env.fetch, apiUrl(env.base, 'Status'), candidate.token);
-      return { kind: 'signed-in', session: { ...candidate, status } };
-    } catch (error) {
-      if (error instanceof UnreachableError) return { kind: 'unreachable' };
-      if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
-        // Signed out elsewhere, or a login without a user. The page's own dead login is forgotten.
-        if (candidate.source === 'page' && error.status === 401) clearOwnSession(env.storage);
-        continue;
-      }
-      return { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
+    // The web client may hold logins to other servers too, which this one must never see.
+    if (readWebClientTokens(env.storage).length === 0) return { kind: 'signed-out' };
+    const serverId = await serverIdOf(env);
+    if (serverId === null) return { kind: 'signed-out' };
+    for (const token of readWebClientTokens(env.storage, serverId)) {
+      if (tried.includes(token)) continue;
+      tried.push(token);
+      const signedIn = await withToken(env, token, 'jellyfin');
+      if (signedIn !== null) return signedIn;
     }
+    return { kind: 'signed-out' };
+  } catch (error) {
+    if (error instanceof UnreachableError) return { kind: 'unreachable' };
+    return { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
   }
-  return { kind: 'signed-out' };
+}
+
+/** Signs in with one login; null when the server no longer accepts it. */
+async function withToken(
+  env: AuthEnv,
+  token: string,
+  source: Session['source'],
+): Promise<Resolution | null> {
+  try {
+    const status = await getJson<Status>(env.fetch, apiUrl(env.base, 'Status'), token);
+    return { kind: 'signed-in', session: { token, source, status } };
+  } catch (error) {
+    if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
+      // Signed out elsewhere, or a login without a user. The page's own dead login is forgotten.
+      if (source === 'page' && error.status === 401) clearOwnSession(env.storage);
+      return null;
+    }
+    throw error;
+  }
 }
 
 /** Signs in with a Jellyfin name and password and keeps the login for next time. */
@@ -111,6 +142,7 @@ export async function signInWithPassword(
       accessToken: token,
       userId: typeof answer.User?.Id === 'string' ? answer.User.Id : '',
       userName: typeof answer.User?.Name === 'string' ? answer.User.Name : name,
+      base: env.base,
     });
   } catch (error) {
     if (error instanceof UnreachableError) return { kind: 'unreachable' };

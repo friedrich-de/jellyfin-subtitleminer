@@ -5,7 +5,7 @@
 Version 2, a rewrite for Jellyfin 12.4 and later. It installs from the new repository address, `https://raw.githubusercontent.com/friedrich-de/jellyfin-subtitleminer/main/repository/manifest.json`, and takes the place of version 1. Version 1's settings are not carried over.
 
 - The page moved to `/SubtitleMiner/` at your Jellyfin address. The old address `/Plugins/JellyfinMiner/` leads there.
-- No separate sign-in: the page uses the login of Jellyfin's own web client in the same browser. Where there is none, it asks for your Jellyfin name and password once.
+- No separate sign-in: the page uses the login of Jellyfin's own web client in the same browser, only ever the one to this server. Where there is none, it asks for your Jellyfin name and password once, also at a plain http:// address in your home network.
 - Signing in works on Jellyfin 12, which no longer reads the header version 1 sent.
 - The page follows what you play on any Jellyfin app without asking the server again and again: the plugin tells it when playback starts, pauses, jumps, changes track or stops, and the page runs the clock itself in between. A player that moves on to the next episode takes the page with it.
 - Episodes and films you watched in the last 12 hours stay listed after playback ends, so you can still mine from them.

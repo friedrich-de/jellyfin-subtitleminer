@@ -82,7 +82,10 @@ function headerMap(headers: HeadersInit | undefined): Record<string, string> {
   return map;
 }
 
-/** A server that answers from a list and remembers what it was asked. */
+/**
+ * A server that answers from a list and remembers what it was asked. Jellyfin's public information,
+ * which a real server gives anyone, it answers by itself with SERVER_ID, and lists it in `sent` too.
+ */
 export function fakeServer(...answers: Answer[]): { fetch: Fetch; sent: SentRequest[] } {
   const sent: SentRequest[] = [];
   const fetch: Fetch = (input, init) => {
@@ -93,6 +96,7 @@ export function fakeServer(...answers: Answer[]): { fetch: Fetch; sent: SentRequ
       body: typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : null,
     };
     sent.push(request);
+    if (request.url === PUBLIC_INFO_URL) return Promise.resolve(json(publicInfo()));
     const next = answers.shift();
     if (next === undefined) return Promise.reject(new Error(`No answer left for ${request.url}`));
     const answer = typeof next === 'function' ? next(request) : next;
@@ -105,6 +109,15 @@ export const BASE = 'https://jellyfin.example/base/SubtitleMiner/';
 export const STATUS_URL = 'https://jellyfin.example/base/SubtitleMiner/Api/Status';
 export const LOGIN_URL = 'https://jellyfin.example/base/Users/AuthenticateByName';
 export const LOGOUT_URL = 'https://jellyfin.example/base/Sessions/Logout';
+export const PUBLIC_INFO_URL = 'https://jellyfin.example/base/System/Info/Public';
+
+/** The id of the server the page is served from, as Jellyfin says it. */
+export const SERVER_ID = '4fe8b1c2a6d94a07b2c35e6f71d08a93';
+
+/** What Jellyfin says about itself to anyone: GET /System/Info/Public. */
+export function publicInfo(id: string = SERVER_ID): Record<string, unknown> {
+  return { Id: id, ServerName: 'Home', Version: '12.4.0', ProductName: 'Jellyfin Server' };
+}
 
 export function status(overrides: Partial<Status> = {}): Status {
   return {
@@ -129,12 +142,17 @@ export function env(fetch: Fetch, storage: Storage = new MemoryStorage()): AuthE
   };
 }
 
-/** What Jellyfin's web client writes into the browser's storage after a login. */
-export function webClientLogins(...logins: { token: string; used?: number }[]): string {
+/**
+ * What Jellyfin's web client writes into the browser's storage after a login: one entry for each
+ * server it was used with, this one unless another is named.
+ */
+export function webClientLogins(
+  ...logins: { token: string; used?: number; server?: string }[]
+): string {
   return JSON.stringify({
     Servers: logins.map((login, index) => ({
       ManualAddress: 'https://jellyfin.example/base',
-      Id: `server-${index}`,
+      Id: login.server ?? SERVER_ID,
       LastConnectionMode: 2,
       manualAddressOnly: true,
       Name: 'Home',

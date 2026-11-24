@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BlockedStorage, MemoryStorage, webClientLogins } from '@/testing/fakes';
+import { BlockedStorage, MemoryStorage, SERVER_ID, webClientLogins } from '@/testing/fakes';
 
 import {
   clearOwnSession,
@@ -8,6 +8,7 @@ import {
   DEVICE_KEY,
   deviceId,
   deviceName,
+  randomId,
   readOwnSession,
   readWebClientTokens,
   SESSION_KEY,
@@ -66,6 +67,24 @@ describe("the web client's logins", () => {
 
   it('are none when the browser refuses access to its storage', () => {
     expect(readWebClientTokens(new BlockedStorage())).toEqual([]);
+  });
+
+  it("are only this server's when the server is named, however its id is written", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      WEB_CLIENT_KEY,
+      JSON.stringify({
+        Servers: [
+          { Id: 'another-server', AccessToken: 'theirs', DateLastAccessed: 3 },
+          { AccessToken: 'nameless', DateLastAccessed: 2 },
+          { Id: SERVER_ID.toUpperCase(), AccessToken: 'ours', DateLastAccessed: 1 },
+        ],
+      }),
+    );
+
+    expect(readWebClientTokens(storage, '4fe8b1c2-a6d9-4a07-b2c3-5e6f71d08a93')).toEqual(['ours']);
+    expect(readWebClientTokens(storage, 'nobody')).toEqual([]);
+    expect(readWebClientTokens(storage)).toEqual(['theirs', 'nameless', 'ours']);
   });
 });
 
@@ -127,6 +146,20 @@ describe('the device', () => {
 
   it('still gets an id when storage is refused', () => {
     expect(deviceId(new BlockedStorage(), () => 'only-now-123')).toBe('only-now-123');
+  });
+
+  it('gets an id at an address the browser does not trust, where randomUUID is missing', () => {
+    // http://192.168.1.10:8096 is no secure context: crypto.randomUUID is not there, getRandomValues is.
+    const insecure = { getRandomValues: crypto.getRandomValues.bind(crypto) };
+    const ids = new Set(Array.from({ length: 50 }, () => randomId(insecure)));
+
+    expect(ids.size).toBe(50);
+    for (const id of ids) {
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    }
+    expect(
+      randomId({ getRandomValues: insecure.getRandomValues, randomUUID: () => 'a-b-c-d-e' }),
+    ).toBe('a-b-c-d-e');
   });
 
   it.each([
