@@ -171,6 +171,47 @@ test.describe('a word tapped in a line', () => {
     expect(server.collection.notes.size).toBe(1);
   });
 
+  test('keeps Anki’s answer with its own word when another is looked up meanwhile', async ({
+    page,
+    request,
+    jellyfin,
+    player,
+    anki,
+  }) => {
+    const server = await anki();
+    await saveSettings(request, admin, {
+      Anki: { Where: 'server', ServerAddress: server.url, ServerKey: '' },
+      Page: {
+        anki: { deck: 'Mining', noteType: 'Lapis', fields: guessRoles(LAPIS_FIELDS), tags: [] },
+      },
+    });
+    const tv = player(jellyfin.admin, 'Dictionary sofa', 'mpv');
+    await tv.play(jellyfin.media.episode1.id, { positionMs: 1_500, paused: true });
+    await signInToJellyfin(page, jellyfin.admin);
+    await page.goto('/SubtitleMiner/');
+    await expect(firstLine(page)).toBeVisible();
+
+    // Anki takes its time with the card of 昨日, and 話 is looked up meanwhile.
+    const release = server.hold('addNote');
+    await tapCharacter(page, firstLine(page), '昨');
+    const button = popup(page).locator('.gsm-hoshidicts-mine-button').first();
+    await expect(button).toHaveAttribute('data-card-state', 'add');
+    await button.click();
+    await expect(button).toHaveAttribute('data-card-state', 'adding');
+    await expect.poll(() => server.seen.some((call) => call.action === 'addNote')).toBe(true);
+    await tapCharacter(page, firstLine(page), '話');
+    await expect(popup(page).getByText('talk; story')).toBeVisible();
+    await expect(button).toHaveAttribute('data-card-state', 'add');
+
+    release();
+    await expect(page.getByTestId('word-status')).toHaveText('Made a new card, "昨日".');
+    // 話 is not the word Anki got.
+    await expect(button).toHaveAttribute('data-card-state', 'add');
+    await page.keyboard.press('Escape');
+    await tapCharacter(page, firstLine(page), '昨');
+    await expect(button).toHaveAttribute('data-card-state', 'in-anki');
+  });
+
   test('is left to Yomitan when the user turns looking up off', async ({
     page,
     jellyfin,

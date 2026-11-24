@@ -54,19 +54,27 @@ function plainState(): CardState {
   return props.addCard === undefined ? 'unavailable' : 'add';
 }
 
-async function makeCard(result: LookupResult, index: number): Promise<void> {
+/**
+ * Makes a card of a result the popup shows. Its button changes by the result, not by its place:
+ * by the time Anki answers, another word may be shown there.
+ */
+async function makeCard(result: LookupResult): Promise<void> {
   const add = props.addCard;
   const shown = popup.value;
   if (add === undefined || shown === null) return;
-  shown.setCardState(index, 'adding');
+  shown.setResultState(result, 'adding');
   status.value = { text: `Making a card of ${result.term.expression}…`, error: false };
   try {
     const said = await add(result, inLine.has(result));
-    shown.setCardState(index, 'in-anki', said);
+    shown.setResultState(result, 'in-anki', said);
     status.value = { text: said, error: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    shown.setCardState(index, error instanceof DuplicateCardError ? 'in-anki' : 'error', message);
+    shown.setResultState(
+      result,
+      error instanceof DuplicateCardError ? 'in-anki' : 'error',
+      message,
+    );
     status.value = { text: message, error: !(error instanceof DuplicateCardError) };
   }
 }
@@ -85,7 +93,7 @@ async function made(): Promise<DictionaryPopup<LookupResult>> {
     })),
     // The definitions scroll in the popup, not the page behind it.
     css: '.gsm-hoshidicts-content-scroll { overscroll-behavior: contain; }',
-    onAddCard: (result, index) => void makeCard(result, index),
+    onAddCard: (result) => void makeCard(result),
     onClose: () => emit('close'),
     lookup: async (text) => {
       const found = await props.api.lookUp(text);
@@ -140,7 +148,10 @@ async function lookUp(request: WordRequest): Promise<void> {
       known = results.map(() => false);
     }
     if (controller.signal.aborted) return;
-    known.forEach((has, index) => shown.setCardState(index, has ? 'in-anki' : plainState()));
+    // A word in a definition may be shown by now: these are the line's words.
+    known.forEach((has, index) =>
+      shown.setResultState(results[index]!, has ? 'in-anki' : plainState()),
+    );
   } catch (error) {
     if (controller.signal.aborted) return;
     emit('found', 0);

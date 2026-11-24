@@ -529,6 +529,22 @@ export function createDictionaryPopup(container, options = {}) {
       }
     },
 
+    /**
+     * (Subtitle Miner) Sets the card state of a result it was given, by the result rather than its place:
+     * on screen only while it is shown, and kept for Back. Nothing happens once it is gone.
+     */
+    setResultState(result, state, message = "") {
+      if (!(state in CARD_STATES)) return;
+      for (const entry of history) {
+        entry.given.forEach((given, i) => {
+          if (given === result) entry.states[i] = state;
+        });
+      }
+      shown?.given.forEach((given, i) => {
+        if (given === result) this.setCardState(i, state, message);
+      });
+    },
+
     /** Marks these expressions as in Anki. */
     setAdded(expressions) {
       if (!shown) return;

@@ -182,6 +182,8 @@ export interface DictionaryPopup<R extends LookupResult = LookupResult> {
   notice(message: string): void;
   /** Sets one result's card state. `message` is what the button says of it, in place of the usual words. */
   setCardState(index: number, state: CardState, message?: string): void;
+  /** (Subtitle Miner) Sets the card state of a result it was given, wherever it still is: shown, or kept for Back. */
+  setResultState(result: R, state: CardState, message?: string): void;
   setAdded(expressions: Iterable<string>): void;
   /** Moves to an entry, as Hachidori's next and previous entry keys do. */
   setCurrent(index: number): void;

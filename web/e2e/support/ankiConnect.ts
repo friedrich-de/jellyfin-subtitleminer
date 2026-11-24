@@ -33,6 +33,8 @@ export interface StandInAnki {
   allow(origin: string): void;
   /** Answers the next call that is not requestPermission as a server AnkiConnect does while syncing. */
   busyOnce(): void;
+  /** Holds the answer to the next call of `action` until the function it gives back is called. */
+  hold(action: string): () => void;
   /** The file Anki was given under that name. */
   media(name: string): Buffer;
   stop(): Promise<void>;
@@ -49,6 +51,7 @@ export async function startAnkiConnect(options: StandInOptions = {}): Promise<St
   const origins = new Set(options.origins ?? []);
   const seen: SeenCall[] = [];
   let busy = false;
+  let held: { action: string; until: Promise<void> } | undefined;
   let stopped: Promise<void> | undefined;
 
   const server = createServer((request, response) => {
@@ -90,6 +93,12 @@ export async function startAnkiConnect(options: StandInOptions = {}): Promise<St
         return;
       }
 
+      const waiting = held;
+      if (waiting !== undefined && waiting.action === call.action) {
+        held = undefined;
+        await waiting.until;
+      }
+
       response.writeHead(200, headers).end(JSON.stringify(collection.answer(body)));
     })().catch((error: unknown) => {
       response.writeHead(500).end(String(error));
@@ -107,6 +116,11 @@ export async function startAnkiConnect(options: StandInOptions = {}): Promise<St
     allow: (origin) => origins.add(origin),
     busyOnce: () => {
       busy = true;
+    },
+    hold(action) {
+      let release!: () => void;
+      held = { action, until: new Promise<void>((resolve) => (release = resolve)) };
+      return release;
     },
     media(name) {
       const data = collection.media.get(name);

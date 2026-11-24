@@ -15,6 +15,7 @@ const drawn = vi.hoisted(() => ({
   render: vi.fn(),
   clear: vi.fn(),
   setCardState: vi.fn(),
+  setResultState: vi.fn(),
   back: vi.fn(() => false),
   destroy: vi.fn(),
 }));
@@ -146,28 +147,34 @@ describe('the word popup', () => {
       found,
       expect.objectContaining({ states: ['waiting', 'waiting'] }),
     );
-    expect(drawn.setCardState.mock.calls).toEqual([
-      [0, 'add'],
-      [1, 'in-anki'],
-    ]);
-
     // The popup hands back the results it was given.
     const given = drawn.render.mock.calls[0]![0] as LookupResult[];
+    expect(drawn.setResultState.mock.calls).toEqual([
+      [given[0], 'add'],
+      [given[1], 'in-anki'],
+    ]);
+
     const onAddCard = drawn.options!.onAddCard as (word: LookupResult, index: number) => void;
     onAddCard(given[0]!, 0);
     await flushPromises();
     expect(addCard).toHaveBeenCalledWith(given[0], true);
-    expect(drawn.setCardState).toHaveBeenLastCalledWith(0, 'in-anki', 'Made a new card, "食べる".');
+    expect(drawn.setResultState).toHaveBeenLastCalledWith(
+      given[0],
+      'in-anki',
+      'Made a new card, "食べる".',
+    );
     expect(shown.get('[data-testid="word-status"]').text()).toBe('Made a new card, "食べる".');
 
     // The deck has that one: the popup says so, and it is no error.
     onAddCard(given[1]!, 1);
     await flushPromises();
-    expect(drawn.setCardState).toHaveBeenLastCalledWith(
-      1,
+    expect(drawn.setResultState).toHaveBeenLastCalledWith(
+      given[1],
       'in-anki',
       'This deck has a card like this already.',
     );
+    // Never by place, which another word may have taken by the time Anki answers.
+    expect(drawn.setCardState).not.toHaveBeenCalled();
     expect(shown.get('[data-testid="word-status"]').attributes('role')).toBe('status');
   });
 

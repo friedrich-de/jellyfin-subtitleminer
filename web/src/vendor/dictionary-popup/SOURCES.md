@@ -22,5 +22,10 @@ constructed (`new CSSStyleSheet()`, `replaceSync`) and adopted by the popup's sh
   before; each entry it returns has a `textContent` that re-parses its sheet when set, as
   `index.js` does on older browsers.
 
+`index.js` also has one method more, `setResultState(result, state, message)` (typed in
+`index.d.ts`): it sets the card state of a result by the result, not by its place, so that Anki's
+answer for a word does not land on another word shown there meanwhile, and it updates what Back
+returns to. `setCardState` acts on whatever is shown at that index.
+
 Nothing else is changed. `src/dictionary/vendored.test.ts` fails if a `<style>` element
 comes back, so that a newer copy gets the same change.
