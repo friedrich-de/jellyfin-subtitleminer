@@ -13,7 +13,9 @@ export type FieldRole =
   | 'furigana'
   | 'meaning'
   | 'frequency'
-  | 'pitch';
+  | 'pitch'
+  | 'wordAudio'
+  | 'selectionText';
 
 /** The parts that only a card made from a word in the dictionary popup has. */
 export const WORD_ROLES: ReadonlySet<FieldRole> = new Set([
@@ -23,21 +25,32 @@ export const WORD_ROLES: ReadonlySet<FieldRole> = new Set([
   'meaning',
   'frequency',
   'pitch',
+  'wordAudio',
+  'selectionText',
 ]);
 
+/**
+ * The choices for a field, named as Lapis and most mining note types name their fields, each with
+ * what it holds and an example of it.
+ */
 export const FIELD_ROLES: readonly { role: FieldRole; label: string }[] = [
-  { role: 'none', label: 'Nothing, or what Yomitan puts there' },
-  { role: 'sentence', label: 'The lines' },
-  { role: 'translation', label: 'The second line, the meaning' },
-  { role: 'picture', label: 'The picture' },
-  { role: 'sound', label: 'The sound' },
-  { role: 'source', label: 'Where it is from' },
-  { role: 'word', label: 'The word looked up' },
-  { role: 'reading', label: "The word's reading" },
-  { role: 'furigana', label: 'The word with its reading over it' },
-  { role: 'meaning', label: "The word's meaning" },
-  { role: 'frequency', label: 'How common the word is' },
-  { role: 'pitch', label: "The word's pitch accent" },
+  { role: 'none', label: 'Nothing: left as it is, or to Yomitan' },
+  { role: 'sentence', label: 'Sentence: the chosen lines (e.g. 昨日の話をしよう)' },
+  {
+    role: 'translation',
+    label: "SentenceTranslation: the second track's lines (e.g. Remember?)",
+  },
+  { role: 'sound', label: 'SentenceAudio: the sound of the lines (e.g. [sound:….mp3])' },
+  { role: 'picture', label: 'Picture: a still from the video (e.g. <img src="….jpg">)' },
+  { role: 'source', label: 'MiscInfo: where it is from (e.g. Show · S1 E3 · 04:12)' },
+  { role: 'word', label: 'Expression: the word looked up (e.g. 食べる)' },
+  { role: 'reading', label: 'ExpressionReading: its reading (e.g. たべる)' },
+  { role: 'furigana', label: 'ExpressionFurigana: with its reading (e.g. 食[た]べる)' },
+  { role: 'wordAudio', label: 'ExpressionAudio: its sound (e.g. [sound:….mp3])' },
+  { role: 'meaning', label: 'MainDefinition: its meanings (e.g. to eat)' },
+  { role: 'selectionText', label: 'SelectionText: what you select in the popup (e.g. to eat)' },
+  { role: 'frequency', label: 'Frequency: how common it is (e.g. 512)' },
+  { role: 'pitch', label: 'PitchPosition: its pitch accent (e.g. 2)' },
 ];
 
 export interface AnkiChoices {
@@ -172,6 +185,7 @@ const GUESSES: readonly [RegExp, FieldRole][] = [
   [new RegExp(`^(${WORD}|key)$`, 'i'), 'word'],
   [new RegExp(`^(${WORD}[ _-]?reading|reading|kana)$`, 'i'), 'reading'],
   [new RegExp(`^(${WORD}[ _-]?furigana|furigana)$`, 'i'), 'furigana'],
+  [new RegExp(`^(${WORD}[ _-]?(audio|sound)|word[ _-]?pronunciation)$`, 'i'), 'wordAudio'],
   [
     new RegExp(
       `^(main[ _-]?definition|definition|meaning|glossary|${WORD}[ _-]?(meaning|definition|english))$`,
@@ -179,6 +193,7 @@ const GUESSES: readonly [RegExp, FieldRole][] = [
     ),
     'meaning',
   ],
+  [/^(selection[ _-]?text|selected[ _-]?(text|definition))$/i, 'selectionText'],
   [/^(freq(uency)?|frequencies|freq[ _-]?sort)$/i, 'frequency'],
   [/^(pitch([ _-]?(position|accent))?|accent)$/i, 'pitch'],
 ];

@@ -650,16 +650,31 @@ select:focus-visible {
 }
 
 .fields {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  /* The field's name as wide as the longest, and its choice, with an example, the rest. */
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.fields > .name {
+  grid-column: 1 / -1;
 }
 
 .field-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  align-items: center;
-  gap: 12px;
+  display: contents;
+}
+
+/* On a phone the choice gets the whole width under its field's name. */
+@media (max-width: 520px) {
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .field-name {
+    margin-top: 8px;
+  }
 }
 
 .field-name {

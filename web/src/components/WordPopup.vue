@@ -20,11 +20,14 @@ const props = defineProps<{
    * Makes a card of a word. `inLine` is false for a word looked up in a definition. Resolves with
    * what to tell the user. Without it the popup's Anki button is off, saying why.
    */
-  addCard: ((result: LookupResult, inLine: boolean) => Promise<string>) | undefined;
+  addCard:
+    ((result: LookupResult, inLine: boolean, selection: string) => Promise<string>) | undefined;
   /** Why no card can be made, for the Anki button. */
   noCards: string;
   /** Whether Anki has a card for each word already. */
   inDeck: ((results: LookupResult[]) => Promise<boolean[]>) | undefined;
+  /** Whether the server has an audio source for words, for the popup's play button. */
+  wordAudio?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -44,6 +47,43 @@ const narrow = ref(window.innerWidth <= 600);
 let inLine = new WeakSet<LookupResult>();
 let asking: AbortController | null = null;
 
+/** The word's sound that plays, and what fetches the next. */
+let playing: { audio: HTMLAudioElement; url: string } | null = null;
+let fetchingSound: AbortController | null = null;
+
+function stopSound(): void {
+  fetchingSound?.abort();
+  fetchingSound = null;
+  if (playing !== null) {
+    playing.audio.pause();
+    URL.revokeObjectURL(playing.url);
+    playing = null;
+  }
+}
+
+/** Plays how a word sounds, from the server's audio source. */
+async function playSound(result: LookupResult): Promise<void> {
+  stopSound();
+  const controller = new AbortController();
+  fetchingSound = controller;
+  const { expression, reading } = result.term;
+  try {
+    const blob = await props.api.wordAudio(expression, reading, controller.signal);
+    if (controller.signal.aborted) return;
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    playing = { audio, url };
+    audio.addEventListener('ended', () => {
+      if (playing?.audio === audio) stopSound();
+    });
+    await audio.play();
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    const message = error instanceof Error ? error.message : String(error);
+    status.value = { text: `No sound of ${expression}: ${message}`, error: true };
+  }
+}
+
 function styles(): { dictionary: string; styles: string }[] {
   return props.dictionaries
     .filter((dictionary) => dictionary.Styles !== '')
@@ -58,14 +98,40 @@ function plainState(): CardState {
  * Makes a card of a result the popup shows. Its button changes by the result, not by its place:
  * by the time Anki answers, another word may be shown there.
  */
+/** The text selected in the popup's definitions, as Yomitan's {selection-text}: "" without one. */
+function selectedText(): string {
+  const host = popup.value?.element;
+  const root = host?.shadowRoot as (ShadowRoot & { getSelection?: () => Selection | null }) | null;
+  if (host === undefined || root === null || root === undefined) return '';
+  // Chrome tells a selection in a shadow root only from there; the others from the document.
+  const selection = root.getSelection?.() ?? document.getSelection();
+  const node = selection?.anchorNode ?? null;
+  if (selection === null || node === null || !(root.contains(node) || host.contains(node))) {
+    return '';
+  }
+  return selection.toString().trim();
+}
+
+/**
+ * The selection when the + button was pressed: a press on a button may take the selection away
+ * before its click is heard.
+ */
+let pressedWith: string | null = null;
+
+function onPress(): void {
+  pressedWith = selectedText();
+}
+
 async function makeCard(result: LookupResult): Promise<void> {
   const add = props.addCard;
   const shown = popup.value;
+  const selection = pressedWith ?? selectedText();
+  pressedWith = null;
   if (add === undefined || shown === null) return;
   shown.setResultState(result, 'adding');
   status.value = { text: `Making a card of ${result.term.expression}…`, error: false };
   try {
-    const said = await add(result, inLine.has(result));
+    const said = await add(result, inLine.has(result), selection);
     shown.setResultState(result, 'in-anki', said);
     status.value = { text: said, error: false };
   } catch (error) {
@@ -95,6 +161,9 @@ async function made(): Promise<DictionaryPopup<LookupResult>> {
     css: '.gsm-hoshidicts-content-scroll { overscroll-behavior: contain; }',
     onAddCard: (result) => void makeCard(result),
     onClose: () => emit('close'),
+    // The button is there for every popup and shown only while the server has an audio source.
+    onPlayAudio: (result) => void playSound(result),
+    hasAudio: () => props.wordAudio === true,
     lookup: async (text) => {
       const found = await props.api.lookUp(text);
       return {
@@ -164,6 +233,7 @@ watch(
   () => props.request,
   (request) => {
     if (request !== null) void lookUp(request);
+    else stopSound();
   },
   { immediate: true },
 );
@@ -224,6 +294,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   asking?.abort();
+  stopSound();
   window.removeEventListener('keydown', onKey);
   window.removeEventListener('pointerdown', onPointer, true);
   window.removeEventListener('scroll', onScroll);
@@ -249,7 +320,13 @@ onBeforeUnmount(() => {
     <p v-else-if="state === 'none'" class="note muted" role="status" data-testid="word-none">
       No word in the dictionaries starts here.
     </p>
-    <div ref="holder" class="holder" :hidden="state !== 'shown'" />
+    <div
+      ref="holder"
+      class="holder"
+      :hidden="state !== 'shown'"
+      @pointerdown.capture="onPress"
+      @keydown.capture="pressedWith = null"
+    />
     <p
       v-if="status !== null"
       class="status"

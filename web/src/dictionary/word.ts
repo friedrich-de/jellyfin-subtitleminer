@@ -18,6 +18,8 @@ export interface WordContent {
   pitch: string;
   /** Where the word is in the sentence, as it was found there. */
   at: { start: number; length: number };
+  /** The part of its definitions selected in the popup when the card was made, as Yomitan's {selection-text}: "" without one. */
+  selection?: string;
 }
 
 export function wordOf(result: LookupResult, start: number): WordContent {

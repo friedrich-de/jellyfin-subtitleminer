@@ -130,6 +130,8 @@ async function loadDictionaries(): Promise<void> {
 const enabledDictionaries = computed(
   () => dictionaries.value?.Dictionaries.filter((dictionary) => dictionary.Enabled) ?? [],
 );
+/** Whether an administrator set an audio source for words. */
+const wordAudio = computed(() => dictionaries.value?.WordAudio?.Set === true);
 const lookingUp = computed(
   () => pageSettings.value.dictionary.lookUp && enabledDictionaries.value.length > 0,
 );
@@ -642,13 +644,18 @@ function wordLines(): { of: ShownLine[]; start: number } | undefined {
   return { of, start };
 }
 
-function wordContent(result: LookupResult, inLine: boolean): CardContent | undefined {
+function wordContent(
+  result: LookupResult,
+  inLine: boolean,
+  selection = '',
+): CardContent | undefined {
   const watch = shown.value;
   const found = wordLines();
   const value = found === undefined ? undefined : spanOf(found.of);
   if (watch === undefined || found === undefined || value === undefined) return undefined;
   // A word looked up in a definition is not in the sentence to be picked out.
-  return { ...contentOf(watch, found.of, value), word: wordOf(result, inLine ? found.start : -1) };
+  const word = wordOf(result, inLine ? found.start : -1);
+  return { ...contentOf(watch, found.of, value), word: { ...word, selection } };
 }
 
 const wordCardProblem = computed(() =>
@@ -657,17 +664,25 @@ const wordCardProblem = computed(() =>
     : (newCardProblem(pageSettings.value, true) ?? ''),
 );
 
-async function addWordCard(result: LookupResult, inLine: boolean): Promise<string> {
+async function addWordCard(
+  result: LookupResult,
+  inLine: boolean,
+  selection: string,
+): Promise<string> {
   const target = anki.value;
   const watch = shown.value;
-  const content = wordContent(result, inLine);
+  const content = wordContent(result, inLine, selection);
   const value = spanOf(wordLines()?.of ?? []);
   if (target === null || watch === undefined || content === undefined || value === undefined) {
     throw new Error('The line of this word is gone. Look the word up again.');
   }
   try {
-    const outcome = await addNew(target, pageSettings.value, content, mediaOf(watch, value));
-    return `Made a new card, "${outcome.label === '' ? result.term.expression : outcome.label}".`;
+    const media = { ...mediaOf(watch, value), wordAudio: wordAudio.value };
+    const outcome = await addNew(target, pageSettings.value, content, media);
+    const name = `"${outcome.label === '' ? result.term.expression : outcome.label}"`;
+    return outcome.noWordAudio === true
+      ? `Made a new card, ${name}, without the word's sound: the audio source has none for it.`
+      : `Made a new card, ${name}.`;
   } catch (error) {
     throw error instanceof HttpError ? new Error(messageOf(error)) : error;
   }
@@ -899,6 +914,7 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       :add-card="wordCardProblem === '' ? addWordCard : undefined"
       :no-cards="wordCardProblem"
       :in-deck="wordCardProblem === '' ? wordsKnown : undefined"
+      :word-audio="wordAudio"
       @found="onFound"
       @close="closeWord"
     />

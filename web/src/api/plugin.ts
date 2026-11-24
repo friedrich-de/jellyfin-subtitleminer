@@ -7,6 +7,7 @@ import type {
   SettingsView,
   StoredMedia,
   Subtitles,
+  WordAudioSaved,
 } from './types';
 
 export type PictureFormat = 'jpeg' | 'webp' | 'avif';
@@ -75,6 +76,12 @@ export interface PluginApi {
   arrangeDictionaries(order: string[], disabled: string[]): Promise<DictionariesView>;
   /** Only an administrator may. */
   removeDictionary(id: string): Promise<DictionariesView>;
+  /** How a word sounds, from the audio source an administrator set. */
+  wordAudio(term: string, reading: string, signal?: AbortSignal): Promise<Blob>;
+  /** Puts how a word sounds into the user's Anki on a server. */
+  wordAudioToAnki(term: string, reading: string): Promise<StoredMedia>;
+  /** Only an administrator may: sets the audio source for words, or takes it away with "". */
+  saveWordAudio(address: string): Promise<WordAudioSaved>;
 }
 
 function query(values: Record<string, string | number | boolean | undefined>): string {
@@ -212,5 +219,14 @@ export function createPluginApi(fetchFn: Fetch, base: string, token: string): Pl
 
     removeDictionary: (id) =>
       sendJson<DictionariesView>('DELETE', dictionaries(`/${encodeURIComponent(id)}`)),
+
+    wordAudio: (term, reading, signal) =>
+      file(apiUrl(base, `WordAudio?${query({ term, reading })}`), signal),
+
+    wordAudioToAnki: (term, reading) =>
+      sendJson<StoredMedia>('POST', apiUrl(base, `WordAudio/Anki?${query({ term, reading })}`)),
+
+    saveWordAudio: (address) =>
+      sendJson<WordAudioSaved>('PUT', apiUrl(base, 'WordAudio'), { Address: address }),
   };
 }

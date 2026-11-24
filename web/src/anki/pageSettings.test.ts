@@ -58,6 +58,8 @@ describe('the page settings', () => {
       ['Expression', 'word'],
       ['ExpressionFurigana', 'furigana'],
       ['ExpressionReading', 'reading'],
+      ['ExpressionAudio', 'wordAudio'],
+      ['SelectionText', 'selectionText'],
       ['MainDefinition', 'meaning'],
       ['Sentence', 'sentence'],
       ['SentenceAudio', 'sound'],
@@ -66,8 +68,7 @@ describe('the page settings', () => {
       ['Frequency', 'frequency'],
       ['MiscInfo', 'source'],
     ]);
-    // The page has no sound of the word, and the second list of meanings is the first's.
-    expect(roles.ExpressionAudio).toBe('none');
+    // The second list of meanings is the first's.
     expect(roles.Glossary).toBe('none');
   });
 
@@ -85,6 +86,7 @@ describe('the page settings', () => {
         'Sound',
         'Pitch Accent',
         'Freq',
+        'Word Audio',
       ]),
     ).toEqual({
       Front: 'none',
@@ -98,6 +100,7 @@ describe('the page settings', () => {
       Sound: 'none',
       'Pitch Accent': 'pitch',
       Freq: 'frequency',
+      'Word Audio': 'wordAudio',
     });
   });
 

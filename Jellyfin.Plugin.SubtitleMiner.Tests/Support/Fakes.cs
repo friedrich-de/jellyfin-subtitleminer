@@ -117,6 +117,10 @@ internal sealed class FakeSharedSettings : ISharedSettings
     public bool AnkiThroughServerForEveryone { get; set; }
 
     public void SetAnkiThroughServerForEveryone(bool allowed) => AnkiThroughServerForEveryone = allowed;
+
+    public string WordAudioAddress { get; set; } = string.Empty;
+
+    public void SetWordAudioAddress(string stored) => WordAudioAddress = stored;
 }
 
 /// <summary>A request an AnkiConnect got: where it went and its body.</summary>
@@ -170,6 +174,12 @@ internal sealed class FakeDownloadHandler : HttpMessageHandler
     /// <summary>Gets the addresses that cannot be reached, as a server that is not there.</summary>
     public HashSet<string> Unreachable { get; } = [];
 
+    /// <summary>Gets the media type each address is answered with; none where it is not named.</summary>
+    public Dictionary<string, string> Types { get; } = [];
+
+    /// <summary>Gets the addresses that are answered with an error, and which.</summary>
+    public Dictionary<string, System.Net.HttpStatusCode> Errors { get; } = [];
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Asked.Add(request.RequestUri!);
@@ -178,9 +188,24 @@ internal sealed class FakeDownloadHandler : HttpMessageHandler
             throw new HttpRequestException("Connection refused (dictionaries.example:443)");
         }
 
-        return Task.FromResult(Files.TryGetValue(request.RequestUri!.AbsoluteUri, out var data)
-            ? new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(data) }
-            : new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { ReasonPhrase = "Not Found" });
+        var address = request.RequestUri!.AbsoluteUri;
+        if (Errors.TryGetValue(address, out var error))
+        {
+            return Task.FromResult(new HttpResponseMessage(error) { Content = new StringContent("{\"message\":\"no\"}") });
+        }
+
+        if (!Files.TryGetValue(address, out var data))
+        {
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { ReasonPhrase = "Not Found" });
+        }
+
+        var content = new ByteArrayContent(data);
+        if (Types.TryGetValue(address, out var type))
+        {
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(type);
+        }
+
+        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content });
     }
 }
 
@@ -200,6 +225,7 @@ internal sealed class TestServices : IDisposable
         Anki = new AnkiGate(Settings, Shared);
         Dictionaries = new DictionaryLibrary(Path.Combine(Scratch, "dictionaries"), NullLogger<DictionaryLibrary>.Instance);
         DictionaryDownloads = new DictionaryDownloader(DownloadNetwork);
+        WordAudio = new WordAudioSource(AudioNetwork, Shared, Keys, NullLogger<WordAudioSource>.Instance);
     }
 
     public static Guid UserId { get; } = Guid.Parse("11111111-2222-3333-4444-555555555555");
@@ -242,6 +268,11 @@ internal sealed class TestServices : IDisposable
 
     public DictionaryDownloader DictionaryDownloads { get; }
 
+    /// <summary>Gets what answers the audio source for words.</summary>
+    public FakeDownloadHandler AudioNetwork { get; } = new();
+
+    public WordAudioSource WordAudio { get; }
+
     /// <summary>Signs the test in as an administrator, or as a user who is not one.</summary>
     public void SignInAs(bool administrator) => Callers.Caller = new Caller(TestServices.UserId, "mika", administrator);
 
@@ -267,7 +298,7 @@ internal sealed class TestServices : IDisposable
         Shared,
         AnkiClient,
         Anki,
-        new DictionaryServices(Dictionaries, DictionaryDownloads, Path.Combine(Scratch, "dictionary-uploads")),
+        new DictionaryServices(Dictionaries, DictionaryDownloads, Path.Combine(Scratch, "dictionary-uploads"), WordAudio),
         Time);
 
     /// <summary>Makes a file in the scratch folder and returns its path.</summary>
@@ -285,6 +316,7 @@ internal sealed class TestServices : IDisposable
         AnkiClient.Dispose();
         Dictionaries.Dispose();
         DictionaryDownloads.Dispose();
+        WordAudio.Dispose();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         Directory.Delete(Scratch, recursive: true);
     }

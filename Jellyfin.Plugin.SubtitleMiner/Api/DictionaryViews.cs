@@ -17,6 +17,43 @@ public sealed record DictionariesView
 
     /// <summary>Gets a value indicating whether the user may add, arrange and remove dictionaries: administrators may.</summary>
     public required bool MayManage { get; init; }
+
+    /// <summary>Gets where words' sounds come from.</summary>
+    public required WordAudioView WordAudio { get; init; }
+}
+
+/// <summary>
+/// Where words' sounds come from. The address itself is never shown, since it often holds a key.
+/// </summary>
+public sealed record WordAudioView
+{
+    /// <summary>Gets a value indicating whether an administrator set an audio source.</summary>
+    public required bool Set { get; init; }
+
+    /// <summary>Gets the host of the audio source, for administrators only.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Host { get; init; }
+}
+
+/// <summary>
+/// An audio source an administrator sets.
+/// </summary>
+public sealed record WordAudioSetting
+{
+    /// <summary>Gets the address, with <c>{term}</c> and <c>{reading}</c> in it; empty takes the source away.</summary>
+    public string Address { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// The audio source as set, and what a try of a common word found.
+/// </summary>
+public sealed record WordAudioSaved
+{
+    /// <summary>Gets where words' sounds come from now.</summary>
+    public required WordAudioView WordAudio { get; init; }
+
+    /// <summary>Gets what the try found: <c>found</c>, <c>notFound</c> or <c>failed</c>; <c>none</c> when the source was taken away.</summary>
+    public required string Tried { get; init; }
 }
 
 /// <summary>

@@ -11,7 +11,7 @@ Only watching locally with mpv? Check out [mpv-subtitleminer](https://github.com
 - **Follows what you play.** Start an episode on your TV, phone or any other Jellyfin app, and open the page on another device. It shows the subtitle lines as they are spoken and keeps up when you pause, jump or change the track. Episodes and films you watched in the last 12 hours stay listed, so you can still mine from them afterwards.
 - **Reads the subtitles itself.** ASS, SRT and WebVTT, next to the video or inside it. The Japanese track is picked for you, a second track can be shown under each line for its meaning, and signs and songs are told apart from what people say.
 - **Makes Anki cards.** Pick one line or several, see the picture and hear the sound the card will get, then either add them to the card you just made with Yomitan, or make a new card. The picture and the sound are cut from the video on the Jellyfin server.
-- **Looks words up.** Tap a word in a line and a popup shows it from Yomitan dictionaries kept on the Jellyfin server, with conjugations undone, frequencies and pitch accents. Its + button makes a card of the word, its reading, meaning, frequency and pitch, the sentence, the picture and the sound. No browser extension is needed, so it works on a phone too.
+- **Looks words up.** Tap a word in a line, or hold Shift over it as with Yomitan, and a popup shows it from Yomitan dictionaries kept on the Jellyfin server, with conjugations undone, frequencies and pitch accents. Its + button makes a card of the word, its reading, meaning, frequency, pitch and sound, the sentence, the picture and the sound of the line. Select part of a definition first, and only that goes into SelectionText. No browser extension is needed, so it works on a phone too.
 - **No extra sign-in.** The page uses your Jellyfin login. Where the browser has none, it asks for your Jellyfin name and password once.
 - **Installs as an app** on a phone, tablet or computer, from the browser's menu.
 
@@ -42,7 +42,7 @@ In the page's settings, choose where your cards go:
 - **Anki on this device.** Desktop Anki with [AnkiConnect](https://ankiweb.net/shared/info/2055492159), or AnkiConnect for Android, on the device you open the page on. AnkiConnect has to let the page in: the settings show the line to add to `webCorsOriginList` in AnkiConnect's config.
 - **Anki on a server.** An AnkiConnect that the Jellyfin server can reach, with its API key. The Jellyfin server sends the cards, the pictures and the sound there for you, so nothing needs to run on the device you mine on. The key stays on the Jellyfin server, encrypted, and only the calls that read, add and fill in notes are passed on, never ones that delete. Because the Jellyfin server then calls whatever address is typed in, only administrators may use this until an administrator ticks "Let users who are not administrators send cards through this server".
 
-Then choose the deck and the note type. What goes into each field is guessed from the field names, which works for Lapis and most mining note types, and can be changed.
+Then choose the deck and the note type. What goes into each field is guessed from the field names, which works for Lapis and most mining note types, and can be changed. Each choice is named as Lapis names its field, such as "ExpressionReading: its reading in kana (e.g. たべる)".
 
 There are two ways to make a card from the lines you picked:
 
@@ -56,6 +56,8 @@ There are two ways to make a card from the lines you picked:
 No dictionary comes with the plugin. An administrator adds them in the page's settings: Jitendex and JMnedict with one tap, or any Yomitan dictionary from an address or a file. The Jellyfin server imports it (Jitendex took 15 seconds on a home server) and keeps it for everyone. Dictionaries can be put in order, turned off and removed.
 
 Each user can turn looking up off in their settings, for example to keep using their own Yomitan with "Add to my newest card".
+
+For the sound of words, an administrator gives the address of an audio source in the same settings, as Yomitan's "Custom URL (JSON)" takes it, with `{term}` and `{reading}` where the word and its reading go, for example `https://example.org/audio/list?term={term}&reading={reading}`. The Jellyfin server fetches the sounds from there, so the address and any key in it stay on the server. The popup then has a play button, and a word's card gets its sound in ExpressionAudio.
 
 ![A word looked up in the page](docs/screenshots/desktop-popup.webp)
 

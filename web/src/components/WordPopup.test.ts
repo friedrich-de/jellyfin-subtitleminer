@@ -157,7 +157,7 @@ describe('the word popup', () => {
     const onAddCard = drawn.options!.onAddCard as (word: LookupResult, index: number) => void;
     onAddCard(given[0]!, 0);
     await flushPromises();
-    expect(addCard).toHaveBeenCalledWith(given[0], true);
+    expect(addCard).toHaveBeenCalledWith(given[0], true, '');
     expect(drawn.setResultState).toHaveBeenLastCalledWith(
       given[0],
       'in-anki',
@@ -192,7 +192,48 @@ describe('the word popup', () => {
       0,
     );
     await flushPromises();
-    expect(addCard).toHaveBeenCalledWith(nested.results[0], false);
+    expect(addCard).toHaveBeenCalledWith(nested.results[0], false, '');
+  });
+
+  it("plays a word's sound from the server, while it has an audio source", async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const asked: string[] = [];
+    const backend = fakeRoutes((sent: RoutedRequest) => {
+      if (sent.path === 'Dictionaries/Lookup') {
+        return json({
+          results: [{ ...result('食べる'), term: { ...result('食べる').term, reading: 'たべる' } }],
+        });
+      }
+      if (sent.path === 'WordAudio') {
+        asked.push(`${sent.query.get('term')}|${sent.query.get('reading')}`);
+        return sent.query.get('term') === '食べる'
+          ? new Response(new Blob(['mp3'], { type: 'audio/mpeg' }))
+          : json({ detail: 'The audio source has no sound for this word.' }, 404);
+      }
+      return undefined;
+    });
+    const shown = open(backend, { wordAudio: false });
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+
+    const hasAudio = drawn.options!.hasAudio as (word: LookupResult) => boolean;
+    const onPlayAudio = drawn.options!.onPlayAudio as (word: LookupResult, index: number) => void;
+    const given = drawn.render.mock.calls[0]![0] as LookupResult[];
+    expect(hasAudio(given[0]!)).toBe(false);
+    await shown.setProps({ wordAudio: true });
+    expect(hasAudio(given[0]!)).toBe(true);
+
+    onPlayAudio(given[0]!, 0);
+    await flushPromises();
+    expect(asked).toEqual(['食べる|たべる']);
+    expect(play).toHaveBeenCalledOnce();
+
+    onPlayAudio(result('猫'), 0);
+    await flushPromises();
+    expect(shown.get('[data-testid="word-status"]').text()).toBe(
+      'No sound of 猫: The audio source has no sound for this word.',
+    );
+    play.mockRestore();
   });
 
   it('closes on Escape, and on a tap outside it but not on another word', async () => {

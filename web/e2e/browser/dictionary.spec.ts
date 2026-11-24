@@ -14,6 +14,7 @@ import { COLOURS } from '../support/media';
 import { colourOf, isColour } from '../support/probe';
 import { signInToJellyfin } from '../support/webClient';
 import { tapCharacter } from '../support/lines';
+import { aSound, setWordAudio, startAudioSource } from '../support/wordAudio';
 import { yomitanZip } from '../support/yomitanZip';
 
 let admin: Login;
@@ -27,7 +28,63 @@ test.beforeEach(async ({ request, jellyfin }) => {
 test.afterEach(async ({ request, jellyfin }) => {
   await forgetDictionaries(request, admin);
   await forgetAnki(request, jellyfin);
+  await setWordAudio(request, admin, '');
 });
+
+/** Where a character of a line is on the screen, its middle. */
+async function pointOf(page: Page, character: string): Promise<{ x: number; y: number }> {
+  return firstLine(page)
+    .locator('.said')
+    .evaluate((element, wanted) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+        const at = (node as Text).data.indexOf(wanted);
+        if (at === -1) continue;
+        const range = document.createRange();
+        range.setStart(node, at);
+        range.setEnd(node, at + 1);
+        const box = range.getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      }
+      throw new Error(`No ${wanted} in the line`);
+    }, character);
+}
+
+/**
+ * Selects a part of a definition in the popup: with the mouse on a desktop, as a long press
+ * leaves it on a phone.
+ */
+async function selectInPopup(page: Page, text: string, mouse: boolean): Promise<void> {
+  const ends = await popup(page)
+    .locator('.dictionary-popup')
+    .evaluate(
+      (host, [wanted, drag]) => {
+        const root = host.shadowRoot!;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+          const at = (node as Text).data.indexOf(wanted!);
+          if (at === -1) continue;
+          const range = document.createRange();
+          range.setStart(node, at);
+          range.setEnd(node, at + wanted!.length);
+          if (drag === 'no') {
+            document.getSelection()!.removeAllRanges();
+            document.getSelection()!.addRange(range);
+            return null;
+          }
+          const box = range.getBoundingClientRect();
+          return { y: box.top + box.height / 2, from: box.left + 1, to: box.right - 1 };
+        }
+        throw new Error(`No ${wanted} in the popup`);
+      },
+      [text, mouse ? 'yes' : 'no'],
+    );
+  if (ends === null) return;
+  await page.mouse.move(ends.from, ends.y);
+  await page.mouse.down();
+  await page.mouse.move(ends.to, ends.y, { steps: 5 });
+  await page.mouse.up();
+}
 
 const popup = (page: Page) => page.getByTestId('word-popup');
 const firstLine = (page: Page) => page.locator('.line[data-line="0"]');
@@ -147,6 +204,106 @@ test.describe('a word tapped in a line', () => {
     expect(server.collection.notes.size).toBe(1);
   });
 
+  test('is looked up while Shift is held over it, as Yomitan scans', async ({
+    page,
+    jellyfin,
+    player,
+  }, info) => {
+    test.skip(info.project.name === 'phone', 'A phone has no Shift key and no mouse.');
+    const tv = player(jellyfin.viewer, 'Dictionary scan', 'mpv');
+    await tv.play(jellyfin.media.episode1.id, { positionMs: 1_500, paused: true });
+    await signInToJellyfin(page, jellyfin.viewer);
+    await page.goto('/SubtitleMiner/');
+    await expect(firstLine(page)).toBeVisible();
+
+    // Moving over the words without Shift looks nothing up.
+    const talk = await pointOf(page, '話');
+    await page.mouse.move(talk.x, talk.y);
+    await expect(popup(page)).toBeHidden();
+
+    // Shift pressed with the mouse resting on a word.
+    await page.keyboard.down('Shift');
+    await expect(popup(page).getByText('talk; story')).toBeVisible();
+    await expect(firstLine(page).locator('.word')).toHaveText('話');
+
+    // The mouse moved with Shift held.
+    const yesterday = await pointOf(page, '昨');
+    await page.mouse.move(yesterday.x, yesterday.y, { steps: 4 });
+    await expect(popup(page).getByText('yesterday')).toBeVisible();
+    await expect(firstLine(page).locator('.word')).toHaveText('昨日');
+    await page.keyboard.up('Shift');
+
+    // Without Shift, moving on leaves the popup as it is, and the line is not chosen.
+    await page.mouse.move(talk.x, talk.y, { steps: 4 });
+    await expect(popup(page).getByText('yesterday')).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: 'Line at 00:01' })).not.toBeChecked();
+  });
+
+  test('becomes a card with its sound and only the part of its definition selected', async ({
+    page,
+    request,
+    jellyfin,
+    player,
+    anki,
+  }, info) => {
+    const sound = await aSound(request, admin, jellyfin.media.episode1.id);
+    const source = await startAudioSource({ 話: sound });
+    const server = await anki();
+    try {
+      await setWordAudio(request, admin, source.address);
+      await saveSettings(request, admin, {
+        Anki: { Where: 'server', ServerAddress: server.url, ServerKey: '' },
+        Page: {
+          anki: { deck: 'Mining', noteType: 'Lapis', fields: guessRoles(LAPIS_FIELDS), tags: [] },
+        },
+      });
+      const tv = player(jellyfin.admin, 'Dictionary audio', 'mpv');
+      await tv.play(jellyfin.media.episode1.id, { positionMs: 1_500, paused: true });
+      await signInToJellyfin(page, jellyfin.admin);
+      await page.goto('/SubtitleMiner/');
+      await expect(firstLine(page)).toBeVisible();
+
+      await tapCharacter(page, firstLine(page), '話');
+      await expect(popup(page).getByText('talk; story')).toBeVisible();
+
+      // The play button plays the word's sound, fetched by the server.
+      const play = popup(page).getByRole('button', { name: 'Play pronunciation' }).first();
+      await expect(play).toBeVisible();
+      const heard = page.waitForResponse((response) => response.url().includes('/WordAudio?'));
+      await play.click();
+      expect((await heard).status()).toBe(200);
+      await expect(page.getByTestId('word-status')).toHaveCount(0);
+
+      await selectInPopup(page, 'story', info.project.name !== 'phone');
+      await popup(page).locator('.gsm-hoshidicts-mine-button').first().click();
+      await expect(page.getByTestId('word-status')).toHaveText('Made a new card, "話".');
+
+      const note = [...server.collection.notes.values()].at(-1)!;
+      expect(note.fields.SelectionText).toBe('story');
+      expect(note.fields.MainDefinition).toContain('talk; story');
+      const name = /^\[sound:([^\]]+)\]$/.exec(note.fields.ExpressionAudio ?? '')?.[1];
+      expect(name).toMatch(/^subtitle-miner_word_[0-9a-f]{8}\.mp3$/);
+      expect(Buffer.compare(server.media(name!), sound)).toBe(0);
+
+      // A word the source has no sound for still gets its card, without one.
+      await page.keyboard.press('Escape');
+      await tapCharacter(page, firstLine(page), '昨');
+      await expect(popup(page).getByText('yesterday')).toBeVisible();
+      await popup(page).locator('.gsm-hoshidicts-mine-button').first().click();
+      await expect(page.getByTestId('word-status')).toHaveText(
+        'Made a new card, "昨日", without the word\'s sound: the audio source has none for it.',
+      );
+      const quiet = [...server.collection.notes.values()].at(-1)!;
+      expect(quiet.fields).toMatchObject({
+        Expression: '昨日',
+        ExpressionAudio: '',
+        SelectionText: '',
+      });
+    } finally {
+      await source.stop();
+    }
+  });
+
   test('keeps Anki’s answer with its own word when another is looked up meanwhile', async ({
     page,
     request,
@@ -248,5 +405,34 @@ test.describe('the dictionaries in the settings', () => {
     await expect(page.getByTestId('dictionary-message')).toContainText(
       'The address could not be reached:',
     );
+  });
+
+  test('take an audio source for words, which the page never shows again', async ({
+    page,
+    jellyfin,
+  }) => {
+    const source = await startAudioSource({ 食べる: Buffer.from('ID3') });
+    try {
+      await signInToJellyfin(page, jellyfin.admin);
+      await page.goto('/SubtitleMiner/');
+      await page.getByTestId('open-settings').click();
+      await expect(page.getByTestId('word-audio-state')).toContainText('Words have no sound.');
+
+      await page.getByTestId('word-audio-address').fill(source.address);
+      await page.getByTestId('word-audio-save').click();
+      await expect(page.getByTestId('word-audio-message')).toHaveText(
+        'Saved. It works: it has a sound for 食べる.',
+      );
+      await expect(page.getByTestId('word-audio-state')).toContainText(
+        `come from ${new URL(source.url).hostname}`,
+      );
+      await expect(page.getByTestId('word-audio-address')).toHaveValue('');
+      expect(await page.content()).not.toContain('apiKey');
+
+      await page.getByTestId('word-audio-remove').click();
+      await expect(page.getByTestId('word-audio-message')).toHaveText('Words have no sound now.');
+    } finally {
+      await source.stop();
+    }
   });
 });

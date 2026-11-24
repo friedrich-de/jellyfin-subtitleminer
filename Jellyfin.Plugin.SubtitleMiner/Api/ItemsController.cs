@@ -6,10 +6,8 @@ using System.Linq;
 using System.Net.Mime;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Jellyfin.Plugin.SubtitleMiner.Anki;
 using Jellyfin.Plugin.SubtitleMiner.Library;
 using Jellyfin.Plugin.SubtitleMiner.Media;
 using Microsoft.AspNetCore.Authorization;
@@ -344,44 +342,7 @@ public class ItemsController : ControllerBase
             System.IO.File.Delete(cut.Path!);
         }
 
-        // Read again: an administrator may have changed the settings while the cut ran.
-        if (!_services.Anki.TryFind(caller, out var target, out var status, out var message))
-        {
-            return Problem(message, statusCode: status);
-        }
-
-        if (!_services.Anki.TryEnter(caller.UserId))
-        {
-            Response.Headers.RetryAfter = "1";
-            return Problem("Too many calls to Anki are on their way for you. Try again in a moment.", statusCode: StatusCodes.Status429TooManyRequests);
-        }
-
-        AnkiAnswer answer;
-        var fileName = name + "." + cut.Extension;
-        try
-        {
-            answer = await _services.AnkiClient.StoreMediaAsync(target!, fileName, content, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _services.Anki.Leave(caller.UserId);
-        }
-
-        if (answer.Outcome != AnkiOutcome.Answered)
-        {
-            var (failure, text) = AnkiGate.Failure(answer.Outcome, target!);
-            return Problem(text, statusCode: failure);
-        }
-
-        if (answer.Error is not null)
-        {
-            return Problem(AnkiGate.Explain(answer.Error), statusCode: StatusCodes.Status422UnprocessableEntity);
-        }
-
-        // AnkiConnect answers with the name it stored the file under, which may differ from the one asked for.
-        var stored = answer.Result.ValueKind == JsonValueKind.String ? answer.Result.GetString() : null;
-        Response.Headers.CacheControl = "no-store";
-        return new StoredMediaView { FileName = string.IsNullOrEmpty(stored) ? fileName : stored };
+        return await AnkiMedia.StoreAsync(this, _services, caller, name + "." + cut.Extension, content, cancellationToken).ConfigureAwait(false);
     }
 
     private ActionResult Answer(CutResult result)

@@ -2,7 +2,12 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createPluginApi } from '@/api/plugin';
-import type { DictionariesView, DictionaryImport, DictionaryView } from '@/api/types';
+import type {
+  DictionariesView,
+  DictionaryImport,
+  DictionaryView,
+  WordAudioView,
+} from '@/api/types';
 import { BASE, fakeRoutes, json, problem, type RoutedRequest } from '@/testing/fakes';
 
 import DictionarySettings from './DictionarySettings.vue';
@@ -28,10 +33,12 @@ function plugin(start: DictionaryView[], mayManage: boolean) {
   let list = [...start];
   let job: DictionaryImport = { State: 'idle', Progress: 0 };
   let looks = 0;
+  let wordAudio: WordAudioView = { Set: false };
   const view = (): DictionariesView => ({
     Dictionaries: list,
     Import: job,
     MayManage: mayManage,
+    WordAudio: mayManage ? wordAudio : { Set: wordAudio.Set },
   });
   const server = fakeRoutes((request: RoutedRequest) => {
     if (request.path === 'Dictionaries' && request.method === 'GET') {
@@ -70,6 +77,16 @@ function plugin(start: DictionaryView[], mayManage: boolean) {
     if (removed !== undefined && request.method === 'DELETE') {
       list = list.filter((item) => item.Id !== removed);
       return json(view());
+    }
+    if (request.path === 'WordAudio' && request.method === 'PUT') {
+      const { Address } = request.body as { Address: string };
+      if (Address === '') {
+        wordAudio = { Set: false };
+        return json({ WordAudio: wordAudio, Tried: 'none' });
+      }
+      if (!Address.includes('{term}')) return problem(400, 'The address needs {term}.');
+      wordAudio = { Set: true, Host: new URL(Address).host };
+      return json({ WordAudio: wordAudio, Tried: Address.includes('key=') ? 'found' : 'failed' });
     }
     return undefined;
   });
@@ -176,6 +193,47 @@ describe('the dictionary settings', () => {
     expect(
       button(page, 'Add JMnedict, names of people and places').attributes('disabled'),
     ).toBeUndefined();
+  });
+
+  it('let an administrator set an audio source for words, which the page does not keep', async () => {
+    const server = plugin([dictionary('Jitendex')], true);
+    const page = await open(server);
+    expect(find(page, 'word-audio-state').text()).toContain('Words have no sound.');
+    expect(page.find('[data-testid="word-audio-remove"]').exists()).toBe(false);
+
+    await find(page, 'word-audio-address').setValue('https://audio.example/list?reading={reading}');
+    await find(page, 'word-audio-save').trigger('click');
+    await flushPromises();
+    expect(find(page, 'word-audio-message').text()).toBe('The address needs {term}.');
+
+    await find(page, 'word-audio-address').setValue(
+      'https://audio.example/list?term={term}&reading={reading}&key=secret',
+    );
+    await find(page, 'word-audio-save').trigger('click');
+    await flushPromises();
+    expect(find(page, 'word-audio-message').text()).toBe(
+      'Saved. It works: it has a sound for 食べる.',
+    );
+    expect(find(page, 'word-audio-state').text()).toContain('come from audio.example');
+    expect((find(page, 'word-audio-address').element as HTMLInputElement).value).toBe('');
+    expect(page.html()).not.toContain('secret');
+
+    // A source that does not answer is kept, and the administrator is told.
+    await find(page, 'word-audio-address').setValue('https://other.example/{term}.mp3');
+    await find(page, 'word-audio-save').trigger('click');
+    await flushPromises();
+    expect(find(page, 'word-audio-message').attributes('role')).toBe('alert');
+
+    await find(page, 'word-audio-remove').trigger('click');
+    await flushPromises();
+    expect(find(page, 'word-audio-message').text()).toBe('Words have no sound now.');
+    expect(find(page, 'word-audio-state').text()).toContain('Words have no sound.');
+  });
+
+  it('show a user who is not an administrator no audio source to set', async () => {
+    const page = await open(plugin([dictionary('Jitendex')], false));
+
+    expect(page.find('[data-testid="word-audio-address"]').exists()).toBe(false);
   });
 
   it('say why an address or a file was not taken', async () => {

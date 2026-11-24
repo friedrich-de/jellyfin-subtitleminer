@@ -1,7 +1,7 @@
 import type { PictureOptions, SoundOptions } from '@/api/plugin';
 import type { WordContent } from '@/dictionary/word';
 
-import { AnkiError, type AnkiConnect, type MediaCut } from './connect';
+import { AnkiError, type AnkiConnect, type MediaCut, WordAudioMissingError } from './connect';
 import { type FieldRole, guessRoles, type PageSettings, WORD_ROLES } from './pageSettings';
 
 /** What a card gets from the chosen lines. */
@@ -30,6 +30,15 @@ export interface CardMedia {
   source: string;
   picture: PictureOptions | undefined;
   sound: SoundOptions | undefined;
+  /** Whether the server has an audio source for words, for a card made from a word. */
+  wordAudio?: boolean;
+}
+
+/** The names Anki stored the files of a card under. */
+interface StoredMedia {
+  picture?: string;
+  sound?: string;
+  wordAudio?: string;
 }
 
 export interface NoteInfo {
@@ -46,6 +55,8 @@ export interface CardOutcome {
   label: string;
   /** The fields as they were before, for an update. */
   before: Record<string, string>;
+  /** A field wanted the word's sound, and the audio source had none or could not be reached. */
+  noWordAudio?: boolean;
 }
 
 export function escapeHtml(text: string): string {
@@ -114,9 +125,10 @@ async function storeAll(
   anki: AnkiConnect,
   roles: Record<string, FieldRole>,
   media: CardMedia,
-): Promise<{ picture?: string; sound?: string }> {
+  word: CardContent['word'],
+): Promise<StoredMedia & { noWordAudio?: boolean }> {
   const wanted = new Set(Object.values(roles));
-  const cuts: Promise<[keyof CardMedia & ('picture' | 'sound'), string]>[] = [];
+  const cuts: Promise<[keyof StoredMedia, string] | undefined>[] = [];
   const base = { itemId: media.itemId, source: media.source };
   if (wanted.has('picture') && media.picture !== undefined) {
     const cut: MediaCut = { kind: 'picture', ...base, options: media.picture };
@@ -126,13 +138,32 @@ async function storeAll(
     const cut: MediaCut = { kind: 'sound', ...base, options: media.sound };
     cuts.push(anki.store(cut).then((name) => ['sound', name]));
   }
-  return Object.fromEntries(await Promise.all(cuts));
+  let noWordAudio = false;
+  if (wanted.has('wordAudio') && word !== undefined && media.wordAudio === true) {
+    const cut: MediaCut = { kind: 'word-audio', term: word.expression, reading: word.reading };
+    cuts.push(
+      anki.store(cut).then(
+        (name) => ['wordAudio', name],
+        (error: unknown) => {
+          // A word the source has no sound for still gets its card, and Anki that cannot be
+          // reached says so when the card is added.
+          if (!(error instanceof WordAudioMissingError)) throw error;
+          noWordAudio = true;
+          return undefined;
+        },
+      ),
+    );
+  }
+  const stored = Object.fromEntries(
+    (await Promise.all(cuts)).filter((entry) => entry !== undefined),
+  ) as StoredMedia;
+  return noWordAudio ? { ...stored, noWordAudio } : stored;
 }
 
 function valueFor(
   role: FieldRole,
   content: CardContent,
-  stored: { picture?: string; sound?: string },
+  stored: StoredMedia,
   existing: string,
 ): string | undefined {
   const word = content.word;
@@ -150,6 +181,8 @@ function valueFor(
       return word === undefined ? undefined : escapeHtml(word.furigana);
     case 'meaning':
       return word?.meaning;
+    case 'selectionText':
+      return word === undefined ? undefined : fieldHtml(word.selection ?? '');
     case 'frequency':
       return word?.frequency;
     case 'pitch':
@@ -160,6 +193,8 @@ function valueFor(
       return stored.picture === undefined ? undefined : `<img src="${escapeHtml(stored.picture)}">`;
     case 'sound':
       return stored.sound === undefined ? undefined : `[sound:${stored.sound}]`;
+    case 'wordAudio':
+      return stored.wordAudio === undefined ? undefined : `[sound:${stored.wordAudio}]`;
     case 'source':
       return fieldHtml(content.source);
     default:
@@ -229,7 +264,7 @@ export async function addToNewest(
     );
   }
 
-  const stored = await storeAll(anki, present, media);
+  const stored = await storeAll(anki, present, media, content.word);
   const fields: Record<string, string> = {};
   const before: Record<string, string> = {};
   for (const [name, role] of Object.entries(present)) {
@@ -337,7 +372,7 @@ export async function addNew(
   }
   await refuseDuplicate(anki, settings, fields);
 
-  const stored = await storeAll(anki, roles, media);
+  const stored = await storeAll(anki, roles, media, content.word);
   for (const [name, role] of Object.entries(roles)) {
     if (MEDIA_ROLES.has(role)) fields[name] = valueFor(role, content, stored, '') ?? '';
   }
@@ -353,11 +388,17 @@ export async function addNew(
     throw error;
   }
 
-  return { kind: 'added', noteId, label: plainText(fields[firstName] ?? ''), before: {} };
+  return {
+    kind: 'added',
+    noteId,
+    label: plainText(fields[firstName] ?? ''),
+    before: {},
+    ...(stored.noWordAudio === true ? { noWordAudio: true } : {}),
+  };
 }
 
 /** The parts a card gets as files in Anki's media folder. */
-const MEDIA_ROLES: ReadonlySet<FieldRole> = new Set(['picture', 'sound']);
+const MEDIA_ROLES: ReadonlySet<FieldRole> = new Set(['picture', 'sound', 'wordAudio']);
 
 /**
  * Asks Anki whether it has this card in the deck already, before its media are stored. An
