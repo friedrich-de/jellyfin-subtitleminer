@@ -37,7 +37,31 @@ const running = computed(() => {
   const state = list.value?.Import.State;
   return state === 'downloading' || state === 'importing';
 });
-const installed = computed(() => new Set(list.value?.Dictionaries.map((item) => item.Title)));
+/**
+ * Whether a suggested dictionary is there already: by the address it updates from, or by its title,
+ * which carries its revision ("Jitendex.org [2026-11-23]").
+ */
+function isInstalled(suggestion: (typeof SUGGESTED)[number]): boolean {
+  const named = new RegExp(`^${suggestion.name}(?![a-z])`, 'i');
+  return (list.value?.Dictionaries ?? []).some(
+    (item) => item.DownloadUrl === suggestion.url || named.test(item.Title),
+  );
+}
+
+/** What an import is of: a suggested dictionary by its name, an address by its file's name. */
+function sourceName(source: string): string {
+  const suggested = SUGGESTED.find((suggestion) => suggestion.url === source);
+  if (suggested !== undefined) return suggested.name;
+  try {
+    const file = new URL(source).pathname
+      .split('/')
+      .filter((part) => part !== '')
+      .at(-1);
+    return file === undefined ? source : decodeURIComponent(file);
+  } catch {
+    return source;
+  }
+}
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -158,7 +182,7 @@ function webSite(item: DictionaryView): string | undefined {
 const importText = computed(() => {
   const job = list.value?.Import;
   if (job === undefined) return '';
-  const what = job.Title ?? job.Source ?? 'the dictionary';
+  const what = job.Title ?? (job.Source === undefined ? 'the dictionary' : sourceName(job.Source));
   return job.State === 'downloading'
     ? `Downloading ${what}… ${Math.round(job.Progress * 100)}%`
     : `Importing ${what}… ${Math.round(job.Progress * 100)}%`;
@@ -308,7 +332,7 @@ onBeforeUnmount(stopPolling);
               :key="suggestion.name"
               class="button"
               type="button"
-              :disabled="busy || sending !== null || installed.has(suggestion.name)"
+              :disabled="busy || sending !== null || isInstalled(suggestion)"
               @click="download(suggestion.url)"
             >
               Add {{ suggestion.name }}, {{ suggestion.text }}

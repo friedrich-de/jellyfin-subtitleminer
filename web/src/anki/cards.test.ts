@@ -188,23 +188,43 @@ describe('making cards', () => {
     expect(note.fields.Sentence).toBe('昨日の話、覚えてる？<br>もちろん。');
     expect(note.fields.Picture).toBe('<img src="picture-item-1.bin">');
 
-    // The same lines again: the deck has that card.
-    await expect(addNew(ankiOver(collection), settings, CONTENT, MEDIA)).rejects.toThrow(
+    // The same lines again: the deck has that card, and Anki is given no picture or sound for it.
+    const again = ankiOver(collection);
+    await expect(addNew(again, settings, CONTENT, MEDIA)).rejects.toThrow(
       'This deck has a card like this already.',
     );
+    expect(again.cuts).toEqual([]);
   });
 
-  it('says what a new card is missing', async () => {
+  it('puts the lines in a first field meant for the word, for a card of lines alone', async () => {
+    const collection = createCollection({ now: () => NOW });
+
+    // Lapis as guessed: its first field is the word, which Anki needs.
+    const outcome = await addNew(ankiOver(collection), lapis(), CONTENT, MEDIA);
+
+    expect(outcome).toMatchObject({ kind: 'added', label: '昨日の話、覚えてる？ もちろん。' });
+    expect(collection.notes.get(outcome.noteId)!.fields).toMatchObject({
+      Expression: '昨日の話、覚えてる？<br>もちろん。',
+      ExpressionReading: '',
+      Sentence: '昨日の話、覚えてる？<br>もちろん。',
+      Picture: '<img src="picture-item-1.bin">',
+    });
+  });
+
+  it('says what a new card is missing, before its media are stored', async () => {
     const anki = ankiOver(createCollection());
     const none = defaultPageSettings();
     await expect(addNew(anki, none, CONTENT, MEDIA)).rejects.toThrow(
       'Choose a deck and a note type',
     );
 
-    // Lapis's first field is the word: empty, Anki will not make the card.
-    await expect(addNew(anki, lapis(), CONTENT, MEDIA)).rejects.toThrow(
-      'needs something in its first field',
+    // A first field that is for nothing the page fills: Anki would not make the card.
+    const settings = lapis();
+    settings.anki.fields.Expression = 'none';
+    await expect(addNew(anki, settings, CONTENT, MEDIA)).rejects.toThrow(
+      'A new "Lapis" card needs something in its first field. Give it the lines in the settings.',
     );
+    expect(anki.cuts).toEqual([]);
   });
 });
 
@@ -261,7 +281,9 @@ describe('making a card of a word from the dictionary', () => {
     // The deck has that word now: Anki says so before a card is made, and when one is.
     const other = { ...EATEN, word: { ...EAT, expression: '食う' } };
     await expect(wordsInDeck(anki, lapis(), [EATEN, other])).resolves.toEqual([true, false]);
+    const before = collection.media.size;
     await expect(addNew(anki, lapis(), EATEN, MEDIA)).rejects.toThrow(DuplicateCardError);
+    expect(collection.media.size).toBe(before);
   });
 
   it('needs a field for the word', async () => {

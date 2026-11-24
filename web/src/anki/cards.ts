@@ -2,7 +2,7 @@ import type { PictureOptions, SoundOptions } from '@/api/plugin';
 import type { WordContent } from '@/dictionary/word';
 
 import { AnkiError, type AnkiConnect, type MediaCut } from './connect';
-import { type FieldRole, guessRoles, type PageSettings } from './pageSettings';
+import { type FieldRole, guessRoles, type PageSettings, WORD_ROLES } from './pageSettings';
 
 /** What a card gets from the chosen lines. */
 export interface CardContent {
@@ -313,29 +313,71 @@ export async function addNew(
   const problem = newCardProblem(settings, content.word !== undefined);
   if (problem !== undefined) throw new AnkiError(problem);
 
-  const stored = await storeAll(anki, roles, media);
+  // The words first: a card Anki would refuse gets no picture or sound stored for nothing.
   const fields: Record<string, string> = {};
   for (const [name, role] of Object.entries(roles)) {
-    fields[name] = valueFor(role, content, stored, '') ?? '';
+    fields[name] = MEDIA_ROLES.has(role) ? '' : (valueFor(role, content, {}, '') ?? '');
+  }
+  const firstName = Object.keys(fields)[0];
+  const firstRole = firstName === undefined ? undefined : roles[firstName];
+  if (firstName !== undefined && fields[firstName] === '' && content.word === undefined) {
+    // Anki needs the first field. Where it is for the word, a card of lines alone has the lines.
+    if (firstRole !== undefined && WORD_ROLES.has(firstRole)) {
+      fields[firstName] = fieldHtml(content.sentence);
+    }
+  }
+  const empty = new AnkiError(
+    content.word === undefined
+      ? `A new "${noteType}" card needs something in its first field. Give it the lines in the settings.`
+      : `A new "${noteType}" card needs something in its first field. Give it the word in the settings.`,
+  );
+  const mediaFirst = firstRole !== undefined && MEDIA_ROLES.has(firstRole);
+  if (firstName === undefined || (!mediaFirst && plainText(fields[firstName] ?? '') === '')) {
+    throw empty;
+  }
+  await refuseDuplicate(anki, settings, fields);
+
+  const stored = await storeAll(anki, roles, media);
+  for (const [name, role] of Object.entries(roles)) {
+    if (MEDIA_ROLES.has(role)) fields[name] = valueFor(role, content, stored, '') ?? '';
   }
 
   let noteId: number;
   try {
     noteId = await anki.invoke<number>('addNote', { note: noteOf(settings, fields) });
   } catch (error) {
-    if (error instanceof AnkiError && /empty/i.test(error.message)) {
-      throw new AnkiError(
-        content.word === undefined
-          ? `A new "${noteType}" card needs something in its first field. Give it the lines in the settings.`
-          : `A new "${noteType}" card needs something in its first field. Give it the word in the settings.`,
-      );
-    }
+    if (error instanceof AnkiError && /empty/i.test(error.message)) throw empty;
     if (error instanceof AnkiError && /duplicate/i.test(error.message)) {
       throw new DuplicateCardError();
     }
     throw error;
   }
 
-  const first = Object.entries(fields)[0]?.[1] ?? '';
-  return { kind: 'added', noteId, label: plainText(first), before: {} };
+  return { kind: 'added', noteId, label: plainText(fields[firstName] ?? ''), before: {} };
+}
+
+/** The parts a card gets as files in Anki's media folder. */
+const MEDIA_ROLES: ReadonlySet<FieldRole> = new Set(['picture', 'sound']);
+
+/**
+ * Asks Anki whether it has this card in the deck already, before its media are stored. An
+ * AnkiConnect that does not know the question is left to say so when the card is added.
+ */
+async function refuseDuplicate(
+  anki: AnkiConnect,
+  settings: PageSettings,
+  fields: Record<string, string>,
+): Promise<void> {
+  let answers: { canAdd: boolean; error?: string }[];
+  try {
+    answers = await anki.invoke('canAddNotesWithErrorDetail', {
+      notes: [noteOf(settings, fields)],
+    });
+  } catch {
+    return;
+  }
+  const [answer] = answers;
+  if (answer?.canAdd === false && /duplicate/i.test(answer.error ?? '')) {
+    throw new DuplicateCardError();
+  }
 }

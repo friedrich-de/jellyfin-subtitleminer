@@ -24,12 +24,22 @@ internal static class AssReader
         var lines = new List<RawLine>();
         var format = _defaultFormat;
         var inEvents = false;
+        var inInfo = false;
+        double? width = null, height = null;
         foreach (var rawRow in text.Split('\n'))
         {
             var row = rawRow.Trim('\r', ' ', '\t', '﻿');
             if (row.StartsWith('['))
             {
                 inEvents = row.Equals("[Events]", StringComparison.OrdinalIgnoreCase);
+                inInfo = row.Equals("[Script Info]", StringComparison.OrdinalIgnoreCase);
+                continue;
+            }
+
+            if (inInfo)
+            {
+                width ??= Number(row, "PlayResX:");
+                height ??= Number(row, "PlayResY:");
                 continue;
             }
 
@@ -73,7 +83,7 @@ internal static class AssReader
                 continue;
             }
 
-            var clean = TextCleaner.Tidy(TextCleaner.RemoveReadings(Clean(fields[^1], out var positioned, out var sung)));
+            var clean = TextCleaner.Tidy(TextCleaner.RemoveReadings(Clean(fields[^1], out var positioned, out var sung, Canvas.Of(width, height))));
             if (clean.Length == 0)
             {
                 continue;
@@ -89,9 +99,10 @@ internal static class AssReader
     }
 
     /// <summary>
-    /// Takes the override blocks out of a line's text and reports what they said about it.
+    /// Takes the override blocks out of a line's text and reports what they said about it. A line moved,
+    /// or put at a point away from where speech stands, is placed on the picture.
     /// </summary>
-    internal static string Clean(string text, out bool positioned, out bool sung)
+    internal static string Clean(string text, out bool positioned, out bool sung, Canvas canvas = default)
     {
         positioned = false;
         sung = false;
@@ -115,7 +126,7 @@ internal static class AssReader
                     break;
                 }
 
-                ReadTags(text.AsSpan(index + 1, close - index - 1), ref positioned, ref sung, ref drawing);
+                ReadTags(text.AsSpan(index + 1, close - index - 1), canvas, ref positioned, ref sung, ref drawing);
                 index = close + 1;
                 continue;
             }
@@ -151,13 +162,18 @@ internal static class AssReader
         return builder.ToString();
     }
 
-    private static void ReadTags(ReadOnlySpan<char> block, ref bool positioned, ref bool sung, ref bool drawing)
+    private static void ReadTags(ReadOnlySpan<char> block, Canvas canvas, ref bool positioned, ref bool sung, ref bool drawing)
     {
         var index = block.IndexOf('\\');
         while (index >= 0 && index < block.Length - 1)
         {
             var tag = block[(index + 1)..];
-            if (tag.StartsWith("pos(", StringComparison.OrdinalIgnoreCase) || tag.StartsWith("move(", StringComparison.OrdinalIgnoreCase))
+            if (tag.StartsWith("pos(", StringComparison.OrdinalIgnoreCase))
+            {
+                // Speech is sometimes pinned to where it would stand anyway, at the bottom or the top.
+                positioned |= !(Point(tag[4..]) is var (x, y) && canvas.IsSpeechPlace(x, y));
+            }
+            else if (tag.StartsWith("move(", StringComparison.OrdinalIgnoreCase))
             {
                 positioned = true;
             }
@@ -183,6 +199,27 @@ internal static class AssReader
         }
     }
 
+    /// <summary>The x and y of a tag's arguments, as in <c>960,1020)</c>.</summary>
+    private static (double X, double Y)? Point(ReadOnlySpan<char> arguments)
+    {
+        var close = arguments.IndexOf(')');
+        var inside = close < 0 ? arguments : arguments[..close];
+        var comma = inside.IndexOf(',');
+        return comma > 0
+            && double.TryParse(inside[..comma].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var x)
+            && double.TryParse(inside[(comma + 1)..].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var y)
+            ? (x, y)
+            : null;
+    }
+
+    /// <summary>The number of a <c>Name: value</c> row of the script's information, if that is the row.</summary>
+    private static double? Number(string row, string name) =>
+        row.StartsWith(name, StringComparison.OrdinalIgnoreCase)
+        && double.TryParse(row.AsSpan(name.Length).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+        && value > 0
+            ? value
+            : null;
+
     private static bool TryParseTime(string? value, out long milliseconds)
     {
         milliseconds = 0;
@@ -204,4 +241,31 @@ internal static class AssReader
         milliseconds = (((hours * 60) + minutes) * 60 * 1000) + (long)Math.Round(seconds * 1000m);
         return true;
     }
+}
+
+/// <summary>The size a script gives its positions in: its PlayResX and PlayResY.</summary>
+/// <param name="Width">The width.</param>
+/// <param name="Height">The height.</param>
+internal readonly record struct Canvas(double Width, double Height)
+{
+    /// <summary>The size of a script, from what it says, as players fill in what it leaves out.</summary>
+    /// <param name="width">Its PlayResX, if any.</param>
+    /// <param name="height">Its PlayResY, if any.</param>
+    /// <returns>The size.</returns>
+    public static Canvas Of(double? width, double? height) => (width, height) switch
+    {
+        ({ } w, { } h) => new Canvas(w, h),
+        ({ } w, null) => new Canvas(w, w == 1280 ? 1024 : w * 3 / 4),
+        (null, { } h) => new Canvas(h * 4 / 3, h),
+        _ => new Canvas(384, 288),
+    };
+
+    /// <summary>Whether a point is where speech stands: about the middle, in the bottom or the top fifth.</summary>
+    /// <param name="x">Across.</param>
+    /// <param name="y">Down.</param>
+    /// <returns>Whether it is.</returns>
+    public bool IsSpeechPlace(double x, double y) =>
+        Width > 0
+        && Math.Abs(x - (Width / 2)) <= Width * 0.15
+        && (y >= Height * 0.8 || y <= Height * 0.2);
 }

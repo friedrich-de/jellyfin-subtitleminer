@@ -19,6 +19,7 @@ namespace Jellyfin.Plugin.SubtitleMiner.Api;
 [ApiController]
 [Route("SubtitleMiner/Api/Dictionaries")]
 [Authorize]
+[CallerGone]
 public class DictionariesController : ControllerBase
 {
     /// <summary>A lookup reads at most this much of the text it is given.</summary>

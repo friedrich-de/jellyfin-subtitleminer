@@ -74,11 +74,55 @@ public class SubtitleReaderTests
     [InlineData("ED2 Kanji", "Song")]
     [InlineData("Insert Song", "Song")]
     [InlineData("Karaoke", "Song")]
+    [InlineData("OPJP-01 Special", "Song")]
+    [InlineData("EDJP-02", "Song")]
     [InlineData("Hope", "Dialogue")]
     [InlineData("Shed", "Dialogue")]
+    [InlineData("Edit", "Dialogue")]
+    [InlineData("EDITOR", "Dialogue")]
     public void A_style_name_says_what_its_lines_are(string style, string expected)
     {
         var document = Read($"[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,{style},,0,0,0,,text");
+
+        Assert.Equal(expected, Assert.Single(document.Lines).Kind.ToString());
+    }
+
+    [Fact]
+    public void Speech_pinned_to_where_speech_stands_is_dialogue_and_a_line_pinned_elsewhere_is_a_sign()
+    {
+        var document = Read("""
+            [Script Info]
+            PlayResX: 1920
+            PlayResY: 1080
+
+            [Events]
+            Dialogue: 0,0:00:01.00,0:00:02.00,JPN,,0,0,0,,ついでに言うなら
+            Dialogue: 0,0:00:03.00,0:00:04.00,JPN,,0,0,0,,{\pos(960,1030)}警察組織内で
+            Dialogue: 0,0:00:05.00,0:00:06.00,JPN,,0,0,0,,{\an8\pos(950,40)}上で話す
+            Dialogue: 0,0:00:07.00,0:00:08.00,JPN,,0,0,0,,{\pos(300,1030)}左下の看板
+            Dialogue: 0,0:00:09.00,0:00:10.00,JPN,,0,0,0,,{\pos(960,540)}真ん中の看板
+            Dialogue: 0,0:00:11.00,0:00:12.00,JPN,,0,0,0,,{\move(960,1030,960,900)}動く字幕
+            Dialogue: 0,0:00:13.00,0:00:14.00,JPN,,0,0,0,,まだ話す
+            """);
+
+        var kinds = document.Lines.ToDictionary(line => line.Text, line => line.Kind);
+        Assert.Equal(LineKind.Dialogue, kinds["警察組織内で"]);
+        Assert.Equal(LineKind.Dialogue, kinds["上で話す"]);
+        Assert.Equal(LineKind.Sign, kinds["左下の看板"]);
+        Assert.Equal(LineKind.Sign, kinds["真ん中の看板"]);
+        Assert.Equal(LineKind.Sign, kinds["動く字幕"]);
+        Assert.Equal(LineKind.Dialogue, kinds["まだ話す"]);
+    }
+
+    [Theory]
+    [InlineData("", "{\\pos(192,270)}", "Dialogue")]
+    [InlineData("PlayResX: 1280", "{\\pos(640,1000)}", "Dialogue")]
+    [InlineData("PlayResX: 1280", "{\\pos(640,700)}", "Sign")]
+    [InlineData("PlayResY: 720", "{\\pos(480,700)}", "Dialogue")]
+    [InlineData("PlayResY: 720", "{\\pos(640)}", "Sign")]
+    public void A_script_without_its_size_is_read_at_the_size_players_give_it(string info, string tags, string expected)
+    {
+        var document = Read($"[Script Info]\n{info}\n\n[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{tags}話す");
 
         Assert.Equal(expected, Assert.Single(document.Lines).Kind.ToString());
     }

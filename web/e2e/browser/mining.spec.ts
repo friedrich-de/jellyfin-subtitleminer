@@ -48,7 +48,7 @@ test.describe('the main screen', () => {
 
     await expect(page.getByTestId('title')).toHaveText(`${jellyfin.media.show} · S1 E1`);
     await expect(page.getByTestId('where')).toHaveText(
-      'Living room (mpv) · 00:04 of 00:30 · paused',
+      '00:04 of 00:30 · paused · Living room (mpv)',
     );
     await expect(page.locator('.line')).toHaveCount(SHOWN.length);
     expect(await shownLines(page)).toEqual(SHOWN);

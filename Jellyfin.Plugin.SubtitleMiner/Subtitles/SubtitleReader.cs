@@ -126,7 +126,8 @@ internal static partial class SubtitleReader
         return LineKind.Dialogue;
     }
 
-    [GeneratedRegex(@"(?<![a-z])(op|ed)(?![a-z])|opening|ending|song|karaoke|kara(?![a-z])|lyric|romaji|insert", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // OP and ED on their own, or in capitals with a language after them, as in "OPJP-01" or "EDJP".
+    [GeneratedRegex(@"(?<![a-z])(op|ed)(?![a-z])|(?<![a-z])(?-i:(OP|ED)[A-Z]{2})(?![a-z])|opening|ending|song|karaoke|kara(?![a-z])|lyric|romaji|insert", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SongName();
 
     [GeneratedRegex(@"sign|title|caption|(?<![a-z])note|typeset|(?<![a-z])ts(?![a-z])|credit|staff|logo|eyecatch|preview|screen|card", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

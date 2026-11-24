@@ -36,8 +36,13 @@ function plugin(start: DictionaryView[], mayManage: boolean) {
   const server = fakeRoutes((request: RoutedRequest) => {
     if (request.path === 'Dictionaries' && request.method === 'GET') {
       if (job.State === 'downloading' && (looks += 1) >= 2) {
-        list = [...list, dictionary('Jitendex', { Id: 'jitendex' })];
-        job = { State: 'done', Progress: 1, Title: 'Jitendex', Source: job.Source! };
+        list = [...list, dictionary('Jitendex.org [2026-11-23]', { Id: 'jitendex' })];
+        job = {
+          State: 'done',
+          Progress: 1,
+          Title: 'Jitendex.org [2026-11-23]',
+          Source: job.Source!,
+        };
       } else if (job.State === 'downloading') {
         job = { ...job, Progress: 0.5 };
       }
@@ -158,16 +163,19 @@ describe('the dictionary settings', () => {
     expect(server.sent.at(-1)!.body).toEqual({
       Url: 'https://github.com/stephenmk/stephenmk.github.io/releases/latest/download/jitendex-yomitan.zip',
     });
-    expect(find(page, 'import-progress').text()).toContain('Downloading https://github.com/');
+    expect(find(page, 'import-progress').text()).toContain('Downloading Jitendex… 0%');
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(find(page, 'import-progress').text()).toContain('50%');
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(find(page, 'dictionary-message').text()).toBe('Jitendex is ready.');
+    expect(find(page, 'dictionary-message').text()).toBe('Jitendex.org [2026-11-23] is ready.');
     expect(page.find('[data-testid="import-progress"]').exists()).toBe(false);
-    expect(page.text()).toContain('In Jitendex, on the Jellyfin server.');
-    // It is there now, so it is not offered again.
+    expect(page.text()).toContain('In Jitendex.org [2026-11-23], on the Jellyfin server.');
+    // It is there now, under its own title with its revision, so it is not offered again.
     expect(button(page, 'Add Jitendex, Japanese to English').attributes('disabled')).toBeDefined();
+    expect(
+      button(page, 'Add JMnedict, names of people and places').attributes('disabled'),
+    ).toBeUndefined();
   });
 
   it('say why an address or a file was not taken', async () => {
