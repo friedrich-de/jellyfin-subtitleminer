@@ -53,11 +53,15 @@ There are two ways to make a card from the lines you picked:
 - **Add to my newest card**: make the card with your own Yomitan first, then this adds the sentence, the picture and the sound to it, keeping the word Yomitan marked. The page names the card it will change, such as "Adds to "約束", made a minute ago.", and greys the button out when there is none it may take. It only takes a card made in the last 15 minutes (you can change that), and Undo puts the card back as it was.
 - **New card**: makes a card of the lines in your deck. In the dictionary popup, the + button makes one of the word.
 
+Cards reach AnkiWeb when your Anki next syncs. To send them right away, press **Sync Anki now**, the round arrows in the top bar: your Anki, on the server or on the device, syncs with AnkiWeb at once, and the page says how it went.
+
 ![The settings, with Anki on this device and what goes into each field of a Lapis card](docs/screenshots/desktop-settings.webp)
 
 ## The dictionary
 
 No dictionary comes with the plugin. An administrator adds them in the page's settings: Jitendex and JMnedict with one tap, or any Yomitan dictionary from an address or a file. The Jellyfin server imports it (Jitendex took 15 seconds on a home server) and keeps it for everyone. Dictionaries can be put in order, turned off and removed.
+
+Frequency and pitch accent dictionaries in Yomitan's format work as well, such as Kanjium's pitch accents. The popup then shows a word's pitch, and a card gets it in PitchPosition (the mora the pitch falls after, such as 2) and PitchCategories (heiban, atamadaka, nakadaka, odaka or kifuku, as Yomitan names them).
 
 Each user can turn looking up off in their settings, for example to keep using their own Yomitan with "Add to my newest card". There, too, they can make the popup's text smaller or larger, hide the tags (★, the dictionary's name, parts of speech and the like), and lay definitions out compactly, each meaning on one line as in Yomitan's compact glossaries. On a phone the popup stays inside the part of the page you see, also when you have zoomed in.
 

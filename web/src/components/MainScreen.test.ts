@@ -611,6 +611,51 @@ describe('the main screen', () => {
     });
   });
 
+  it('syncs Anki with AnkiWeb from the bar, and says how it went', async () => {
+    const anki = createCollection();
+    const server = plugin({}, { settings: serverSettings(), anki });
+    const screen = await open(server);
+    await settle();
+
+    const button = screen.get('[data-testid="sync-anki"]');
+    expect(button.attributes('aria-label')).toBe('Sync Anki now');
+    await button.trigger('click');
+    expect(screen.get('[data-testid="sync-status"]').text()).toBe('Syncing Anki with AnkiWeb…');
+    expect(button.attributes('disabled')).toBeDefined();
+    await settle();
+    expect(anki.sync.count).toBe(1);
+    expect(screen.get('[data-testid="sync-status"]').text()).toContain(
+      'Anki synced: AnkiWeb and your Anki already had the same cards.',
+    );
+    expect(button.attributes('disabled')).toBeUndefined();
+    // The note goes by itself after a while.
+    await settle(6_000);
+    expect(screen.find('[data-testid="sync-status"]').exists()).toBe(false);
+
+    // A sync that fails says why, and stays until it is closed.
+    anki.sync.error = 'A synchronization is already in progress';
+    await screen.get('[data-testid="sync-anki"]').trigger('click');
+    await settle();
+    const note = screen.get('[data-testid="sync-status"]');
+    expect(note.attributes('role')).toBe('alert');
+    expect(note.text()).toContain('Anki is syncing with AnkiWeb already.');
+    await settle(60_000);
+    await screen.get('[data-testid="close-sync-status"]').trigger('click');
+    expect(screen.find('[data-testid="sync-status"]').exists()).toBe(false);
+  });
+
+  it('shows no sync button while cards go nowhere', async () => {
+    const settings = {
+      ...serverSettings(),
+      Anki: { ...serverSettings().Anki, Where: 'off' as const },
+    };
+    const screen = await open(plugin({}, { settings }));
+    await settle();
+
+    expect(screen.find('[data-testid="open-settings"]').exists()).toBe(true);
+    expect(screen.find('[data-testid="sync-anki"]').exists()).toBe(false);
+  });
+
   it('offers to set up Anki when cards go nowhere, and opens the settings', async () => {
     const settings = {
       ...serverSettings(),

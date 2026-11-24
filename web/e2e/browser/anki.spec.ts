@@ -116,6 +116,17 @@ test.describe('cards', () => {
     await expect(page.getByTestId('sending')).toContainText('The card is as it was.');
     expect(note.fields.Sentence).toBe('<b>約束</b>したからね。');
     expect(note.fields.Picture).toBe('');
+
+    // The bar has the server's Anki sync with AnkiWeb now, through the Jellyfin server.
+    const release = server.hold('sync');
+    await page.getByTestId('sync-anki').click();
+    await expect(page.getByTestId('sync-status')).toHaveText('Syncing Anki with AnkiWeb…');
+    await expect(page.getByTestId('sync-anki')).toBeDisabled();
+    release();
+    await expect(page.getByTestId('sync-status')).toHaveText(/^Anki synced with AnkiWeb\./);
+    await expect(page.getByTestId('sync-anki')).toBeEnabled();
+    expect(server.collection.sync.count).toBe(1);
+    expect(server.seen.at(-1)).toMatchObject({ action: 'sync', key: KEY, origin: undefined });
   });
 
   test('go to the Anki on the device once it lets the page in', async ({
