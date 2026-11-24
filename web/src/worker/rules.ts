@@ -4,16 +4,25 @@
  */
 
 /** The start of the name of every cache the worker makes. */
-export const CACHE_PREFIX = 'subtitle-miner-page-';
+export const CACHE_PREFIX = 'subtitle-miner-page ';
 
-/** The cache of one version of the page. A new version gets a new one; the old ones go. */
-export function cacheName(version: string): string {
-  return CACHE_PREFIX + version;
+/**
+ * The start of the names of one page's caches. The caches belong to the whole site, which may
+ * hold several Jellyfin servers under different paths, so each page's names hold its address.
+ * An address never holds a space, which ends it.
+ */
+function ownPrefix(scope: URL): string {
+  return `${CACHE_PREFIX}${scope.href} `;
 }
 
-/** Whether a cache is one of the worker's own from another version. */
-export function isStale(name: string, current: string): boolean {
-  return name.startsWith(CACHE_PREFIX) && name !== current;
+/** The cache of one version of the page at one address. A new version gets a new one. */
+export function cacheName(scope: URL, version: string): string {
+  return ownPrefix(scope) + version;
+}
+
+/** Whether a cache is this page's own from another version, which can go. */
+export function isStale(name: string, scope: URL, current: string): boolean {
+  return name.startsWith(ownPrefix(scope)) && name !== current;
 }
 
 /**

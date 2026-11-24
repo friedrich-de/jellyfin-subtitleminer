@@ -55,9 +55,23 @@ describe('the page’s service worker', () => {
   });
 
   it('drops what older versions kept, and nothing of anyone else', () => {
-    const current = cacheName('2.0.0.1');
-    expect(isStale(cacheName('2.0.0.0'), current)).toBe(true);
-    expect(isStale(current, current)).toBe(false);
-    expect(isStale('another-app', current)).toBe(false);
+    const current = cacheName(scope, '2.0.0.1');
+    expect(isStale(cacheName(scope, '2.0.0.0'), scope, current)).toBe(true);
+    expect(isStale(current, scope, current)).toBe(false);
+    expect(isStale('another-app', scope, current)).toBe(false);
+  });
+
+  it('leaves alone what the page of another Jellyfin on the same site kept', () => {
+    const current = cacheName(scope, '2.0.0.1');
+    for (const other of [
+      'https://media.example/SubtitleMiner/',
+      'https://media.example/jellyfin-test/SubtitleMiner/',
+      'https://media.example/x/jellyfin/SubtitleMiner/',
+    ]) {
+      const theirs = new URL(other);
+      expect(cacheName(theirs, '2.0.0.0')).not.toBe(cacheName(scope, '2.0.0.0'));
+      expect(isStale(cacheName(theirs, '2.0.0.0'), scope, current), other).toBe(false);
+      expect(isStale(cacheName(theirs, '2.0.0.1'), scope, current), other).toBe(false);
+    }
   });
 });

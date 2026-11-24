@@ -34,9 +34,11 @@ test.describe('the installed app', () => {
     // What the worker keeps: the page's files and nothing the plugin answered for this user. The
     // caches of Jellyfin's web client share the address and are left alone.
     const ours = (await page.evaluate(() => caches.keys())).filter((name) =>
-      name.startsWith('subtitle-miner-page-'),
+      name.startsWith('subtitle-miner-page '),
     );
-    expect(ours).toEqual([`subtitle-miner-page-${jellyfin.plugin.version}`]);
+    expect(ours).toEqual([
+      `subtitle-miner-page ${jellyfin.baseUrl}/SubtitleMiner/ ${jellyfin.plugin.version}`,
+    ]);
     const kept = await page.evaluate(async (name) => {
       const requests = await (await caches.open(name)).keys();
       return requests.map((request) => request.url);

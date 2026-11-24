@@ -11,8 +11,8 @@ declare const self: ServiceWorkerGlobalScope;
 /** Put in by the build: the page's files, relative to the page's address. */
 const FILES: readonly string[] = ['__PAGE_FILES__'];
 
-const CACHE = cacheName(__APP_VERSION__);
 const scope = new URL(self.registration.scope);
+const CACHE = cacheName(scope, __APP_VERSION__);
 const files = new Set(FILES.filter((name) => name !== './'));
 
 self.addEventListener('install', (event) => {
@@ -29,7 +29,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       for (const name of await caches.keys()) {
-        if (isStale(name, CACHE)) await caches.delete(name);
+        if (isStale(name, scope, CACHE)) await caches.delete(name);
       }
       await self.clients.claim();
     })(),
