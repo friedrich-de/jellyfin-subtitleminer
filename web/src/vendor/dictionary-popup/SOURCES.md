@@ -1,0 +1,26 @@
+# dictionary-popup, as the page carries it
+
+These files are [dictionary-popup](https://github.com/bee-san/dictionary-popup) at commit
+`5704fceaa9712a2f57d2d837222d1b30abf6557b` (version 0.3.1, 2026-11-22): its `src/` folder and its
+`LICENSE`. It is [Hachidori](https://github.com/bee-san/hachidori)'s dictionary popup; `hachidori/`
+holds Hachidori's own files at the commit `hachidori/source.json` names, and
+`hachidori/ATTRIBUTION.md` says whose work they contain. Everything here is under the
+GPL-3.0-or-later (`LICENSE`); the icons are Fluent UI System Icons under the MIT licence
+(`hachidori/LICENSE.fluent-icons`).
+
+The package is not on npm, and its README suggests copying `src/` into a project, which this is.
+
+## What the page changed
+
+The page's content policy allows styles only from its own files (`style-src 'self'`), and a browser
+refuses `<style>` elements under it, also inside a shadow root. So the popup's stylesheets are
+constructed (`new CSSStyleSheet()`, `replaceSync`) and adopted by the popup's shadow root instead:
+
+- `index.js`, `createDictionaryPopup`: the base stylesheet and the extra CSS (`base` and `custom`).
+- `hachidori/glossary.js`, `applyDictionaryStyles`: each dictionary's own stylesheet. It keeps the
+  sheets it adopted for each root and swaps them on the next call, as it removed its elements
+  before; each entry it returns has a `textContent` that re-parses its sheet when set, as
+  `index.js` does on older browsers.
+
+Nothing else is changed. `src/dictionary/vendored.test.ts` fails if a `<style>` element
+comes back, so that a newer copy gets the same change.

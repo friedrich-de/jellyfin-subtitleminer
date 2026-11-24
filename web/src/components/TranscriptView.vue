@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { nextTick, useTemplateRef, watch } from 'vue';
 
+import { type Box, characterAt, startsWord } from '@/dictionary/caret';
 import { clockOf, type ShownLine } from '@/watch/watches';
+
+/** Part of a line, as the said text is drawn: the word looked up apart from the rest. */
+interface Part {
+  text: string;
+  word: boolean;
+}
 
 const props = defineProps<{
   lines: readonly ShownLine[];
@@ -13,9 +20,17 @@ const props = defineProps<{
   follow: boolean;
   lang: string | undefined;
   secondLang: string | undefined;
+  /** A tap on a word looks it up, instead of choosing the line. */
+  lookUp: boolean;
+  /** The word looked up, picked out in its line. */
+  marked: { id: number; start: number; length: number } | undefined;
 }>();
 
-const emit = defineEmits<{ toggle: [id: number, range: boolean] }>();
+const emit = defineEmits<{
+  toggle: [id: number, range: boolean];
+  /** A tap on the said text while words are looked up: the character tapped, or none. */
+  word: [id: number, at: { offset: number; box: Box } | null];
+}>();
 
 const list = useTemplateRef<HTMLOListElement>('list');
 
@@ -50,11 +65,28 @@ watch(
   },
 );
 
-function onRowClick(event: MouseEvent, id: number): void {
+function parts(line: ShownLine): Part[] {
+  const mark = props.marked;
+  if (mark?.id !== line.Id || mark.length <= 0) return [{ text: line.Text, word: false }];
+  const end = mark.start + mark.length;
+  return [
+    { text: line.Text.slice(0, mark.start), word: false },
+    { text: line.Text.slice(mark.start, end), word: true },
+    { text: line.Text.slice(end), word: false },
+  ].filter((part) => part.text !== '');
+}
+
+function onRowClick(event: MouseEvent, line: ShownLine): void {
   // A click that ends a text selection is for copying, not for choosing the line.
   const chosen = window.getSelection?.()?.toString() ?? '';
   if (chosen !== '') return;
-  emit('toggle', id, event.shiftKey);
+  const said = event.target instanceof Element ? event.target.closest('.said') : null;
+  if (props.lookUp && said !== null) {
+    const at = characterAt(said, event.clientX, event.clientY);
+    emit('word', line.Id, at !== undefined && startsWord(line.Text[at.offset]) ? at : null);
+    return;
+  }
+  emit('toggle', line.Id, event.shiftKey);
 }
 </script>
 
@@ -90,8 +122,16 @@ function onRowClick(event: MouseEvent, id: number): void {
         {{ clockOf(line.StartMs) }}
         <span v-if="line.Kind !== 'dialogue'" class="kind">{{ KIND_NAMES[line.Kind] }}</span>
       </span>
-      <div class="text" @click="onRowClick($event, line.Id)">
-        <p class="said" :lang="lang">{{ line.Text }}</p>
+      <div class="text" :class="{ words: lookUp }" @click="onRowClick($event, line)">
+        <p class="said" :lang="lang" :data-word-text="lookUp ? '' : undefined">
+          <!-- Each part as it is, with no space of the template's around it. -->
+          <span
+            v-for="(part, index) in parts(line)"
+            :key="index"
+            :class="{ word: part.word }"
+            v-text="part.text"
+          />
+        </p>
         <p v-if="line.second !== undefined" class="second" :lang="secondLang">
           {{ line.second }}
         </p>
@@ -178,6 +218,16 @@ function onRowClick(event: MouseEvent, id: number): void {
 .text {
   min-width: 0;
   cursor: pointer;
+}
+
+.words .said {
+  cursor: text;
+}
+
+.word {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text-strong);
 }
 
 .said {

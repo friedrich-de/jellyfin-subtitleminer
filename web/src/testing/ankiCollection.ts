@@ -12,6 +12,15 @@ export interface StoredNote {
   tags: string[];
 }
 
+/** A note as addNote and canAddNotes are given it. */
+interface NewNote {
+  deckName: string;
+  modelName: string;
+  fields: Record<string, string>;
+  tags?: string[];
+  options?: { allowDuplicate?: boolean };
+}
+
 /** AnkiConnect's own error: the answer is {"result": null, "error": message}. */
 export class AnkiConnectError extends Error {}
 
@@ -75,6 +84,25 @@ export function createCollection(options: { key?: string; now?: () => number } =
       .map((note) => note.id);
   }
 
+  /** What Anki checks before it makes a note: its deck, note type, first field and duplicates. */
+  function check(note: NewNote): void {
+    if (!decks.includes(note.deckName))
+      throw new AnkiConnectError(`deck was not found: ${note.deckName}`);
+    const names = models[note.modelName];
+    if (names === undefined) throw new AnkiConnectError(`model was not found: ${note.modelName}`);
+    const first = note.fields[names[0]!] ?? '';
+    if (first.trim() === '') throw new AnkiConnectError('cannot create note because it is empty');
+    const duplicate = [...notes.values()].some(
+      (other) =>
+        other.deck === note.deckName &&
+        other.modelName === note.modelName &&
+        other.fields[names[0]!] === first,
+    );
+    if (duplicate && note.options?.allowDuplicate !== true) {
+      throw new AnkiConnectError('cannot create note because it is a duplicate');
+    }
+  }
+
   function handle(action: string, params: Record<string, unknown> = {}): unknown {
     calls.push({ action, params });
     switch (action) {
@@ -124,31 +152,19 @@ export function createCollection(options: { key?: string; now?: () => number } =
         Object.assign(note.fields, update.fields);
         return null;
       }
+      case 'canAddNotesWithErrorDetail':
+        return (params.notes as NewNote[]).map((note) => {
+          try {
+            check(note);
+            return { canAdd: true };
+          } catch (error) {
+            if (!(error instanceof AnkiConnectError)) throw error;
+            return { canAdd: false, error: error.message };
+          }
+        });
       case 'addNote': {
-        const note = params.note as {
-          deckName: string;
-          modelName: string;
-          fields: Record<string, string>;
-          tags?: string[];
-          options?: { allowDuplicate?: boolean };
-        };
-        if (!decks.includes(note.deckName))
-          throw new AnkiConnectError(`deck was not found: ${note.deckName}`);
-        const names = models[note.modelName];
-        if (names === undefined)
-          throw new AnkiConnectError(`model was not found: ${note.modelName}`);
-        const first = note.fields[names[0]!] ?? '';
-        if (first.trim() === '')
-          throw new AnkiConnectError('cannot create note because it is empty');
-        const duplicate = [...notes.values()].some(
-          (other) =>
-            other.deck === note.deckName &&
-            other.modelName === note.modelName &&
-            other.fields[names[0]!] === first,
-        );
-        if (duplicate && note.options?.allowDuplicate !== true) {
-          throw new AnkiConnectError('cannot create note because it is a duplicate');
-        }
+        const note = params.note as NewNote;
+        check(note);
         return makeNote({
           deck: note.deckName,
           modelName: note.modelName,

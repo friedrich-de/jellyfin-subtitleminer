@@ -1,13 +1,33 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 
-import { addNew, addToNewest, type CardOutcome, undoUpdate } from '@/anki/cards';
+import {
+  addNew,
+  addToNewest,
+  type CardContent,
+  type CardMedia,
+  type CardOutcome,
+  newCardProblem,
+  undoUpdate,
+  wordsInDeck,
+} from '@/anki/cards';
 import { type AnkiConnect, deviceAnki, serverAnki } from '@/anki/connect';
 import { readPageSettings } from '@/anki/pageSettings';
 import { HttpError, UnreachableError } from '@/api/http';
 import { createPluginApi, type PictureOptions, type SoundOptions } from '@/api/plugin';
-import type { Line, SettingsView, Subtitles, Track, Watch } from '@/api/types';
+import type {
+  DictionariesView,
+  Line,
+  LookupResult,
+  SettingsView,
+  Subtitles,
+  Track,
+  Watch,
+} from '@/api/types';
 import type { AuthEnv, Session } from '@/auth/signIn';
+import type { Box } from '@/dictionary/caret';
+import type { WordRequest } from '@/dictionary/popup';
+import { wordOf } from '@/dictionary/word';
 import { createWatchFeed, type FeedStatus, type Received } from '@/watch/feed';
 import { recall, remember, showKeyOf } from '@/watch/remembered';
 import {
@@ -25,6 +45,7 @@ import {
   type Pick,
   pickFor,
   positionOf,
+  type ShownLine,
   titleOf,
   trackLabel,
 } from '@/watch/watches';
@@ -34,6 +55,7 @@ import type { Making, Sending } from './making';
 import SelectionBar from './SelectionBar.vue';
 import SettingsScreen from './SettingsScreen.vue';
 import TranscriptView from './TranscriptView.vue';
+import WordPopup from './WordPopup.vue';
 
 const props = defineProps<{ env: AuthEnv; session: Session }>();
 const emit = defineEmits<{
@@ -89,7 +111,33 @@ async function loadSettings(): Promise<boolean> {
 
 async function openSettings(): Promise<void> {
   if (settings.value === null && !(await loadSettings())) return;
+  closeWord();
   view.value = 'settings';
+}
+
+// The server's dictionaries, for looking words up.
+
+const dictionaries = shallowRef<DictionariesView | null>(null);
+
+async function loadDictionaries(): Promise<void> {
+  try {
+    dictionaries.value = await api.dictionaries();
+  } catch {
+    // Without them words are not looked up; the rest of the page works.
+  }
+}
+
+const enabledDictionaries = computed(
+  () => dictionaries.value?.Dictionaries.filter((dictionary) => dictionary.Enabled) ?? [],
+);
+const lookingUp = computed(
+  () => pageSettings.value.dictionary.lookUp && enabledDictionaries.value.length > 0,
+);
+
+function closeSettings(): void {
+  view.value = 'lines';
+  // An administrator may have added or arranged dictionaries there.
+  void loadDictionaries();
 }
 
 // What the user's players play, as the server tells it.
@@ -337,13 +385,23 @@ function clear(): void {
 watch(mainId, clear);
 
 const chosen = computed(() => lines.value.filter((line) => selected.value.has(line.Id)));
-const span = computed(() => {
-  const first = chosen.value[0];
+
+interface Span {
+  start: number;
+  end: number;
+  /** The moment of a still: the middle of the first line. */
+  still: number;
+}
+
+function spanOf(of: readonly Line[]): Span | undefined {
+  const first = of[0];
   if (first === undefined) return undefined;
-  const start = Math.min(...chosen.value.map((line) => line.StartMs));
-  const end = Math.max(...chosen.value.map((line) => line.EndMs));
+  const start = Math.min(...of.map((line) => line.StartMs));
+  const end = Math.max(...of.map((line) => line.EndMs));
   return { start, end, still: (first.StartMs + first.EndMs) / 2 };
-});
+}
+
+const span = computed(() => spanOf(chosen.value));
 const spanText = computed(() => {
   const value = span.value;
   if (value === undefined) return '';
@@ -379,9 +437,8 @@ async function make(
   }
 }
 
-/** The picture of the chosen lines, as the settings want it cut. */
-const pictureOptions = computed<PictureOptions | undefined>(() => {
-  const value = span.value;
+/** The picture of lines, as the settings want it cut. */
+function pictureFor(value: Span | undefined): PictureOptions | undefined {
   if (value === undefined) return undefined;
   const media = pageSettings.value.media;
   const look = {
@@ -392,11 +449,10 @@ const pictureOptions = computed<PictureOptions | undefined>(() => {
   return media.moving
     ? { atMs: value.start, endMs: Math.min(value.end, value.start + MAX_MOVING_MS), ...look }
     : { atMs: value.still, ...look };
-});
+}
 
-/** The sound of the chosen lines, a little before and after them as the settings say. */
-const soundOptions = computed<SoundOptions | undefined>(() => {
-  const value = span.value;
+/** The sound of lines, a little before and after them as the settings say. */
+function soundFor(value: Span | undefined): SoundOptions | undefined {
   const track = shown.value?.AudioKey;
   if (value === undefined) return undefined;
   const media = pageSettings.value.media;
@@ -407,7 +463,10 @@ const soundOptions = computed<SoundOptions | undefined>(() => {
     normalize: media.normalize,
     ...(track === undefined ? {} : { track }),
   };
-});
+}
+
+const pictureOptions = computed(() => pictureFor(span.value));
+const soundOptions = computed(() => soundFor(span.value));
 
 const previewKey = computed(() => {
   const watch = shown.value;
@@ -469,6 +528,32 @@ watch(previewKey, () => {
   lastUpdate = null;
 });
 
+/** What a card of these lines gets: their text, the second line, where they are from. */
+function contentOf(watch: Watch, of: readonly Line[], value: Span): CardContent {
+  return {
+    sentence: of.map((line) => line.Text).join('\n'),
+    translation: secondOf(
+      of,
+      secondLines.value?.kind === 'ready' ? secondLines.value.subtitles.Lines : undefined,
+    ).join('\n'),
+    source: `${titleOf(watch)} · ${clockOf(value.start)}`,
+  };
+}
+
+/** The picture and sound a card of these lines gets, where they can be cut. */
+function mediaOf(watch: Watch, value: Span): CardMedia {
+  const sound = soundFor(value);
+  return {
+    itemId: watch.ItemId,
+    source: watch.MediaSourceId,
+    picture: watch.CanCut ? pictureFor(value) : undefined,
+    sound:
+      watch.CanCut && sound !== undefined && sound.endMs - sound.startMs <= MAX_SOUND_MS
+        ? sound
+        : undefined,
+  };
+}
+
 async function send(mode: 'newest' | 'new'): Promise<void> {
   const target = anki.value;
   const watch = shown.value;
@@ -480,24 +565,8 @@ async function send(mode: 'newest' | 'new'): Promise<void> {
     text: mode === 'newest' ? 'Adding to your newest card…' : 'Making a new card…',
   };
   lastUpdate = null;
-  const content = {
-    sentence: chosen.value.map((line) => line.Text).join('\n'),
-    translation: secondOf(
-      chosen.value,
-      secondLines.value?.kind === 'ready' ? secondLines.value.subtitles.Lines : undefined,
-    ).join('\n'),
-    source: `${titleOf(watch)} · ${clockOf(value.start)}`,
-  };
-  const sound = soundOptions.value;
-  const media = {
-    itemId: watch.ItemId,
-    source: watch.MediaSourceId,
-    picture: watch.CanCut ? pictureOptions.value : undefined,
-    sound:
-      watch.CanCut && sound !== undefined && sound.endMs - sound.startMs <= MAX_SOUND_MS
-        ? sound
-        : undefined,
-  };
+  const content = contentOf(watch, chosen.value, value);
+  const media = mediaOf(watch, value);
 
   try {
     const outcome =
@@ -529,6 +598,88 @@ async function undo(): Promise<void> {
   }
 }
 
+// Looking a word up: a tap on it opens the popup, from which a card of it is made.
+
+const wordRequest = shallowRef<WordRequest | null>(null);
+/** The line and place of the word looked up, and how long the word found there is. */
+const marked = ref<{ id: number; start: number; length: number } | undefined>(undefined);
+
+function closeWord(): void {
+  wordRequest.value = null;
+  marked.value = undefined;
+}
+
+function onWord(id: number, at: { offset: number; box: Box } | null): void {
+  const line = lines.value.find((candidate) => candidate.Id === id);
+  if (at === null || line === undefined) {
+    // A tap beside the words closes the popup, or else chooses the line as it does without one.
+    if (wordRequest.value !== null) closeWord();
+    else toggle(id, false);
+    return;
+  }
+  marked.value = { id, start: at.offset, length: 0 };
+  wordRequest.value = { text: line.Text.slice(at.offset, at.offset + 64), box: at.box };
+}
+
+function onFound(length: number): void {
+  if (marked.value !== undefined) marked.value = { ...marked.value, length };
+}
+
+watch([mainId, view], closeWord);
+
+/**
+ * The lines a card of the word gets: the chosen lines when the word is in one of them, else its
+ * own line; and where the word is in their text.
+ */
+function wordLines(): { of: ShownLine[]; start: number } | undefined {
+  const mark = marked.value;
+  const line = lines.value.find((candidate) => candidate.Id === mark?.id);
+  if (mark === undefined || line === undefined) return undefined;
+  const of = selected.value.has(line.Id) ? chosen.value : [line];
+  let start = mark.start;
+  for (const before of of.slice(0, of.indexOf(line))) start += before.Text.length + 1;
+  return { of, start };
+}
+
+function wordContent(result: LookupResult, inLine: boolean): CardContent | undefined {
+  const watch = shown.value;
+  const found = wordLines();
+  const value = found === undefined ? undefined : spanOf(found.of);
+  if (watch === undefined || found === undefined || value === undefined) return undefined;
+  // A word looked up in a definition is not in the sentence to be picked out.
+  return { ...contentOf(watch, found.of, value), word: wordOf(result, inLine ? found.start : -1) };
+}
+
+const wordCardProblem = computed(() =>
+  anki.value === null
+    ? 'Choose where your cards go in the settings to make cards of words.'
+    : (newCardProblem(pageSettings.value, true) ?? ''),
+);
+
+async function addWordCard(result: LookupResult, inLine: boolean): Promise<string> {
+  const target = anki.value;
+  const watch = shown.value;
+  const content = wordContent(result, inLine);
+  const value = spanOf(wordLines()?.of ?? []);
+  if (target === null || watch === undefined || content === undefined || value === undefined) {
+    throw new Error('The line of this word is gone. Look the word up again.');
+  }
+  try {
+    const outcome = await addNew(target, pageSettings.value, content, mediaOf(watch, value));
+    return `Made a new card, "${outcome.label === '' ? result.term.expression : outcome.label}".`;
+  } catch (error) {
+    throw error instanceof HttpError ? new Error(messageOf(error)) : error;
+  }
+}
+
+async function wordsKnown(results: LookupResult[]): Promise<boolean[]> {
+  const target = anki.value;
+  if (target === null) return results.map(() => false);
+  const contents = results.map((result) => wordContent(result, true));
+  if (contents.some((content) => content === undefined)) return results.map(() => false);
+  return wordsInDeck(target, pageSettings.value, contents as CardContent[]);
+}
+
 // The connection lives while the page is in view.
 
 function onVisibility(): void {
@@ -549,6 +700,7 @@ onMounted(() => {
   window.addEventListener('keydown', onKey);
   if (document.visibilityState !== 'hidden') feed.start();
   void loadSettings();
+  void loadDictionaries();
 });
 
 onBeforeUnmount(() => {
@@ -602,7 +754,7 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       :fetch="env.fetch"
       :base="env.base"
       :settings="settings"
-      @close="view = 'lines'"
+      @close="closeSettings"
       @saved="(next) => (settings = next)"
     />
 
@@ -728,12 +880,27 @@ const secondLang = computed(() => languageTag(secondTrack.value));
         :current="current"
         :selected="selected"
         :anchor="anchor"
-        :follow="following"
+        :follow="following && wordRequest === null"
         :lang="mainLang"
         :second-lang="secondLang"
+        :look-up="lookingUp"
+        :marked="marked"
         @toggle="toggle"
+        @word="onWord"
       />
     </main>
+
+    <WordPopup
+      v-if="lookingUp && view === 'lines'"
+      :api="api"
+      :dictionaries="dictionaries?.Dictionaries ?? []"
+      :request="wordRequest"
+      :add-card="wordCardProblem === '' ? addWordCard : undefined"
+      :no-cards="wordCardProblem"
+      :in-deck="wordCardProblem === '' ? wordsKnown : undefined"
+      @found="onFound"
+      @close="closeWord"
+    />
 
     <footer v-if="view === 'lines' && chosen.length > 0" class="bottom">
       <SelectionBar

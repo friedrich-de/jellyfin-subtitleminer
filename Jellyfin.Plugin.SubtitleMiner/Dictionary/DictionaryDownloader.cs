@@ -61,7 +61,21 @@ internal sealed class DictionaryDownloader : IDisposable
     /// <returns>The zip's path.</returns>
     public async Task<string> DownloadAsync(Uri address, string folder, IProgress<double> progress, CancellationToken cancellationToken)
     {
-        using var response = await _client.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        HttpResponseMessage answer;
+        try
+        {
+            answer = await _client.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException error)
+        {
+            throw new DictionaryFetchException($"The address could not be reached: {error.Message.TrimEnd('.')}.", error);
+        }
+        catch (TaskCanceledException error) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new DictionaryFetchException("The address did not answer in time.", error);
+        }
+
+        using var response = answer;
         if (!response.IsSuccessStatusCode)
         {
             throw new DictionaryFetchException($"The address answered {(int)response.StatusCode} {response.ReasonPhrase}.");

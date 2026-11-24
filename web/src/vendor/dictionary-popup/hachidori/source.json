@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/bee-san/hachidori",
+  "commit": "5a5b5e2902704f65702dfbe8d9634d5ee8432c87",
+  "files": {
+    "external-links.js": "extension/external-links.js",
+    "glossary.js": "extension/render/glossary.js",
+    "popup.js": "extension/render/popup.js",
+    "reader-css.js": "extension/render/reader.css",
+    "icons-css.js": "extension/icons.css"
+  }
+}

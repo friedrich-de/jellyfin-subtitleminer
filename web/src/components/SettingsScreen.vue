@@ -15,6 +15,8 @@ import {
   tagsFrom,
 } from '@/anki/pageSettings';
 
+import DictionarySettings from './DictionarySettings.vue';
+
 const props = defineProps<{
   api: PluginApi;
   fetch: Fetch;
@@ -465,6 +467,8 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
           Even out the loudness
         </label>
       </section>
+
+      <DictionarySettings v-model:look-up="page.dictionary.lookUp" :api="api" />
 
       <section v-if="current.Everyone !== undefined" class="group" aria-labelledby="everyone-title">
         <h2 id="everyone-title">For everyone on this server</h2>

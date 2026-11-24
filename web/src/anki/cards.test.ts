@@ -2,14 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import { type Collection, createCollection } from '@/testing/ankiCollection';
 
+import type { WordContent } from '@/dictionary/word';
+
 import {
   addNew,
   addToNewest,
   type CardMedia,
+  DuplicateCardError,
   fieldHtml,
   keepMarks,
   plainText,
+  sentenceWithWord,
   undoUpdate,
+  wordsInDeck,
 } from './cards';
 import { type AnkiConnect, AnkiError, type MediaCut } from './connect';
 import { defaultPageSettings, guessRoles, type PageSettings } from './pageSettings';
@@ -200,5 +205,74 @@ describe('making cards', () => {
     await expect(addNew(anki, lapis(), CONTENT, MEDIA)).rejects.toThrow(
       'needs something in its first field',
     );
+  });
+});
+
+const EAT: WordContent = {
+  expression: '食べる',
+  reading: 'たべる',
+  furigana: '食[た]べる',
+  meaning: '<div class="yomitan-glossary" style="text-align: left">to eat</div>',
+  frequency: '512',
+  pitch: '2',
+  at: { start: 2, length: 8 },
+};
+
+const EATEN = {
+  sentence: 'もう食べられなかった。',
+  translation: 'I could not eat any more.',
+  source: 'Sample Show · S1 E1 · 00:04',
+  word: EAT,
+};
+
+describe('making a card of a word from the dictionary', () => {
+  it('puts the word in bold in its sentence', () => {
+    expect(sentenceWithWord('もう食べられなかった。', EAT.at)).toBe(
+      'もう<b>食べられなかった</b>。',
+    );
+    expect(sentenceWithWord(' 昨日の\n<話> ', { start: 5, length: 3 })).toBe(
+      '昨日の<br><b>&lt;話&gt;</b>',
+    );
+    // A place outside the sentence marks nothing.
+    expect(sentenceWithWord('昨日', { start: 5, length: 2 })).toBe('昨日');
+  });
+
+  it('fills the word, its reading, meaning, frequency and pitch with the lines and the media', async () => {
+    const collection = createCollection({ now: () => NOW });
+    const anki = ankiOver(collection);
+
+    const outcome = await addNew(anki, lapis(), EATEN, MEDIA);
+
+    expect(outcome).toMatchObject({ kind: 'added', label: '食べる' });
+    expect(collection.notes.get(outcome.noteId)!.fields).toMatchObject({
+      Expression: '食べる',
+      ExpressionFurigana: '食[た]べる',
+      ExpressionReading: 'たべる',
+      MainDefinition: EAT.meaning,
+      Sentence: 'もう<b>食べられなかった</b>。',
+      SentenceAudio: '[sound:sound-item-1.bin]',
+      Picture: '<img src="picture-item-1.bin">',
+      PitchPosition: '2',
+      Frequency: '512',
+      MiscInfo: 'Sample Show · S1 E1 · 00:04',
+      Glossary: '',
+    });
+
+    // The deck has that word now: Anki says so before a card is made, and when one is.
+    const other = { ...EATEN, word: { ...EAT, expression: '食う' } };
+    await expect(wordsInDeck(anki, lapis(), [EATEN, other])).resolves.toEqual([true, false]);
+    await expect(addNew(anki, lapis(), EATEN, MEDIA)).rejects.toThrow(DuplicateCardError);
+  });
+
+  it('needs a field for the word', async () => {
+    const anki = ankiOver(createCollection());
+    const settings = lapis();
+    settings.anki.fields.Expression = 'sentence';
+
+    await expect(addNew(anki, settings, EATEN, MEDIA)).rejects.toThrow(
+      'Give the word a field in the settings first.',
+    );
+    // Nothing to ask Anki then.
+    await expect(wordsInDeck(anki, settings, [EATEN])).resolves.toEqual([false]);
   });
 });

@@ -55,6 +55,9 @@ function plugin(start: SettingsView, anki: { server?: Collection; device?: Colle
       stored = { ...stored, Everyone: { AnkiThroughServer } };
       return json(stored);
     }
+    if (request.path === 'Dictionaries') {
+      return json({ Dictionaries: [], Import: { State: 'idle', Progress: 0 }, MayManage: false });
+    }
     if (request.path === 'Anki') {
       if (anki.server === undefined) {
         return problem(502, 'The AnkiConnect at anki.example.org could not be reached.');
@@ -133,9 +136,11 @@ describe('the settings', () => {
       'picture',
       'source',
     ]);
-    expect(role('Expression')).toBe('none');
+    // The word's parts too, for cards made from the dictionary popup.
+    expect([role('Expression'), role('MainDefinition')]).toEqual(['word', 'meaning']);
 
     await find(page, 'role-SentenceFurigana').setValue('translation');
+    await find(page, 'role-Expression').setValue('none');
     await find(page, 'deck').setValue('Mining');
     await find(page, 'tags').setValue('mined  anime mined');
     await find(page, 'newest-within').setValue('');

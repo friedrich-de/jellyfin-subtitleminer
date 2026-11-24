@@ -1,0 +1,209 @@
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { DuplicateCardError } from '@/anki/cards';
+import { createPluginApi } from '@/api/plugin';
+import type { DictionaryView, LookupResult } from '@/api/types';
+import type { WordRequest } from '@/dictionary/popup';
+import { BASE, fakeRoutes, json, type RoutedRequest } from '@/testing/fakes';
+
+import WordPopup from './WordPopup.vue';
+
+/** The dictionary popup as the page sees it: what it was told to show, and its buttons. */
+const drawn = vi.hoisted(() => ({
+  options: undefined as Record<string, unknown> | undefined,
+  render: vi.fn(),
+  clear: vi.fn(),
+  setCardState: vi.fn(),
+  back: vi.fn(() => false),
+  destroy: vi.fn(),
+}));
+
+vi.mock('@/dictionary/popup', () => ({
+  loadPopup: () =>
+    Promise.resolve({
+      createDictionaryPopup: (_container: HTMLElement, options: Record<string, unknown>) => {
+        drawn.options = options;
+        return drawn;
+      },
+    }),
+}));
+
+function result(expression: string, matched = expression): LookupResult {
+  return {
+    matched,
+    deinflected: expression,
+    trace: [],
+    term: { expression, reading: '', rules: '', glossaries: [], frequencies: [], pitches: [] },
+  };
+}
+
+const WORDS: DictionaryView = {
+  Id: 'words-1',
+  Title: 'Words',
+  Revision: '1',
+  Enabled: true,
+  Terms: 4,
+  Frequencies: 0,
+  Pitches: 0,
+  Styles: '.gloss { font-weight: bold; }',
+  Bytes: 1_000,
+  Imported: '2026-11-24T01:00:00Z',
+};
+
+function server(found: Record<string, LookupResult[]>) {
+  return fakeRoutes((request: RoutedRequest) => {
+    if (request.path === 'Dictionaries/Lookup') {
+      return json({ results: found[request.query.get('text') ?? ''] ?? [] });
+    }
+    if (request.path === 'Dictionaries/words-1/Media') {
+      return new Response(new Blob(['png'], { type: 'image/png' }));
+    }
+    return undefined;
+  });
+}
+
+const request = (text: string): WordRequest => ({
+  text,
+  box: { left: 100, top: 200, right: 122, bottom: 230 },
+});
+
+let popup: VueWrapper | undefined;
+
+function open(
+  backend: ReturnType<typeof server>,
+  props: Partial<InstanceType<typeof WordPopup>['$props']> = {},
+) {
+  popup = mount(WordPopup, {
+    props: {
+      api: createPluginApi(backend.fetch, BASE, 'token-1'),
+      dictionaries: [WORDS],
+      request: null,
+      addCard: undefined,
+      noCards: 'Choose where your cards go in the settings to make cards of words.',
+      inDeck: undefined,
+      ...props,
+    },
+    attachTo: document.body,
+  });
+  return popup;
+}
+
+describe('the word popup', () => {
+  afterEach(() => {
+    popup?.unmount();
+    popup = undefined;
+    vi.clearAllMocks();
+  });
+
+  it('looks the word up and shows what it found, the dictionaries’ styles with it', async () => {
+    const backend = server({ 食べられなかった: [result('食べる', '食べられなかった')] });
+    const shown = open(backend);
+    await shown.setProps({ request: request('食べられなかった') });
+    await flushPromises();
+
+    expect(backend.sent.map((sent) => sent.path)).toEqual(['Dictionaries/Lookup']);
+    expect(shown.emitted('found')).toEqual([[8]]);
+    expect(drawn.render).toHaveBeenCalledWith([result('食べる', '食べられなかった')], {
+      styles: [{ dictionary: 'Words', styles: '.gloss { font-weight: bold; }' }],
+      states: ['unavailable'],
+    });
+    // Without Anki the popup says how to make cards.
+    expect(shown.text()).toContain('Choose where your cards go');
+
+    // A picture of a definition comes from the server with the login, as a blob.
+    const media = drawn.options!.media as (dictionary: string, path: string) => Promise<Blob>;
+    await expect(media('Words', 'img/bowl.png')).resolves.toBeInstanceOf(Blob);
+    expect(backend.sent.at(-1)!.headers.authorization).toBe('MediaBrowser Token="token-1"');
+  });
+
+  it('says so when no word starts there', async () => {
+    const shown = open(server({}));
+    await shown.setProps({ request: request('、') });
+    await flushPromises();
+
+    expect(shown.emitted('found')).toEqual([[0]]);
+    expect(shown.get('[data-testid="word-none"]').text()).toBe(
+      'No word in the dictionaries starts here.',
+    );
+  });
+
+  it('marks the words Anki has, and makes a card of a word', async () => {
+    const found = [result('食べる'), result('食')];
+    const addCard = vi.fn((word: LookupResult) =>
+      word.term.expression === '食'
+        ? Promise.reject(new DuplicateCardError())
+        : Promise.resolve('Made a new card, "食べる".'),
+    );
+    const shown = open(server({ 食べる: found }), {
+      addCard,
+      inDeck: () => Promise.resolve([false, true]),
+    });
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+
+    expect(drawn.render).toHaveBeenCalledWith(
+      found,
+      expect.objectContaining({ states: ['waiting', 'waiting'] }),
+    );
+    expect(drawn.setCardState.mock.calls).toEqual([
+      [0, 'add'],
+      [1, 'in-anki'],
+    ]);
+
+    // The popup hands back the results it was given.
+    const given = drawn.render.mock.calls[0]![0] as LookupResult[];
+    const onAddCard = drawn.options!.onAddCard as (word: LookupResult, index: number) => void;
+    onAddCard(given[0]!, 0);
+    await flushPromises();
+    expect(addCard).toHaveBeenCalledWith(given[0], true);
+    expect(drawn.setCardState).toHaveBeenLastCalledWith(0, 'in-anki', 'Made a new card, "食べる".');
+    expect(shown.get('[data-testid="word-status"]').text()).toBe('Made a new card, "食べる".');
+
+    // The deck has that one: the popup says so, and it is no error.
+    onAddCard(given[1]!, 1);
+    await flushPromises();
+    expect(drawn.setCardState).toHaveBeenLastCalledWith(
+      1,
+      'in-anki',
+      'This deck has a card like this already.',
+    );
+    expect(shown.get('[data-testid="word-status"]').attributes('role')).toBe('status');
+  });
+
+  it('tells a word looked up in a definition apart from one of the line', async () => {
+    const addCard = vi.fn(() => Promise.resolve('Made a new card, "食う".'));
+    const backend = server({ 食べる: [result('食べる')], 食う: [result('食う')] });
+    const shown = open(backend, { addCard });
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+
+    const lookup = drawn.options!.lookup as (text: string) => Promise<{ results: LookupResult[] }>;
+    const nested = await lookup('食う');
+    (drawn.options!.onAddCard as (word: LookupResult, index: number) => void)(
+      nested.results[0]!,
+      0,
+    );
+    await flushPromises();
+    expect(addCard).toHaveBeenCalledWith(nested.results[0], false);
+  });
+
+  it('closes on Escape, and on a tap outside it but not on another word', async () => {
+    const shown = open(server({ 食べる: [result('食べる')] }));
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+
+    const word = document.createElement('p');
+    word.dataset.wordText = '';
+    document.body.append(word);
+    word.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(shown.emitted('close')).toBeUndefined();
+
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(shown.emitted('close')).toHaveLength(1);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(shown.emitted('close')).toHaveLength(2);
+    word.remove();
+  });
+});

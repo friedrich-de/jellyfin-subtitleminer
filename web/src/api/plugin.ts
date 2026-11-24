@@ -1,6 +1,13 @@
 import { apiUrl } from './addresses';
 import { type Fetch, getJson, send, tokenHeader } from './http';
-import type { SettingsChange, SettingsView, StoredMedia, Subtitles } from './types';
+import type {
+  DictionariesView,
+  Lookup,
+  SettingsChange,
+  SettingsView,
+  StoredMedia,
+  Subtitles,
+} from './types';
 
 export type PictureFormat = 'jpeg' | 'webp' | 'avif';
 export type SoundFormat = 'mp3' | 'opus';
@@ -52,6 +59,22 @@ export interface PluginApi {
   pictureToAnki(itemId: string, source: string, options: PictureOptions): Promise<StoredMedia>;
   /** Cuts sound and puts it into the user's Anki on a server. */
   soundToAnki(itemId: string, source: string, options: SoundOptions): Promise<StoredMedia>;
+  /** The server's dictionaries, and the import that runs. */
+  dictionaries(): Promise<DictionariesView>;
+  /** The words a text starts with, in the server's dictionaries. */
+  lookUp(text: string, signal?: AbortSignal): Promise<Lookup>;
+  /** A picture of a dictionary's definitions. */
+  dictionaryPicture(id: string, path: string): Promise<Blob>;
+  /** Only an administrator may: imports a dictionary's zip. */
+  uploadDictionary(file: Blob, name: string): Promise<DictionariesView>;
+  /** Only an administrator may: the server downloads a dictionary's zip and imports it. */
+  downloadDictionary(url: string): Promise<DictionariesView>;
+  /** Only an administrator may. */
+  stopDictionaryImport(): Promise<DictionariesView>;
+  /** Only an administrator may: every dictionary's id once, the first first. */
+  arrangeDictionaries(order: string[], disabled: string[]): Promise<DictionariesView>;
+  /** Only an administrator may. */
+  removeDictionary(id: string): Promise<DictionariesView>;
 }
 
 function query(values: Record<string, string | number | boolean | undefined>): string {
@@ -64,6 +87,7 @@ function query(values: Record<string, string | number | boolean | undefined>): s
 export function createPluginApi(fetchFn: Fetch, base: string, token: string): PluginApi {
   const item = (itemId: string, path: string): string =>
     apiUrl(base, `Items/${encodeURIComponent(itemId)}/${path}`);
+  const dictionaries = (path: string): string => apiUrl(base, `Dictionaries${path}`);
 
   async function sendJson<T>(method: string, url: string, body?: unknown): Promise<T> {
     const response = await send(fetchFn, url, {
@@ -156,5 +180,37 @@ export function createPluginApi(fetchFn: Fetch, base: string, token: string): Pl
 
     soundToAnki: (itemId, source, options) =>
       sendJson<StoredMedia>('POST', item(itemId, `Audio/Anki?${soundQuery(source, options)}`)),
+
+    dictionaries: () => getJson<DictionariesView>(fetchFn, dictionaries(''), token),
+
+    lookUp: (text, signal) =>
+      getJson<Lookup>(fetchFn, dictionaries(`/Lookup?${query({ text })}`), token, signal),
+
+    dictionaryPicture: (id, path) =>
+      file(dictionaries(`/${encodeURIComponent(id)}/Media?${query({ path })}`), undefined),
+
+    uploadDictionary: async (zip, name) => {
+      const response = await send(fetchFn, dictionaries(`?${query({ name })}`), {
+        method: 'POST',
+        headers: {
+          Authorization: tokenHeader(token),
+          Accept: 'application/json',
+          'Content-Type': 'application/zip',
+        },
+        body: zip,
+      });
+      return (await response.json()) as DictionariesView;
+    },
+
+    downloadDictionary: (url) =>
+      sendJson<DictionariesView>('POST', dictionaries('/Download'), { Url: url }),
+
+    stopDictionaryImport: () => sendJson<DictionariesView>('DELETE', dictionaries('/Import')),
+
+    arrangeDictionaries: (order, disabled) =>
+      sendJson<DictionariesView>('PUT', dictionaries(''), { Order: order, Disabled: disabled }),
+
+    removeDictionary: (id) =>
+      sendJson<DictionariesView>('DELETE', dictionaries(`/${encodeURIComponent(id)}`)),
   };
 }
