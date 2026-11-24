@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { guessRoles } from '../../src/anki/pageSettings';
 import { LAPIS_FIELDS } from '../../src/testing/ankiCollection';
@@ -13,6 +13,7 @@ import { expect, type Login, signIn, test } from '../support/fixtures';
 import { COLOURS } from '../support/media';
 import { colourOf, isColour } from '../support/probe';
 import { signInToJellyfin } from '../support/webClient';
+import { tapCharacter } from '../support/lines';
 import { yomitanZip } from '../support/yomitanZip';
 
 let admin: Login;
@@ -27,31 +28,6 @@ test.afterEach(async ({ request, jellyfin }) => {
   await forgetDictionaries(request, admin);
   await forgetAnki(request, jellyfin);
 });
-
-/** Taps a character of a line's said text, as a finger or a mouse would. */
-async function tapCharacter(page: Page, line: Locator, character: string): Promise<void> {
-  const said = line.locator('.said');
-  const point = await said.evaluate((element, wanted) => {
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-      const at = (node as Text).data.indexOf(wanted);
-      if (at === -1) continue;
-      const range = document.createRange();
-      range.setStart(node, at);
-      range.setEnd(node, at + 1);
-      const box = range.getBoundingClientRect();
-      const outer = element.getBoundingClientRect();
-      return {
-        x: box.left + box.width * 0.6 - outer.left,
-        y: box.top + box.height / 2 - outer.top,
-      };
-    }
-    throw new Error(`No ${wanted} in the line`);
-  }, character);
-  const touch = await page.evaluate(() => navigator.maxTouchPoints > 0);
-  if (touch) await said.tap({ position: point });
-  else await said.click({ position: point });
-}
 
 const popup = (page: Page) => page.getByTestId('word-popup');
 const firstLine = (page: Page) => page.locator('.line[data-line="0"]');

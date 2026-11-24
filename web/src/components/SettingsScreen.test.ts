@@ -244,6 +244,28 @@ describe('the settings', () => {
     expect(server.stored().Anki).toMatchObject({ Where: 'device', DeviceKey: 'device-key' });
   });
 
+  it('sets aside the decks of one Anki when another is chosen', async () => {
+    const device = createCollection();
+    device.decks.splice(0, device.decks.length, 'Device deck');
+    const start = view({ Where: 'server', ServerAddress: 'https://anki.example.org' });
+    const server = plugin(start, { server: createCollection(), device });
+    const page = await open(server, start);
+    expect(find(page, 'connected').text()).toBe('Connected: 2 decks, 2 note types.');
+
+    await find(page, 'where-device').setValue(true);
+    expect(page.find('[data-testid="connected"]').exists()).toBe(false);
+    expect(page.find('[data-testid="deck"]').exists()).toBe(false);
+
+    await find(page, 'connect').trigger('click');
+    await flushPromises();
+    expect(find(page, 'connected').text()).toBe('Connected: 1 deck, 2 note types.');
+    expect(
+      find(page, 'deck')
+        .findAll('option')
+        .map((option) => option.text()),
+    ).toContain('Device deck');
+  });
+
   it('lets an administrator open the server to everyone', async () => {
     const start = view({}, { Everyone: { AnkiThroughServer: false } });
     const server = plugin(start);

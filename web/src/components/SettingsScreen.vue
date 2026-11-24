@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import type { Fetch } from '@/api/http';
 import type { PluginApi } from '@/api/plugin';
@@ -60,6 +60,8 @@ type Connection =
   | { kind: 'failed'; message: string };
 
 const connection = ref<Connection>({ kind: 'idle' });
+// Decks, note types and errors are those of one Anki: choosing another sets them aside until it is connected.
+watch(where, () => (connection.value = { kind: 'idle' }));
 const fieldNames = ref<string[]>(Object.keys(page.value.anki.fields));
 const saving = ref(false);
 const message = ref<{ text: string; error: boolean } | null>(null);
@@ -101,6 +103,9 @@ async function loadFields(anki: AnkiConnect, noteType: string): Promise<void> {
 async function connect(): Promise<void> {
   message.value = null;
   connection.value = { kind: 'testing' };
+  const asked = where.value;
+  const answer = (found: Connection) =>
+    (connection.value = where.value === asked ? found : { kind: 'idle' });
   try {
     const view = await props.api.saveSettings({ Anki: ankiChange() });
     current.value = view;
@@ -116,10 +121,10 @@ async function connect(): Promise<void> {
       anki.invoke<string[]>('deckNames'),
       anki.invoke<string[]>('modelNames'),
     ]);
-    connection.value = { kind: 'connected', decks, noteTypes };
-    await loadFields(anki, page.value.anki.noteType);
+    answer({ kind: 'connected', decks, noteTypes });
+    if (where.value === asked) await loadFields(anki, page.value.anki.noteType);
   } catch (error) {
-    connection.value = { kind: 'failed', message: messageOf(error) };
+    answer({ kind: 'failed', message: messageOf(error) });
   }
 }
 

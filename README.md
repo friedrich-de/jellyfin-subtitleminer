@@ -4,30 +4,74 @@ Watch on any Jellyfin client (TV, mobile, web) and make Anki cards from the subt
 
 Only watching locally with mpv? Check out [mpv-subtitleminer](https://github.com/friedrich-de/mpv-subtitleminer) instead.
 
-## Where things stand
+![The page following an episode, with two lines chosen for a card](docs/screenshots/desktop-selected.webp)
 
-The main branch holds **version 2, which is being rebuilt from scratch and is not released yet**. It is for Jellyfin 12.4 and later.
+## What it does
 
-| | Version 1 (1.1.0.1) | Version 2 (main) |
-| --- | --- | --- |
-| Jellyfin | 10.11 | 12.4 and later |
-| State | Released, no longer developed | In progress, not released |
-| Source | [tag v1.1.0.1](https://github.com/friedrich-de/jellyfin-subtitleminer/tree/v1.1.0.1) | this branch |
-| Install and usage | [README of v1.1.0.1](https://github.com/friedrich-de/jellyfin-subtitleminer/blob/v1.1.0.1/README.md) | follows with the release |
+- **Follows what you play.** Start an episode on your TV, phone or any other Jellyfin app, and open the page on another device. It shows the subtitle lines as they are spoken and keeps up when you pause, jump or change the track. Episodes and films you watched in the last 12 hours stay listed, so you can still mine from them afterwards.
+- **Reads the subtitles itself.** ASS, SRT and WebVTT, next to the video or inside it. The Japanese track is picked for you, a second track can be shown under each line for its meaning, and signs and songs are told apart from what people say.
+- **Makes Anki cards.** Pick one line or several, see the picture and hear the sound the card will get, then either add them to the card you just made with Yomitan, or make a new card. The picture and the sound are cut from the video on the Jellyfin server.
+- **Looks words up.** Tap a word in a line and a popup shows it from Yomitan dictionaries kept on the Jellyfin server, with conjugations undone, frequencies and pitch accents. Its + button makes a card of the word, its reading, meaning, frequency and pitch, the sentence, the picture and the sound. No browser extension is needed, so it works on a phone too.
+- **No extra sign-in.** The page uses your Jellyfin login. Where the browser has none, it asks for your Jellyfin name and password once.
+- **Installs as an app** on a phone, tablet or computer, from the browser's menu.
 
-Version 1 was called Jellyfin Miner. Its sign-in does not work on Jellyfin 12, because Jellyfin 12 no longer reads the header it sends.
+<p>
+  <img src="docs/screenshots/phone-lines.webp" alt="The lines on a phone, with their English under each" width="270">
+  <img src="docs/screenshots/phone-popup.webp" alt="A word looked up on a phone" width="270">
+</p>
 
-What version 2 can do today:
+## Install
 
-- The page lives at `/SubtitleMiner/` at your Jellyfin address. The address of version 1, `/Plugins/JellyfinMiner/`, leads there.
-- No separate sign-in. The page uses the login of Jellyfin's web client in the same browser. Where there is none, it asks for your Jellyfin name and password once.
-- It follows what you play on any Jellyfin app, line by line, and keeps what you watched in the last hours. You pick lines and see the picture and hear the sound the card will get.
-- It makes Anki cards: it adds the lines, the picture and the sound to the card you just made with Yomitan, or makes a new one. Cards go to AnkiConnect on your device, or to an AnkiConnect on a server with its API key, which the Jellyfin server calls for you, so nothing needs to run on your device.
+You need Jellyfin 12.4 or later.
 
-- It installs as an app on a phone, tablet or computer, from the browser's menu, when Jellyfin is opened over HTTPS.
-- It has its own dictionary, kept on the Jellyfin server, so no browser extension is needed: tap a word in a line to look it up, and "Add card" makes a card with the word, its reading, meaning, frequency and pitch, the sentence, the picture and the sound. An administrator adds Yomitan dictionaries in the settings (Jitendex and JMnedict with one tap, or any address or file). If you would rather use your own Yomitan, turn looking up off in the settings.
+1. In Jellyfin, open the Dashboard, then Plugins, then Repositories, and add this address:
 
-What comes next: a real run on a home server, then the release. [CHANGELOG.md](CHANGELOG.md) lists what is done.
+   ```text
+   https://raw.githubusercontent.com/friedrich-de/jellyfin-subtitleminer/main/repository/manifest.json
+   ```
+
+2. Install **Subtitle Miner** from the Catalog, and restart Jellyfin.
+3. Open the page at your Jellyfin address followed by `/SubtitleMiner/`, for example `http://192.168.1.10:8096/SubtitleMiner/`.
+
+Every user of your Jellyfin server can use the page with their own login and settings. Their settings are kept on the server, so they follow them from device to device.
+
+## Making cards
+
+In the page's settings, choose where your cards go:
+
+- **Anki on this device.** Desktop Anki with [AnkiConnect](https://ankiweb.net/shared/info/2055492159), or AnkiConnect for Android, on the device you open the page on. AnkiConnect has to let the page in: the settings show the line to add to `webCorsOriginList` in AnkiConnect's config.
+- **Anki on a server.** An AnkiConnect that the Jellyfin server can reach, with its API key. The Jellyfin server sends the cards, the pictures and the sound there for you, so nothing needs to run on the device you mine on. The key stays on the Jellyfin server, encrypted, and only the calls that read, add and fill in notes are passed on, never ones that delete. Because the Jellyfin server then calls whatever address is typed in, only administrators may use this until an administrator ticks "Let users who are not administrators send cards through this server".
+
+Then choose the deck and the note type. What goes into each field is guessed from the field names, which works for Lapis and most mining note types, and can be changed.
+
+There are two ways to make a card from the lines you picked:
+
+- **Add to my newest card**: make the card with your own Yomitan first, then this adds the sentence, the picture and the sound to it, keeping the word Yomitan marked. It only takes a card made in the last 15 minutes (you can change that), and Undo puts the card back as it was.
+- **New card**: makes a card of the lines in your deck. In the dictionary popup, the + button makes one of the word.
+
+![The settings, with Anki on a server and what goes into each field of a Lapis card](docs/screenshots/desktop-settings.webp)
+
+## The dictionary
+
+No dictionary comes with the plugin. An administrator adds them in the page's settings: Jitendex and JMnedict with one tap, or any Yomitan dictionary from an address or a file. The Jellyfin server imports it (Jitendex took 15 seconds on a home server) and keeps it for everyone. Dictionaries can be put in order, turned off and removed.
+
+Each user can turn looking up off in their settings, for example to keep using their own Yomitan with "Add to my newest card".
+
+![A word looked up in the page](docs/screenshots/desktop-popup.webp)
+
+## Installing it as an app
+
+Open the page and choose "Install" or "Add to home screen" in the browser's menu. Browsers only offer this when Jellyfin is opened over HTTPS (or on the computer Jellyfin runs on, at `localhost`). The app keeps only the page's own files, never subtitles, pictures, sound or settings, and says so when it cannot reach your server.
+
+## Coming from version 1
+
+Version 2 is a rewrite. Version 1 (1.1.0.1, called Jellyfin Miner) is for Jellyfin 10.11 and is no longer developed. Its sign-in does not work on Jellyfin 12, because Jellyfin 12 no longer reads the header it sends.
+
+- On Jellyfin 12.4 or later, add the repository address above and install Subtitle Miner. It has the same plugin id as version 1 and takes its place.
+- On Jellyfin 10.11, keep version 1. Its address, `https://friedrich-de.github.io/jellyfin-subtitleminer/manifest.json`, still offers it, and its source and README are at the tag [v1.1.0.1](https://github.com/friedrich-de/jellyfin-subtitleminer/tree/v1.1.0.1).
+- The page of version 1, `/Plugins/JellyfinMiner/`, leads to the new one. Version 1's settings are not carried over, so choose where your cards go once more.
+
+[CHANGELOG.md](CHANGELOG.md) lists what changed.
 
 ## Development
 
@@ -52,11 +96,13 @@ dev/package.sh
 dev/e2e.sh
 ```
 
-`dev/e2e.sh` downloads the Jellyfin server once into `.cache/` (about 110 MB, x86-64 Linux) and needs Playwright's Chromium (`cd web && npx playwright install chromium`). The top of the script says how to use an installed server instead. The tests make their own videos with ffmpeg (colours that change every five seconds, a hum on each audio track, subtitles inside and next to the video), play them with a pretend player through Jellyfin's own playback calls, and keep the server off the internet. `SUBTITLE_MINER_E2E_SCREENS=<folder> dev/e2e.sh screens` takes pictures of the page.
+`dev/e2e.sh` downloads the Jellyfin server once into `.cache/` (about 110 MB, x86-64 Linux) and needs Playwright's Chromium (`cd web && npx playwright install chromium`). The top of the script says how to use an installed server instead. The tests make their own videos with ffmpeg (colours that change every five seconds, a hum on each audio track, subtitles inside and next to the video), play them with a pretend player through Jellyfin's own playback calls, send cards to a pretend AnkiConnect, and keep the server off the internet. `SUBTITLE_MINER_E2E_SCREENS=<folder> dev/e2e.sh screens` takes pictures of the page; those in `docs/screenshots/` are made from them.
 
 To work on the page against a Jellyfin that has the plugin installed: `cd web && JELLYFIN_URL=http://localhost:8096 npm run dev`.
 
 The app's icons are drawn from `web/icons/*.svg` into `web/public/icons/` with `node dev/render-icons.mjs` (it uses Playwright's Chromium); the PNGs are committed. The page's service worker (`web/src/worker/`) is built into `sw.js` with the list of the build's files, and keeps nothing else.
+
+A release raises `<Version>` in `Directory.Build.props`, gives it a section in `CHANGELOG.md`, and runs `dev/package.sh --publish`, which adds the zip to `repository/` and the version to `repository/manifest.json`. Jellyfin reads that manifest from the main branch, so the version is out once that commit is on main.
 
 Nothing runs on GitHub by itself. Whoever makes a change runs the checks above before merging.
 
@@ -70,4 +116,4 @@ GPL-3.0, see [LICENSE](LICENSE). Jellyfin plugins link Jellyfin's libraries, whi
 
 The rules the dictionary uses to undo Japanese conjugations are [Yomitan](https://github.com/yomidevs/yomitan)'s, as the [Hoshidicts](https://github.com/bee-san/hoshidicts) Japanese language pack writes them (GPL-3.0-or-later); [Dictionary/Japanese/SOURCES.md](Jellyfin.Plugin.SubtitleMiner/Dictionary/Japanese/SOURCES.md) says where each file comes from. No dictionary comes with the plugin: an administrator downloads or uploads the ones they want, under their own licences.
 
-The page shows words with [dictionary-popup](https://github.com/bee-san/dictionary-popup), [Hachidori](https://github.com/bee-san/hachidori)'s popup (GPL-3.0-or-later, its icons Fluent UI System Icons under MIT). A copy is in [web/src/vendor/dictionary-popup](web/src/vendor/dictionary-popup), changed only so that its styles pass the page's content policy; its `SOURCES.md` says from where and what changed.
+The page shows words with [dictionary-popup](https://github.com/bee-san/dictionary-popup), [Hachidori](https://github.com/bee-san/hachidori)'s popup (GPL-3.0-or-later, its icons Fluent UI System Icons under MIT). A copy is in [web/src/vendor/dictionary-popup](web/src/vendor/dictionary-popup), changed only so that its styles pass the page's content policy and so that a card's state follows its word; its `SOURCES.md` says from where and what changed.
