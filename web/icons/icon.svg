@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- A screen in Jellyfin's blue with two subtitle lines, a word in the first one picked out. -->
-  <rect width="512" height="512" rx="112" fill="#00a4dc"/>
-  <rect x="88" y="248" width="336" height="64" rx="32" fill="#101010"/>
-  <rect x="136" y="336" width="240" height="64" rx="32" fill="#101010"/>
-  <rect x="192" y="256" width="128" height="48" rx="24" fill="#ffffff"/>
-</svg>
