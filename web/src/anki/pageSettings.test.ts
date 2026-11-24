@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { LAPIS_FIELDS } from '@/testing/ankiCollection';
 
-import { defaultPageSettings, guessRoles, readPageSettings, tagsFrom } from './pageSettings';
+import {
+  defaultPageSettings,
+  guessRoles,
+  readPageSettings,
+  rolesFor,
+  tagsFrom,
+} from './pageSettings';
 
 describe('the page settings', () => {
   it('reads what the server kept, and takes the default for what it cannot read', () => {
@@ -66,6 +72,23 @@ describe('the page settings', () => {
       Audio: 'sound',
       Image: 'picture',
       Sound: 'none',
+    });
+  });
+
+  it('keeps the choices for the fields still there and guesses only new ones', () => {
+    const chosen = { Front: 'sentence', Back: 'none', Gone: 'picture' } as const;
+
+    // A field was added to the note type since: the choices stand, the new field is guessed.
+    expect(rolesFor(['Front', 'Back', 'Audio'], chosen)).toEqual({
+      Front: 'sentence',
+      Back: 'none',
+      Audio: 'sound',
+    });
+    // A part already in a field is not guessed into another.
+    expect(rolesFor(['Front', 'Back', 'Sentence'], chosen)).toEqual({
+      Front: 'sentence',
+      Back: 'none',
+      Sentence: 'none',
     });
   });
 

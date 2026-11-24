@@ -538,6 +538,36 @@ describe('the main screen', () => {
     );
   });
 
+  it('gives a new card the meaning once, though it spans two chosen lines', async () => {
+    const anki = createCollection();
+    const page = {
+      anki: {
+        deck: 'Mining',
+        noteType: 'Basic',
+        fields: { Front: 'sentence', Back: 'translation' },
+      },
+    };
+    const both = [line(0, 1_000, 6_000, 'Do you remember? Of course.')];
+    const server = plugin({ s1: both }, { settings: serverSettings(page), anki });
+    const screen = await open(server);
+    server.send([sampleWatch()]);
+    await settle();
+    await screen.get('[data-testid="pick-second"]').setValue('s1');
+    await settle();
+
+    const checks = screen.findAll('.line .check');
+    await checks[0]!.trigger('click');
+    await checks[1]!.trigger('click');
+    await settle(300);
+    await screen.get('[data-testid="add-new"]').trigger('click');
+    await settle();
+
+    expect([...anki.notes.values()][0]!.fields).toEqual({
+      Front: '昨日の話、覚えてる？<br>もちろん。<br>約束したからね。',
+      Back: 'Do you remember? Of course.',
+    });
+  });
+
   it('offers to set up Anki when cards go nowhere, and opens the settings', async () => {
     const settings = {
       ...serverSettings(),

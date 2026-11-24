@@ -164,8 +164,11 @@ describe('the settings', () => {
     expect(page.emitted('saved')?.at(-1)).toEqual([server.stored()]);
   });
 
-  it('keeps the fields as chosen when the note type is the same', async () => {
-    const fields = Object.fromEntries(LAPIS_FIELDS.map((name) => [name, 'none']));
+  it('keeps the fields as chosen when the note type is the same, and guesses new ones', async () => {
+    // MiscInfo was added to the note type since the settings were saved.
+    const fields = Object.fromEntries(
+      LAPIS_FIELDS.filter((name) => name !== 'MiscInfo').map((name) => [name, 'none']),
+    );
     const start = view(
       { Where: 'server', ServerAddress: 'https://anki.example.org', ServerKeySet: true },
       { Page: { anki: { noteType: 'Lapis', fields: { ...fields, Expression: 'sentence' } } } },
@@ -177,6 +180,7 @@ describe('the settings', () => {
     expect(find(page, 'connected').text()).toContain('Connected');
     expect((find(page, 'role-Expression').element as HTMLSelectElement).value).toBe('sentence');
     expect((find(page, 'role-Sentence').element as HTMLSelectElement).value).toBe('none');
+    expect((find(page, 'role-MiscInfo').element as HTMLSelectElement).value).toBe('source');
   });
 
   it('says what went wrong with the server, and lets the stored key be removed', async () => {

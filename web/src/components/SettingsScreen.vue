@@ -8,10 +8,10 @@ import { type AnkiConnect, AnkiError, deviceAnki, serverAnki } from '@/anki/conn
 import {
   FIELD_ROLES,
   type FieldRole,
-  guessRoles,
   PICTURE_WIDTHS,
   type PageSettings,
   readPageSettings,
+  rolesFor,
   tagsFrom,
 } from '@/anki/pageSettings';
 
@@ -91,12 +91,8 @@ async function loadFields(anki: AnkiConnect, noteType: string): Promise<void> {
     return;
   }
   const names = await anki.invoke<string[]>('modelFieldNames', { modelName: noteType });
-  const kept = page.value.anki.fields;
-  const fits = names.length > 0 && names.every((name) => name in kept);
   fieldNames.value = names;
-  page.value.anki.fields = fits
-    ? Object.fromEntries(names.map((name) => [name, kept[name]!]))
-    : guessRoles(names);
+  page.value.anki.fields = rolesFor(names, page.value.anki.fields);
 }
 
 /** Saves where the cards go, then asks that Anki for its decks and note types. */

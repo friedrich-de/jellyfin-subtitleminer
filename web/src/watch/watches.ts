@@ -208,13 +208,33 @@ export function pairLines(main: readonly Line[], second: readonly Line[] | undef
     const texts: string[] = [];
     for (let i = from; i < sorted.length && sorted[i]!.StartMs < line.EndMs; i += 1) {
       const other = sorted[i]!;
-      const overlap = Math.min(line.EndMs, other.EndMs) - Math.max(line.StartMs, other.StartMs);
-      const shorter = Math.min(line.EndMs - line.StartMs, other.EndMs - other.StartMs);
-      if (overlap > shorter / 2 && !texts.includes(other.Text)) texts.push(other.Text);
+      if (saidTogether(line, other) && !texts.includes(other.Text)) texts.push(other.Text);
     }
 
     return texts.length === 0 ? { ...line } : { ...line, second: texts.join('\n') };
   });
+}
+
+/** Whether a line of the second track is said with a line: for more than half the shorter one. */
+function saidTogether(line: Line, other: Line): boolean {
+  const overlap = Math.min(line.EndMs, other.EndMs) - Math.max(line.StartMs, other.StartMs);
+  const shorter = Math.min(line.EndMs - line.StartMs, other.EndMs - other.StartMs);
+  return overlap > shorter / 2;
+}
+
+/**
+ * The second track's lines said with any of the chosen lines, each once and in the order said:
+ * the meaning of all of them for a card. One line of the second track can span several chosen ones.
+ */
+export function secondOf(chosen: readonly Line[], second: readonly Line[] | undefined): string[] {
+  if (second === undefined) return [];
+  const texts: string[] = [];
+  for (const other of [...second].sort((a, b) => a.StartMs - b.StartMs)) {
+    if (chosen.some((line) => saidTogether(line, other)) && !texts.includes(other.Text)) {
+      texts.push(other.Text);
+    }
+  }
+  return texts;
 }
 
 /** The lines on screen at a moment. */

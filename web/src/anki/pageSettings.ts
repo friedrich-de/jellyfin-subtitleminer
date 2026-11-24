@@ -138,9 +138,25 @@ const GUESSES: readonly [RegExp, FieldRole][] = [
  * name them. Each part goes into one field at most; the word's fields are left to Yomitan.
  */
 export function guessRoles(fieldNames: readonly string[]): Record<string, FieldRole> {
+  return rolesFor(fieldNames, {});
+}
+
+/**
+ * What goes into each field of a note type as it is now: the choices made before for the fields
+ * still there, and guesses for new fields, for parts no field has yet.
+ */
+export function rolesFor(
+  fieldNames: readonly string[],
+  chosen: Readonly<Record<string, FieldRole>>,
+): Record<string, FieldRole> {
+  const kept = fieldNames.filter((name) => Object.hasOwn(chosen, name));
+  const taken = new Set<FieldRole>(kept.map((name) => chosen[name]!));
   const roles: Record<string, FieldRole> = {};
-  const taken = new Set<FieldRole>();
   for (const name of fieldNames) {
+    if (Object.hasOwn(chosen, name)) {
+      roles[name] = chosen[name]!;
+      continue;
+    }
     const role = GUESSES.find(([pattern]) => pattern.test(name.trim()))?.[1] ?? 'none';
     roles[name] = role !== 'none' && !taken.has(role) ? role : 'none';
     if (role !== 'none') taken.add(role);

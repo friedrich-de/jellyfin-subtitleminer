@@ -21,6 +21,7 @@ import {
   lastStartedAt,
   linesAt,
   pairLines,
+  secondOf,
   type Pick,
   pickFor,
   positionOf,
@@ -481,10 +482,10 @@ async function send(mode: 'newest' | 'new'): Promise<void> {
   lastUpdate = null;
   const content = {
     sentence: chosen.value.map((line) => line.Text).join('\n'),
-    translation: chosen.value
-      .map((line) => line.second)
-      .filter((text): text is string => text !== undefined)
-      .join('\n'),
+    translation: secondOf(
+      chosen.value,
+      secondLines.value?.kind === 'ready' ? secondLines.value.subtitles.Lines : undefined,
+    ).join('\n'),
     source: `${titleOf(watch)} · ${clockOf(value.start)}`,
   };
   const sound = soundOptions.value;
