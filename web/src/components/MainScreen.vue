@@ -550,11 +550,24 @@ watch(previewKey, (key) => {
 
 const sending = shallowRef<Sending>({ kind: 'idle' });
 let lastUpdate: { anki: AnkiConnect; outcome: CardOutcome } | null = null;
+/**
+ * Whether the lines of the card just made were let go of. What happened to the card stays in view
+ * then, with its Undo, until other lines are chosen or it is closed.
+ */
+const madeCard = ref(false);
 
-watch(previewKey, () => {
+watch(previewKey, (key) => {
+  if (key === '' && madeCard.value) return;
+  madeCard.value = false;
   if (sending.value.kind !== 'busy') sending.value = { kind: 'idle' };
   lastUpdate = null;
 });
+
+function closeMade(): void {
+  madeCard.value = false;
+  sending.value = { kind: 'idle' };
+  lastUpdate = null;
+}
 
 /** What a card of these lines gets: their text, the second line, where they are from. */
 function contentOf(watch: Watch, of: readonly Line[], value: Span): CardContent {
@@ -608,6 +621,9 @@ async function send(mode: 'newest' | 'new'): Promise<void> {
       text: outcome.kind === 'updated' ? `Added to ${name}.` : `Made a new card, ${name}.`,
       canUndo: outcome.kind === 'updated',
     };
+    // The lines are done with, so they are let go of, ready for the next card.
+    madeCard.value = true;
+    clear();
   } catch (error) {
     sending.value = { kind: 'failed', text: messageOf(error) };
   }
@@ -1087,8 +1103,9 @@ const secondLang = computed(() => languageTag(secondTrack.value));
         </svg>
         Go to the line playing
       </button>
-      <footer v-if="chosen.length > 0" class="bottom">
+      <footer v-if="chosen.length > 0 || madeCard" class="bottom">
         <SelectionBar
+          v-if="chosen.length > 0"
           :count="chosen.length"
           :span="spanText"
           :picture="picture"
@@ -1102,6 +1119,33 @@ const secondLang = computed(() => languageTag(secondTrack.value));
           @undo="undo"
           @settings="openSettings"
         />
+        <p
+          v-else
+          class="made"
+          :class="{ error: sending.kind === 'failed' }"
+          :role="sending.kind === 'failed' ? 'alert' : 'status'"
+          data-testid="sending"
+        >
+          <span v-if="sending.kind !== 'idle'">{{ sending.text }}</span>
+          <button
+            v-if="sending.kind === 'done' && sending.canUndo"
+            class="link"
+            type="button"
+            data-testid="undo"
+            @click="undo"
+          >
+            Undo
+          </button>
+          <button
+            v-if="sending.kind !== 'busy'"
+            class="link"
+            type="button"
+            data-testid="close-sent"
+            @click="closeMade"
+          >
+            Close
+          </button>
+        </p>
       </footer>
     </div>
   </div>
@@ -1195,6 +1239,22 @@ const secondLang = computed(() => languageTag(secondTrack.value));
   color: var(--danger);
 }
 
+.made {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  font-size: 14px;
+}
+
+.made.error {
+  color: var(--danger);
+}
+
+.made .link,
 .sync-note .link {
   padding: 4px 0;
   border: 0;
