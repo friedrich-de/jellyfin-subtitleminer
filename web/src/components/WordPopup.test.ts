@@ -119,6 +119,90 @@ describe('the word popup', () => {
     expect(backend.sent.at(-1)!.headers.authorization).toBe('MediaBrowser Token="token-1"');
   });
 
+  it('fetches the dictionaries again for a word from one added since, for its pictures and styles', async () => {
+    // Imported after the page last asked for the list, as an import still running when the
+    // settings were closed.
+    const MARKS: DictionaryView = {
+      ...WORDS,
+      Id: 'marks-1',
+      Title: 'Marks',
+      Styles: '.mark { color: teal; }',
+      FrequencyMode: 'rank-based',
+    };
+    const word = result('丈夫');
+    word.term.glossaries = [
+      { dictionary: 'Marks', glossary: '[]', definitionTags: '', termTags: '', tags: [] },
+    ];
+    const backend = fakeRoutes((asked) => {
+      if (asked.path === 'Dictionaries/Lookup') {
+        return json({ results: asked.query.get('text') === '丈夫' ? [word] : [result('食べる')] });
+      }
+      if (asked.path === 'Dictionaries/marks-1/Media') {
+        return new Response(new Blob(['<svg/>'], { type: 'image/svg+xml' }));
+      }
+      return undefined;
+    });
+    // As the page does: its list, fetched again, reaches the popup.
+    const reload = vi.fn(async () => {
+      await popup!.setProps({ dictionaries: [WORDS, MARKS] });
+    });
+    const shown = open(backend, { reload });
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+    expect(reload).not.toHaveBeenCalled();
+    const first = drawn.options!;
+
+    await shown.setProps({ request: request('丈夫') });
+    await flushPromises();
+    expect(reload).toHaveBeenCalledTimes(1);
+    // The popup is made again, knowing the new dictionary, and draws the word with its styles.
+    expect(drawn.destroy).toHaveBeenCalledTimes(1);
+    expect(drawn.options).not.toBe(first);
+    expect(drawn.options!.dictionaries).toEqual([
+      { title: 'Words', frequencyMode: null },
+      { title: 'Marks', frequencyMode: 'rank-based' },
+    ]);
+    expect(drawn.render).toHaveBeenLastCalledWith([word], {
+      styles: [
+        { dictionary: 'Words', styles: '.gloss { font-weight: bold; }' },
+        { dictionary: 'Marks', styles: '.mark { color: teal; }' },
+      ],
+      states: ['unavailable'],
+    });
+
+    // Its pictures come from it.
+    const media = drawn.options!.media as (dictionary: string, path: string) => Promise<Blob>;
+    await expect(media('Marks', 'gaiji/文語.svg')).resolves.toBeInstanceOf(Blob);
+    const asked = backend.sent.at(-1)!;
+    expect(asked.path).toBe('Dictionaries/marks-1/Media');
+    expect(asked.query.get('path')).toBe('gaiji/文語.svg');
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for the list again for a picture of a dictionary it does not know, once at a time', async () => {
+    const backend = server({ 食べる: [result('食べる')] });
+    let answer: () => void = () => undefined;
+    const reload = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          answer = resolve;
+        }),
+    );
+    const shown = open(backend, { reload });
+    await shown.setProps({ request: request('食べる') });
+    await flushPromises();
+
+    // A word in a definition may come from a dictionary the page has not heard of; the server
+    // still has none of that name.
+    const media = drawn.options!.media as (dictionary: string, path: string) => Promise<Blob>;
+    const asked = [media('Gone', 'a.png'), media('Gone', 'b.png')];
+    await flushPromises();
+    expect(reload).toHaveBeenCalledTimes(1);
+    answer();
+    for (const picture of asked) await expect(picture).rejects.toThrow('No such dictionary.');
+    expect(backend.sent.map((sent) => sent.path)).toEqual(['Dictionaries/Lookup']);
+  });
+
   it('says so when no word starts there', async () => {
     const shown = open(server({}));
     await shown.setProps({ request: request('、') });

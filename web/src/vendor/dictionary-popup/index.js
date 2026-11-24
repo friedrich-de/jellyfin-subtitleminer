@@ -527,17 +527,19 @@ export function createDictionaryPopup(container, options = {}) {
   async function picture({ dictionary, path }) {
     const key = `${dictionary}\u0000${path}`;
     if (!pictures.has(key)) {
-      pictures.set(
-        key,
-        Promise.resolve(options.media(dictionary, path)).then(async (found) => {
-          if (found instanceof window.Blob) return window.URL.createObjectURL(found);
-          if (typeof found !== "string" || !found) throw new Error("dictionary image is unavailable");
-          if (/^(?:blob|data):/u.test(found)) return found;
-          const response = await window.fetch(found);
-          if (!response.ok) throw new Error("dictionary image is unavailable");
-          return window.URL.createObjectURL(await response.blob());
-        }),
-      );
+      const asked = Promise.resolve(options.media(dictionary, path)).then(async (found) => {
+        if (found instanceof window.Blob) return window.URL.createObjectURL(found);
+        if (typeof found !== "string" || !found) throw new Error("dictionary image is unavailable");
+        if (/^(?:blob|data):/u.test(found)) return found;
+        const response = await window.fetch(found);
+        if (!response.ok) throw new Error("dictionary image is unavailable");
+        return window.URL.createObjectURL(await response.blob());
+      });
+      pictures.set(key, asked);
+      // Subtitle Miner: a picture that could not be had is asked for again the next time it is drawn.
+      asked.catch(() => {
+        if (pictures.get(key) === asked) pictures.delete(key);
+      });
     }
     return pictures.get(key);
   }

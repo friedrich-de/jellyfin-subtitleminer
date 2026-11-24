@@ -1082,6 +1082,7 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       v-if="lookingUp && view === 'lines'"
       :api="api"
       :dictionaries="dictionaries?.Dictionaries ?? []"
+      :reload="loadDictionaries"
       :request="wordRequest"
       :add-card="wordCardProblem === '' ? addWordCard : undefined"
       :no-cards="wordCardProblem"

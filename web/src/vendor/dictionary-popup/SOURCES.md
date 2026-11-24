@@ -38,5 +38,9 @@ Subtitle Miner also added to `index.js` (typed in `index.d.ts`):
   list, and `back()` closes it first. Hachidori's content script draws this list in the extension;
   the popup alone had none. `embed-css.js` keeps a hold on the button from selecting text.
 
+- the pictures of definitions it fetched are kept as before, but one that could not be had is
+  forgotten, so that it is asked for again the next time it is drawn instead of failing until the
+  popup is made again.
+
 Nothing else is changed. `src/dictionary/vendored.test.ts` fails if a `<style>` element
 comes back, so that a newer copy gets the same change.

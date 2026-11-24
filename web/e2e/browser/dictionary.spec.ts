@@ -5,6 +5,7 @@ import { LAPIS_FIELDS } from '../../src/testing/ankiCollection';
 import { forgetAnki, saveSettings } from '../support/ankiSettings';
 import {
   forgetDictionaries,
+  marksDictionary,
   metaDictionary,
   uploadDictionary,
   wordsDictionary,
@@ -141,6 +142,49 @@ test.describe('a word tapped in a line', () => {
     await expect(popup(page)).toBeHidden();
     await page.getByRole('checkbox', { name: 'Line at 00:01' }).click();
     await expect(page.getByRole('checkbox', { name: 'Line at 00:01' })).toBeChecked();
+  });
+
+  test('shows the pictures of a dictionary added after the page opened', async ({
+    page,
+    request,
+    jellyfin,
+    player,
+  }) => {
+    const tv = player(jellyfin.viewer, 'Dictionary desk', 'mpv');
+    await tv.play(jellyfin.media.episode1.id, { positionMs: 1_500, paused: true });
+    await signInToJellyfin(page, jellyfin.viewer);
+    await page.goto('/SubtitleMiner/');
+    await expect(firstLine(page)).toBeVisible();
+    await tapCharacter(page, firstLine(page), '話');
+    await expect(popup(page).getByText('talk; story')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // An administrator imports one more while the page is open, as an import that ends after the
+    // settings were closed: the page's list does not have it yet.
+    await uploadDictionary(request, admin, marksDictionary());
+    const pictures: string[] = [];
+    page.on('response', (response) => {
+      if (response.url().includes('/Media?path=gaiji')) pictures.push(String(response.status()));
+    });
+    await tapCharacter(page, firstLine(page), '昨');
+    await expect(popup(page).getByText('(ナリ) the day before today')).toBeVisible();
+
+    // Its marks, an SVG under a Japanese name and a PNG, are drawn, and none failed.
+    const marks = popup(page).locator('.dictionary-popup [data-image-load-state]');
+    await expect(marks).toHaveCount(2);
+    await expect
+      .poll(() =>
+        marks.evaluateAll((links) =>
+          links.map((link) => link.getAttribute('data-image-load-state')),
+        ),
+      )
+      .toEqual(['loaded', 'loaded']);
+    await expect(popup(page)).not.toContainText('Image failed to load');
+    const sizes = await popup(page)
+      .locator('.dictionary-popup img')
+      .evaluateAll((images) => images.map((image) => (image as HTMLImageElement).naturalWidth));
+    expect(sizes).toEqual([16, 1]);
+    expect(pictures).toEqual(['200', '200']);
   });
 
   test('becomes a new card with its reading, meaning, frequency, pitch, picture and sound', async ({

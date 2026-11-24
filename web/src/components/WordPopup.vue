@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from 'vue';
 
 import { DuplicateCardError } from '@/anki/cards';
 import type { DictionaryChoices } from '@/anki/pageSettings';
@@ -16,6 +25,11 @@ const props = defineProps<{
   api: PluginApi;
   /** The server's dictionaries, for their names, styles and pictures. */
   dictionaries: readonly DictionaryView[];
+  /**
+   * Fetches the server's dictionaries again, for a word from one the page does not know yet: one
+   * an administrator imported after the page last asked, as an import that was still running.
+   */
+  reload?: () => Promise<void>;
   request: WordRequest | null;
   /**
    * Makes a card of a word. `inLine` is false for a word looked up in a definition, and `sound`
@@ -185,6 +199,45 @@ function styles(): { dictionary: string; styles: string }[] {
     .map((dictionary) => ({ dictionary: dictionary.Title, styles: dictionary.Styles }));
 }
 
+/** Whether a word comes from a dictionary the page does not know yet. */
+function fromUnknown(results: readonly LookupResult[]): boolean {
+  const known = new Set(props.dictionaries.map((dictionary) => dictionary.Title));
+  return results.some(({ term }) =>
+    [...term.glossaries, ...term.frequencies, ...term.pitches].some(
+      (part) => !known.has(part.dictionary),
+    ),
+  );
+}
+
+let reloading: Promise<void> | null = null;
+
+/** Fetches the server's dictionaries again, once at a time, and waits until they are here. */
+function reloadDictionaries(): Promise<void> {
+  const reload = props.reload;
+  if (reload === undefined) return Promise.resolve();
+  reloading ??= reload()
+    .catch(() => undefined)
+    .then(() => nextTick())
+    .finally(() => {
+      reloading = null;
+    });
+  return reloading;
+}
+
+/** The dictionary of that name, as the server's calls name it. */
+function idOf(title: string): string | undefined {
+  return props.dictionaries.find((dictionary) => dictionary.Title === title)?.Id;
+}
+
+/** What the popup is told of the dictionaries when it is made: it is made again when it changes. */
+function presentation(): string {
+  return JSON.stringify(
+    props.dictionaries.map((dictionary) => [dictionary.Title, dictionary.FrequencyMode ?? null]),
+  );
+}
+
+let madeFor = '';
+
 function plainState(): CardState {
   return props.addCard === undefined ? 'unavailable' : 'add';
 }
@@ -246,10 +299,14 @@ async function makeCard(result: LookupResult): Promise<void> {
 }
 
 async function made(): Promise<DictionaryPopup<LookupResult>> {
+  if (popup.value !== null && madeFor !== presentation()) {
+    popup.value.destroy();
+    popup.value = null;
+  }
   if (popup.value !== null) return popup.value;
   const { createDictionaryPopup } = await loadPopup();
   if (popup.value !== null) return popup.value;
-  const titles = new Map(props.dictionaries.map((dictionary) => [dictionary.Title, dictionary.Id]));
+  madeFor = presentation();
   const created = createDictionaryPopup<LookupResult>(holder.value!, {
     theme: 'dark',
     opacity: 100,
@@ -269,17 +326,19 @@ async function made(): Promise<DictionaryPopup<LookupResult>> {
     chosenAudio: (result) => chosenSounds.get(wordKey(result)),
     lookup: async (text) => {
       const found = await props.api.lookUp(text);
+      if (fromUnknown(found.results)) await reloadDictionaries();
       return {
         results: found.results,
         styles: styles(),
         states: found.results.map(plainState),
       };
     },
-    media: (dictionary, path) => {
-      const id = titles.get(dictionary);
-      return id === undefined
-        ? Promise.reject(new Error('No such dictionary.'))
-        : props.api.dictionaryPicture(id, path);
+    // By the dictionaries the page has when the picture is drawn: one may have come since.
+    media: async (dictionary, path) => {
+      if (idOf(dictionary) === undefined) await reloadDictionaries();
+      const id = idOf(dictionary);
+      if (id === undefined) throw new Error('No such dictionary.');
+      return props.api.dictionaryPicture(id, path);
     },
   });
   popup.value = created;
@@ -293,12 +352,20 @@ async function lookUp(request: WordRequest): Promise<void> {
   status.value = null;
   state.value = 'looking';
   try {
-    const [shown, found] = await Promise.all([
+    const [first, found] = await Promise.all([
       made(),
       props.api.lookUp(request.text, controller.signal),
     ]);
     if (controller.signal.aborted) return;
+    let shown = first;
     const results = found.results;
+    if (fromUnknown(results)) {
+      // Its styles and pictures need the page to know it.
+      await reloadDictionaries();
+      if (controller.signal.aborted) return;
+      shown = await made();
+      if (controller.signal.aborted) return;
+    }
     inLine = new WeakSet(results);
     emit('found', results[0]?.matched.length ?? 0);
     if (results.length === 0) {
