@@ -41,11 +41,11 @@ const tags = ref(page.value.anki.tags.join(' '));
 const origin = computed(() => new URL(props.base).origin);
 const serverAllowed = computed(() => current.value.Anki.ServerAllowed);
 
-/** AnkiConnect on the device must be on the device: the page may call nothing else. */
+/** AnkiConnect on the device must be on the device: the page's policy lets it call nothing else. */
 const deviceIsLocal = computed(() => {
   try {
     const host = new URL(deviceAddress.value.trim()).hostname;
-    return ['127.0.0.1', 'localhost', '[::1]'].includes(host);
+    return ['127.0.0.1', 'localhost'].includes(host);
   } catch {
     return false;
   }
@@ -412,7 +412,7 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
           <label class="field">
             <span class="name">Picture</span>
             <select v-model="page.media.pictureFormat" data-testid="picture-format">
-              <option value="jpeg">JPEG, plays everywhere</option>
+              <option value="jpeg">JPEG</option>
               <option value="webp">WebP, smaller</option>
               <option value="avif">AVIF, smallest</option>
             </select>
@@ -435,7 +435,7 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
           <label class="field">
             <span class="name">Sound</span>
             <select v-model="page.media.soundFormat" data-testid="sound-format">
-              <option value="mp3">MP3, plays everywhere</option>
+              <option value="mp3">MP3</option>
               <option value="opus">Opus, smaller</option>
             </select>
           </label>
@@ -687,12 +687,12 @@ select:focus-visible {
   display: block;
   margin-top: 6px;
   padding: 8px;
-  overflow-x: auto;
   border-radius: var(--radius);
   background: var(--bg);
   color: var(--text-strong);
   font-size: 13px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 
 .link {

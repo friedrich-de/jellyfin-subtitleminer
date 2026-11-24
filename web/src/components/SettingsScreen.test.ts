@@ -211,9 +211,13 @@ describe('the settings', () => {
     await find(page, 'where-device').setValue(true);
     expect(page.text()).toContain('"webCorsOriginList": ["https://jellyfin.example"]');
 
-    await find(page, 'device-address').setValue('http://192.168.1.20:8765');
-    expect(page.get('[role="alert"]').text()).toContain('can only reach an Anki on this device');
-    expect(find(page, 'connect').attributes('disabled')).toBeDefined();
+    for (const elsewhere of ['http://192.168.1.20:8765', 'http://[::1]:8765', 'anki']) {
+      await find(page, 'device-address').setValue(elsewhere);
+      expect(page.get('[role="alert"]').text(), elsewhere).toContain(
+        'can only reach an Anki on this device',
+      );
+      expect(find(page, 'connect').attributes('disabled'), elsewhere).toBeDefined();
+    }
 
     await find(page, 'device-address').setValue(DEVICE);
     await find(page, 'connect').trigger('click');

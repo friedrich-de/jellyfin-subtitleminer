@@ -30,6 +30,15 @@ test('the main screen', async ({ page, jellyfin, player }, info) => {
 
   await page.getByTestId('account').click();
   await page.screenshot({ path: path.join(folder!, `${info.project.name}-account.png`) });
+  await page.keyboard.press('Escape');
+
+  await page.getByTestId('open-settings').click();
+  await page.getByTestId('where-device').check();
+  await page.screenshot({
+    path: path.join(folder!, `${info.project.name}-settings.png`),
+    fullPage: true,
+  });
+  await page.getByTestId('settings-back').click();
 
   await tv.stop();
   await page.reload();

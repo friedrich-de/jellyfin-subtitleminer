@@ -28,10 +28,10 @@ public class PageController : ControllerBase
 
     /// <summary>
     /// The addresses of the user's own device, on any port: where desktop Anki's AnkiConnect, and the Android
-    /// app's, listen.
+    /// app's, listen. Not [::1]: browsers throw an IPv6 address out of a policy as a source they cannot read.
     /// </summary>
     internal const string DeviceAddresses =
-        "http://127.0.0.1:* http://localhost:* http://[::1]:* https://127.0.0.1:* https://localhost:* https://[::1]:*";
+        "http://127.0.0.1:* http://localhost:* https://127.0.0.1:* https://localhost:*";
 
     /// <summary>
     /// Where the page lives, as an address relative to the folder it sits in.

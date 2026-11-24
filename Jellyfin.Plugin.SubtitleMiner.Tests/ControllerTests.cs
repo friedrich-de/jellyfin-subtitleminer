@@ -75,9 +75,12 @@ public sealed class ControllerTests : IDisposable
 
         Assert.StartsWith("default-src 'none'", policy, StringComparison.Ordinal);
         Assert.Contains("script-src 'self';", policy, StringComparison.Ordinal);
-        Assert.Contains("connect-src 'self' http://127.0.0.1:* http://localhost:* http://[::1]:* https://127.0.0.1:* https://localhost:* https://[::1]:*;", policy, StringComparison.Ordinal);
+        Assert.Contains("connect-src 'self' http://127.0.0.1:* http://localhost:* https://127.0.0.1:* https://localhost:*;", policy, StringComparison.Ordinal);
         Assert.Contains("frame-ancestors 'none'", policy, StringComparison.Ordinal);
         Assert.DoesNotContain("unsafe", policy, StringComparison.Ordinal);
+
+        // Chromium refuses an IPv6 address as a source and says so in the console of the page.
+        Assert.DoesNotContain("[", policy, StringComparison.Ordinal);
 
         // Besides the user's own device, for an AnkiConnect there, no address and no wildcard.
         var rest = policy.Replace(PageController.DeviceAddresses, string.Empty, StringComparison.Ordinal);

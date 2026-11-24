@@ -131,15 +131,16 @@ test.describe('the main screen', () => {
     await expect(page.getByTestId('preview-picture').locator('img')).toBeVisible();
     expect(isColour(await previewColour(page), COLOURS[0]!.rgb)).toBe(true);
 
-    // The sound of both lines. The API tests check that it is the track the player plays.
+    // The sound of both lines and a quarter second on each side. The API tests check that it is
+    // the track the player plays.
     const sound = page.getByTestId('sound');
     await expect(sound).toHaveAttribute('src', /^blob:/);
     await expect
       .poll(() => sound.evaluate((audio: HTMLAudioElement) => audio.duration), {
-        message: 'the sound is five seconds long',
+        message: 'the sound is five and a half seconds long',
       })
-      .toBeGreaterThan(4.8);
-    expect(await sound.evaluate((audio: HTMLAudioElement) => audio.duration)).toBeLessThan(5.3);
+      .toBeGreaterThan(5.3);
+    expect(await sound.evaluate((audio: HTMLAudioElement) => audio.duration)).toBeLessThan(5.8);
     await expect(page.getByTestId('play-sound')).toBeEnabled();
 
     // A range with the shift key, then nothing.
