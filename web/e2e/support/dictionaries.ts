@@ -74,6 +74,61 @@ export function wordsDictionary(title = 'E2E Words'): TestDictionary {
   };
 }
 
+/**
+ * A dictionary that marks its definitions with small pictures, as Daijirin's for a word's old
+ * form: an SVG under a Japanese name drawn in the text's colour, and a PNG.
+ */
+export function marksDictionary(title = 'E2E Marks'): TestDictionary {
+  return {
+    title,
+    terms: [
+      term(
+        '昨日',
+        'きのう',
+        '',
+        [
+          {
+            type: 'structured-content',
+            content: [
+              {
+                tag: 'img',
+                path: 'gaiji/文語.svg',
+                height: 1,
+                sizeUnits: 'em',
+                appearance: 'monochrome',
+                background: false,
+                collapsible: false,
+                collapsed: false,
+              },
+              { tag: 'span', content: '(ナリ) the day before today' },
+              { tag: 'br' },
+              {
+                tag: 'img',
+                path: 'gaiji/派生.png',
+                height: 1,
+                sizeUnits: 'em',
+                collapsible: false,
+              },
+              { tag: 'span', content: '—さ(名)' },
+            ],
+          },
+        ],
+        'n',
+      ),
+    ],
+    files: {
+      'gaiji/文語.svg': Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">' +
+          '<rect x="1" y="1" width="14" height="14" rx="3" fill="none" stroke="black"/></svg>',
+      ),
+      'gaiji/派生.png': Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    },
+  };
+}
+
 /** Frequencies and pitch accents for those words. */
 export function metaDictionary(title = 'E2E Frequencies'): TestDictionary {
   return {

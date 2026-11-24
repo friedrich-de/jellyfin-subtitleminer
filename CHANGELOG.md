@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.2.2
+
+- Pictures in the definitions of a dictionary added while the page was open, such as the marks Daijirin puts before a word's old form, said "Image failed to load" until the page was reloaded. The page did not know the new dictionary yet, as when its import was still running as the settings were closed. It now fetches the list of dictionaries again when a word comes from one it does not know, so the pictures and the dictionary's own styles show at once. A picture that could not be fetched is also asked for again the next time it is shown.
+
 ## 2.0.2.1
 
 - The plugin's own pickaxe logo is back as the icon of the installed app, the browser tab and the picture in Jellyfin's plugin catalog. Version 2 had replaced it with a stand-in.
