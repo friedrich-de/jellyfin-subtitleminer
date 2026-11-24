@@ -189,15 +189,16 @@ watch(
 const where = computed(() => {
   const watch = shown.value;
   if (watch === undefined) return '';
-  const parts = [`${watch.Player} (${watch.Client})`];
+  // Where it is first: on a phone the end of the line is cut off, and a player's name can be long.
   const runtime = watch.RuntimeMs === undefined ? '' : ` of ${clockOf(watch.RuntimeMs)}`;
-  parts.push(`${clockOf(position.value)}${runtime}`);
+  const parts = [`${clockOf(position.value)}${runtime}`];
   if (!watch.Playing) {
     const ago = (watch.StoppedAgoMs ?? 0) + now.value - (received.value?.at ?? now.value);
-    parts.push(`ended ${agoOf(ago)}`);
+    parts.push(`stopped ${agoOf(ago)}`);
   } else if (watch.Paused) {
     parts.push('paused');
   }
+  parts.push(`${watch.Player} (${watch.Client})`);
 
   return parts.join(' · ');
 });

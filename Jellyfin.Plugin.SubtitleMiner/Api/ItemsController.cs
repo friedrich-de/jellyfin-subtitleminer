@@ -25,6 +25,7 @@ namespace Jellyfin.Plugin.SubtitleMiner.Api;
 [ApiController]
 [Route("SubtitleMiner/Api/Items/{itemId}")]
 [Authorize]
+[CallerGone]
 public class ItemsController : ControllerBase
 {
     private const string NoVideo = "This video is not in your library.";

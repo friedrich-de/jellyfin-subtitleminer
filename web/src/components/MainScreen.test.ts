@@ -168,7 +168,7 @@ describe('the main screen', () => {
     await settle();
 
     expect(screen.get('[data-testid="title"]').text()).toBe('Sample Show · S1 E3');
-    expect(screen.get('[data-testid="where"]').text()).toBe('Living room (mpv) · 00:04 of 23:40');
+    expect(screen.get('[data-testid="where"]').text()).toBe('00:04 of 23:40 · Living room (mpv)');
 
     // The player shows English, but the page reads the Japanese file next to the video.
     const asked = server.asked('Subtitles')[0]!;
@@ -201,13 +201,13 @@ describe('the main screen', () => {
     await settle(5_000);
 
     expect(screen.get('[data-testid="where"]').text()).toBe(
-      'Living room (mpv) · 00:04 of 23:40 · paused',
+      '00:04 of 23:40 · paused · Living room (mpv)',
     );
 
     server.send([sampleWatch({ Playing: false, PositionMs: 20_000, StoppedAgoMs: 7 * 60_000 })]);
     await settle();
     expect(screen.get('[data-testid="where"]').text()).toBe(
-      'Living room (mpv) · 00:20 of 23:40 · ended 7 min ago',
+      '00:20 of 23:40 · stopped 7 min ago · Living room (mpv)',
     );
     expect(screen.find('[aria-current="time"]').exists()).toBe(false);
   });

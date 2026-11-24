@@ -17,6 +17,7 @@ namespace Jellyfin.Plugin.SubtitleMiner.Api;
 [ApiController]
 [Route("SubtitleMiner/Api/Anki")]
 [Authorize]
+[CallerGone]
 public class AnkiController : ControllerBase
 {
     private readonly PluginServices _services;
