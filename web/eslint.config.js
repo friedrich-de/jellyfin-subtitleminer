@@ -51,6 +51,14 @@ export default [
     },
   },
   {
+    // The service worker has the worker's globals and is typed against them.
+    files: ['src/worker/sw.ts'],
+    languageOptions: {
+      globals: globals.serviceworker,
+      parserOptions: { ...typeAwareParserOptions, project: ['./tsconfig.worker.json'] },
+    },
+  },
+  {
     files: ['e2e/**/*.ts', '*.config.ts'],
     languageOptions: {
       globals: globals.node,

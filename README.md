@@ -24,7 +24,9 @@ What version 2 can do today:
 - It follows what you play on any Jellyfin app, line by line, and keeps what you watched in the last hours. You pick lines and see the picture and hear the sound the card will get.
 - It makes Anki cards: it adds the lines, the picture and the sound to the card you just made with Yomitan, or makes a new one. Cards go to AnkiConnect on your device, or to an AnkiConnect on a server with its API key, which the Jellyfin server calls for you, so nothing needs to run on your device.
 
-What comes next, in this order: installing the page as an app, and a dictionary hosted on the Jellyfin server. [CHANGELOG.md](CHANGELOG.md) lists what is done.
+- It installs as an app on a phone, tablet or computer, from the browser's menu, when Jellyfin is opened over HTTPS.
+
+What comes next: a dictionary hosted on the Jellyfin server. [CHANGELOG.md](CHANGELOG.md) lists what is done.
 
 ## Development
 
@@ -52,6 +54,8 @@ dev/e2e.sh
 `dev/e2e.sh` downloads the Jellyfin server once into `.cache/` (about 110 MB, x86-64 Linux) and needs Playwright's Chromium (`cd web && npx playwright install chromium`). The top of the script says how to use an installed server instead. The tests make their own videos with ffmpeg (colours that change every five seconds, a hum on each audio track, subtitles inside and next to the video), play them with a pretend player through Jellyfin's own playback calls, and keep the server off the internet. `SUBTITLE_MINER_E2E_SCREENS=<folder> dev/e2e.sh screens` takes pictures of the page.
 
 To work on the page against a Jellyfin that has the plugin installed: `cd web && JELLYFIN_URL=http://localhost:8096 npm run dev`.
+
+The app's icons are drawn from `web/icons/*.svg` into `web/public/icons/` with `node dev/render-icons.mjs` (it uses Playwright's Chromium); the PNGs are committed. The page's service worker (`web/src/worker/`) is built into `sw.js` with the list of the build's files, and keeps nothing else.
 
 Nothing runs on GitHub by itself. Whoever makes a change runs the checks above before merging.
 

@@ -121,6 +121,18 @@ public sealed class ControllerTests : IDisposable
     }
 
     [Theory]
+    [InlineData("manifest.webmanifest", "application/manifest+json; charset=utf-8")]
+    [InlineData("icons/icon-512.png", "image/png")]
+    [InlineData("icons/apple-touch-icon.png", "image/png")]
+    public void The_app_manifest_and_icons_are_served_as_what_they_are_and_asked_for_again(string path, string type)
+    {
+        var page = Page("/SubtitleMiner/" + path, string.Empty, "index.html", "manifest.webmanifest", "icons/icon-512.png", "icons/apple-touch-icon.png");
+        Assert.Equal("content of " + path, Read(page.GetFile(path), type));
+        Assert.Equal("no-cache", page.Response.Headers.CacheControl);
+        Assert.Equal("nosniff", page.Response.Headers.XContentTypeOptions);
+    }
+
+    [Theory]
     [InlineData("nothing.js")]
     [InlineData("../index.html")]
     [InlineData("Api/Unknown")]

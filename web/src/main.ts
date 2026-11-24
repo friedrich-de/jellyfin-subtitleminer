@@ -15,3 +15,11 @@ createApp(App, {
   },
   events: window,
 }).mount('#app');
+
+// The worker keeps the page's files so the installed app opens without the server. Only the
+// build has one: during development the page comes from Vite.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {
+    // The page works the same without it.
+  });
+}

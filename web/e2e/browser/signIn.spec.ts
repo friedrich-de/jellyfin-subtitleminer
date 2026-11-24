@@ -123,13 +123,24 @@ test.describe('without a login of Jellyfin in the browser', () => {
     expect(after.status()).toBe(401);
   });
 
-  test('the sign-in form leads to Jellyfin', async ({ page }) => {
+  test('the sign-in form opens Jellyfin beside it, and goes on once Jellyfin has the login', async ({
+    page,
+    context,
+    jellyfin,
+  }) => {
     await page.goto('/SubtitleMiner/');
     const link = page.getByRole('link', { name: 'Open Jellyfin' });
     await expect(link).toBeVisible();
-    await link.click();
-    await page.waitForURL(/\/web\//);
-    await expect(page.locator('#txtManualName')).toBeVisible();
+
+    // Beside the page, so an installed app stays where it is.
+    const [beside] = await Promise.all([context.waitForEvent('page'), link.click()]);
+    await beside.waitForURL(/\/web\//);
+    await expect(beside.locator('#txtManualName')).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/SubtitleMiner/');
+
+    await signInToJellyfin(beside, jellyfin.viewer);
+    await expect(page.getByTestId('signed-in-as')).toHaveText('Signed in as viewer');
+    await beside.close();
   });
 });
 
