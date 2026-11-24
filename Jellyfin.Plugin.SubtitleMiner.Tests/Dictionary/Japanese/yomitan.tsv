@@ -1,0 +1,1449 @@
+# GPL-3.0-or-later; Copyright (C) 2023-2026 Yomitan Authors; 2020-2022 Yomichan Authors
+# https://github.com/yomidevs/yomitan/blob/e7334a96106a6c74e6fa75bd33a5ea1219d92712/test/language/japanese-transforms.test.js
+# category	valid	source	term	rule	reasons (forward order, | separated; * means any)
+adjectives	1	愛しい	愛しい	adj-i	
+adjectives	1	愛しそう	愛しい	adj-i	-そう
+adjectives	1	愛しさう	愛しい	adj-i	-そう
+adjectives	1	愛しすぎる	愛しい	adj-i	-すぎる
+adjectives	1	愛し過ぎる	愛しい	adj-i	-過ぎる
+adjectives	1	愛しかったら	愛しい	adj-i	-たら
+adjectives	1	愛しかったり	愛しい	adj-i	-たり
+adjectives	1	愛しくて	愛しい	adj-i	-て
+adjectives	1	愛しく	愛しい	adj-i	-く
+adjectives	1	愛しくない	愛しい	adj-i	negative
+adjectives	1	愛しさ	愛しい	adj-i	-さ
+adjectives	1	愛しかった	愛しい	adj-i	-た
+adjectives	1	愛しくありません	愛しい	adj-i	-ます|negative
+adjectives	1	愛しくありませんでした	愛しい	adj-i	-ます|negative|-た
+adjectives	1	愛しくありませんかった	愛しい	adj-i	-ます|negative|-た
+adjectives	1	愛しき	愛しい	adj-i	-き
+adjectives	1	愛しげ	愛しい	adj-i	-げ
+adjectives	1	愛し気	愛しい	adj-i	-げ
+adjectives	1	愛しがる	愛しい	adj-i	-がる
+adjectives	1	愛しかろう	愛しい	adj-i	volitional
+adjectives	1	愛しからう	愛しい	adj-i	volitional
+ichidan verbs	1	食べる	食べる	v1	
+ichidan verbs	1	食べます	食べる	v1	-ます
+ichidan verbs	1	食べた	食べる	v1	-た
+ichidan verbs	1	食べました	食べる	v1	-ます|-た
+ichidan verbs	1	食べて	食べる	v1	-て
+ichidan verbs	1	食べられる	食べる	v1	potential or passive
+ichidan verbs	1	食べられる	食べる	v1	potential or passive
+ichidan verbs	1	食べさせる	食べる	v1	causative
+ichidan verbs	1	食べさす	食べる	v1	short causative
+ichidan verbs	1	食べさします	食べる	v1	short causative|-ます
+ichidan verbs	1	食べさせられる	食べる	v1	causative|potential or passive
+ichidan verbs	1	食べろ	食べる	v1	imperative
+ichidan verbs	1	食べない	食べる	v1	negative
+ichidan verbs	1	食べません	食べる	v1	-ます|negative
+ichidan verbs	1	食べなかった	食べる	v1	negative|-た
+ichidan verbs	1	食べませんでした	食べる	v1	-ます|negative|-た
+ichidan verbs	1	食べなくて	食べる	v1	negative|-て
+ichidan verbs	1	食べられない	食べる	v1	potential or passive|negative
+ichidan verbs	1	食べられない	食べる	v1	potential or passive|negative
+ichidan verbs	1	食べさせない	食べる	v1	causative|negative
+ichidan verbs	1	食べささない	食べる	v1	short causative|negative
+ichidan verbs	1	食べさせられない	食べる	v1	causative|potential or passive|negative
+ichidan verbs	1	食べまして	食べる	v1	-ます|-て
+ichidan verbs	1	食べれば	食べる	v1	-ば
+ichidan verbs	1	食べりゃ	食べる	v1	-ば|-ゃ
+ichidan verbs	1	食べちゃ	食べる	v1	-ちゃ
+ichidan verbs	1	食べちゃう	食べる	v1	-ちゃう
+ichidan verbs	1	食べちまう	食べる	v1	-ちまう
+ichidan verbs	1	食べなさい	食べる	v1	-なさい
+ichidan verbs	1	食べそう	食べる	v1	-そう
+ichidan verbs	1	食べさう	食べる	v1	-そう
+ichidan verbs	1	食べすぎる	食べる	v1	-すぎる
+ichidan verbs	1	食べ過ぎる	食べる	v1	-過ぎる
+ichidan verbs	1	食べたい	食べる	v1	-たい
+ichidan verbs	1	食べたがる	食べる	v1	-たい|-がる
+ichidan verbs	1	食べたら	食べる	v1	-たら
+ichidan verbs	1	食べたり	食べる	v1	-たり
+ichidan verbs	1	食べず	食べる	v1	-ず
+ichidan verbs	1	食べぬ	食べる	v1	-ぬ
+ichidan verbs	1	食べん	食べる	v1	-ん
+ichidan verbs	1	食べんかった	食べる	v1	-ん|-た
+ichidan verbs	1	食べんばかり	食べる	v1	-んばかり
+ichidan verbs	1	食べんとする	食べる	v1	-んとする
+ichidan verbs	1	食べざる	食べる	v1	-ざる
+ichidan verbs	1	食べねば	食べる	v1	-ねば
+ichidan verbs	1	食べにゃ	食べる	v1	-ねば|-ゃ
+ichidan verbs	1	食べ	食べる	v1d	continuative
+ichidan verbs	1	食べましょう	食べる	v1	-ます|volitional
+ichidan verbs	1	食べませう	食べる	v1	-ます|volitional
+ichidan verbs	1	食べましょっか	食べる	v1	-ます|volitional slang
+ichidan verbs	1	食べよう	食べる	v1	volitional
+ichidan verbs	1	食べやう	食べる	v1	volitional
+ichidan verbs	1	食べよっか	食べる	v1	volitional slang
+ichidan verbs	1	食べるまい	食べる	v1	-まい
+ichidan verbs	1	食べまい	食べる	v1	-まい
+ichidan verbs	1	食べておく	食べる	v1	-て|-おく
+ichidan verbs	1	食べとく	食べる	v1	-て|-おく
+ichidan verbs	1	食べないでおく	食べる	v1	negative|-おく
+ichidan verbs	1	食べないどく	食べる	v1	negative|-おく
+ichidan verbs	1	食べている	食べる	v1	-て|-いる
+ichidan verbs	1	食べてゐる	食べる	v1	-て|-いる
+ichidan verbs	1	食べておる	食べる	v1	-て|-いる
+ichidan verbs	1	食べてる	食べる	v1	-て|-いる
+ichidan verbs	1	食べとる	食べる	v1	-て|-いる
+ichidan verbs	1	食べてしまう	食べる	v1	-て|-しまう
+ichidan verbs	1	食べやがる	食べる	v1	-やがる
+ichidan verbs	1	食べやがって	食べる	v1	-やがる|-て
+ichidan verbs	1	食べやがった	食べる	v1	-やがる|-た
+ichidan verbs	1	食べやがれ	食べる	v1	-やがる|imperative
+ichidan verbs	1	食べやしない	食べる	v1	-やしない
+ichidan verbs	1	食べやしません	食べる	v1	-やしません
+-う verbs	1	買う	買う	v5	
+-う verbs	1	買います	買う	v5	-ます
+-う verbs	1	買った	買う	v5	-た
+-う verbs	1	買いました	買う	v5	-ます|-た
+-う verbs	1	買って	買う	v5	-て
+-う verbs	1	買える	買う	v5	potential
+-う verbs	1	買われる	買う	v5	passive
+-う verbs	1	買わせる	買う	v5	causative
+-う verbs	1	買わす	買う	v5	short causative
+-う verbs	1	買わします	買う	v5	short causative|-ます
+-う verbs	1	買わせられる	買う	v5	causative|potential or passive
+-う verbs	1	買え	買う	v5	imperative
+-う verbs	1	買わない	買う	v5	negative
+-う verbs	1	買いません	買う	v5	-ます|negative
+-う verbs	1	買わなかった	買う	v5	negative|-た
+-う verbs	1	買いませんでした	買う	v5	-ます|negative|-た
+-う verbs	1	買わなくて	買う	v5	negative|-て
+-う verbs	1	買えない	買う	v5	potential|negative
+-う verbs	1	買われない	買う	v5	passive|negative
+-う verbs	1	買わせない	買う	v5	causative|negative
+-う verbs	1	買わさない	買う	v5	short causative|negative
+-う verbs	1	買わせられない	買う	v5	causative|potential or passive|negative
+-う verbs	1	買いまして	買う	v5	-ます|-て
+-う verbs	1	買えば	買う	v5	-ば
+-う verbs	1	買や	買う	v5	-ば|-ゃ
+-う verbs	1	買っちゃ	買う	v5	-ちゃ
+-う verbs	1	買っちゃう	買う	v5	-ちゃう
+-う verbs	1	買っちまう	買う	v5	-ちまう
+-う verbs	1	買いなさい	買う	v5	-なさい
+-う verbs	1	買いそう	買う	v5	-そう
+-う verbs	1	買ひさう	買う	v5	-そう
+-う verbs	1	買いすぎる	買う	v5	-すぎる
+-う verbs	1	買い過ぎる	買う	v5	-過ぎる
+-う verbs	1	買いたい	買う	v5	-たい
+-う verbs	1	買いたがる	買う	v5	-たい|-がる
+-う verbs	1	買ったら	買う	v5	-たら
+-う verbs	1	買ったり	買う	v5	-たり
+-う verbs	1	買わず	買う	v5	-ず
+-う verbs	1	買わぬ	買う	v5	-ぬ
+-う verbs	1	買わん	買う	v5	-ん
+-う verbs	1	買わんかった	買う	v5	-ん|-た
+-う verbs	1	買わんばかり	買う	v5	-んばかり
+-う verbs	1	買わんとする	買う	v5	-んとする
+-う verbs	1	買わざる	買う	v5	-ざる
+-う verbs	1	買わねば	買う	v5	-ねば
+-う verbs	1	買わにゃ	買う	v5	-ねば|-ゃ
+-う verbs	1	買い	買う	v5	continuative
+-う verbs	1	買いましょう	買う	v5	-ます|volitional
+-う verbs	1	買いませう	買う	v5	-ます|volitional
+-う verbs	1	買いましょっか	買う	v5	-ます|volitional slang
+-う verbs	1	買おう	買う	v5	volitional
+-う verbs	1	買はう	買う	v5	volitional
+-う verbs	1	買おっか	買う	v5	volitional slang
+-う verbs	1	買うまい	買う	v5	-まい
+-う verbs	1	買わされる	買う	v5	short causative|passive
+-う verbs	1	買っておく	買う	v5	-て|-おく
+-う verbs	1	買っとく	買う	v5	-て|-おく
+-う verbs	1	買わないでおく	買う	v5	negative|-おく
+-う verbs	1	買わないどく	買う	v5	negative|-おく
+-う verbs	1	買っている	買う	v5	-て|-いる
+-う verbs	1	買ってゐる	買う	v5	-て|-いる
+-う verbs	1	買っておる	買う	v5	-て|-いる
+-う verbs	1	買ってる	買う	v5	-て|-いる
+-う verbs	1	買っとる	買う	v5	-て|-いる
+-う verbs	1	買ってしまう	買う	v5	-て|-しまう
+-う verbs	1	買いやがる	買う	v5	-やがる
+-う verbs	1	買いやがって	買う	v5	-やがる|-て
+-う verbs	1	買いやがった	買う	v5	-やがる|-た
+-う verbs	1	買いやがれ	買う	v5	-やがる|imperative
+-う verbs	1	買いやしない	買う	v5	-やしない
+-う verbs	1	買いやしません	買う	v5	-やしません
+-う verbs	1	買いますまい	買う	v5	-ます|-まい
+-う verbs	1	買いましたら	買う	v5	-ます|-たら
+-う verbs	1	買いますれば	買う	v5	-ます|-ば
+-う verbs	1	買いませんかった	買う	v5	-ます|negative|-た
+-く verbs	1	行く	行く	v5	
+-く verbs	1	行きます	行く	v5	-ます
+-く verbs	1	行った	行く	v5	-た
+-く verbs	1	行きました	行く	v5	-ます|-た
+-く verbs	1	行って	行く	v5	-て
+-く verbs	1	行ける	行く	v5	potential
+-く verbs	1	行かれる	行く	v5	passive
+-く verbs	1	行かせる	行く	v5	causative
+-く verbs	1	行かす	行く	v5	short causative
+-く verbs	1	行かします	行く	v5	short causative|-ます
+-く verbs	1	行かせられる	行く	v5	causative|potential or passive
+-く verbs	1	行け	行く	v5	imperative
+-く verbs	1	行かない	行く	v5	negative
+-く verbs	1	行きません	行く	v5	-ます|negative
+-く verbs	1	行かなかった	行く	v5	negative|-た
+-く verbs	1	行きませんでした	行く	v5	-ます|negative|-た
+-く verbs	1	行かなくて	行く	v5	negative|-て
+-く verbs	1	行けない	行く	v5	potential|negative
+-く verbs	1	行かれない	行く	v5	passive|negative
+-く verbs	1	行かせない	行く	v5	causative|negative
+-く verbs	1	行かさない	行く	v5	short causative|negative
+-く verbs	1	行かせられない	行く	v5	causative|potential or passive|negative
+-く verbs	1	行きまして	行く	v5	-ます|-て
+-く verbs	1	行けば	行く	v5	-ば
+-く verbs	1	行きゃ	行く	v5	-ば|-ゃ
+-く verbs	1	行っちゃ	行く	v5	-ちゃ
+-く verbs	1	行っちゃう	行く	v5	-ちゃう
+-く verbs	1	行っちまう	行く	v5	-ちまう
+-く verbs	1	行きなさい	行く	v5	-なさい
+-く verbs	1	行きそう	行く	v5	-そう
+-く verbs	1	行きさう	行く	v5	-そう
+-く verbs	1	行きすぎる	行く	v5	-すぎる
+-く verbs	1	行き過ぎる	行く	v5	-過ぎる
+-く verbs	1	行きたい	行く	v5	-たい
+-く verbs	1	行きたがる	行く	v5	-たい|-がる
+-く verbs	1	行いたら	行く	v5	-たら
+-く verbs	1	行いたり	行く	v5	-たり
+-く verbs	1	行かず	行く	v5	-ず
+-く verbs	1	行かぬ	行く	v5	-ぬ
+-く verbs	1	行かん	行く	v5	-ん
+-く verbs	1	行かんかった	行く	v5	-ん|-た
+-く verbs	1	行かんばかり	行く	v5	-んばかり
+-く verbs	1	行かんとする	行く	v5	-んとする
+-く verbs	1	行かざる	行く	v5	-ざる
+-く verbs	1	行かねば	行く	v5	-ねば
+-く verbs	1	行かにゃ	行く	v5	-ねば|-ゃ
+-く verbs	1	行き	行く	v5	continuative
+-く verbs	1	行きましょう	行く	v5	-ます|volitional
+-く verbs	1	行きませう	行く	v5	-ます|volitional
+-く verbs	1	行きましょっか	行く	v5	-ます|volitional slang
+-く verbs	1	行こう	行く	v5	volitional
+-く verbs	1	行かう	行く	v5	volitional
+-く verbs	1	行こっか	行く	v5	volitional slang
+-く verbs	1	行くまい	行く	v5	-まい
+-く verbs	1	行かされる	行く	v5	short causative|passive
+-く verbs	1	行っておく	行く	v5	-て|-おく
+-く verbs	1	行いとく	行く	v5	-て|-おく
+-く verbs	1	行かないでおく	行く	v5	negative|-おく
+-く verbs	1	行かないどく	行く	v5	negative|-おく
+-く verbs	1	行っている	行く	v5	-て|-いる
+-く verbs	1	行ってゐる	行く	v5	-て|-いる
+-く verbs	1	行っておる	行く	v5	-て|-いる
+-く verbs	1	行ってる	行く	v5	-て|-いる
+-く verbs	1	行っとる	行く	v5	-て|-いる
+-く verbs	1	行ってしまう	行く	v5	-て|-しまう
+-く verbs	1	行きやがる	行く	v5	-やがる
+-く verbs	1	行きやがって	行く	v5	-やがる|-て
+-く verbs	1	行きやがった	行く	v5	-やがる|-た
+-く verbs	1	行きやがれ	行く	v5	-やがる|imperative
+-く verbs	1	行きやしない	行く	v5	-やしない
+-く verbs	1	行きやしません	行く	v5	-やしません
+-く verbs	1	行きますまい	行く	v5	-ます|-まい
+-く verbs	1	行きましたら	行く	v5	-ます|-たら
+-く verbs	1	行きますれば	行く	v5	-ます|-ば
+-く verbs	1	行きませんかった	行く	v5	-ます|negative|-た
+-ぐ verbs	1	泳ぐ	泳ぐ	v5	
+-ぐ verbs	1	泳ぎます	泳ぐ	v5	-ます
+-ぐ verbs	1	泳いだ	泳ぐ	v5	-た
+-ぐ verbs	1	泳ぎました	泳ぐ	v5	-ます|-た
+-ぐ verbs	1	泳いで	泳ぐ	v5	-て
+-ぐ verbs	1	泳げる	泳ぐ	v5	potential
+-ぐ verbs	1	泳がれる	泳ぐ	v5	passive
+-ぐ verbs	1	泳がせる	泳ぐ	v5	causative
+-ぐ verbs	1	泳がす	泳ぐ	v5	short causative
+-ぐ verbs	1	泳がします	泳ぐ	v5	short causative|-ます
+-ぐ verbs	1	泳がせられる	泳ぐ	v5	causative|potential or passive
+-ぐ verbs	1	泳げ	泳ぐ	v5	imperative
+-ぐ verbs	1	泳がない	泳ぐ	v5	negative
+-ぐ verbs	1	泳ぎません	泳ぐ	v5	-ます|negative
+-ぐ verbs	1	泳がなかった	泳ぐ	v5	negative|-た
+-ぐ verbs	1	泳ぎませんでした	泳ぐ	v5	-ます|negative|-た
+-ぐ verbs	1	泳がなくて	泳ぐ	v5	negative|-て
+-ぐ verbs	1	泳げない	泳ぐ	v5	potential|negative
+-ぐ verbs	1	泳がれない	泳ぐ	v5	passive|negative
+-ぐ verbs	1	泳がせない	泳ぐ	v5	causative|negative
+-ぐ verbs	1	泳がさない	泳ぐ	v5	short causative|negative
+-ぐ verbs	1	泳がせられない	泳ぐ	v5	causative|potential or passive|negative
+-ぐ verbs	1	泳ぎまして	泳ぐ	v5	-ます|-て
+-ぐ verbs	1	泳げば	泳ぐ	v5	-ば
+-ぐ verbs	1	泳ぎゃ	泳ぐ	v5	-ば|-ゃ
+-ぐ verbs	1	泳いじゃ	泳ぐ	v5	-ちゃ
+-ぐ verbs	1	泳いじゃう	泳ぐ	v5	-ちゃう
+-ぐ verbs	1	泳いじまう	泳ぐ	v5	-ちまう
+-ぐ verbs	1	泳ぎなさい	泳ぐ	v5	-なさい
+-ぐ verbs	1	泳ぎそう	泳ぐ	v5	-そう
+-ぐ verbs	1	泳ぎさう	泳ぐ	v5	-そう
+-ぐ verbs	1	泳ぎすぎる	泳ぐ	v5	-すぎる
+-ぐ verbs	1	泳ぎ過ぎる	泳ぐ	v5	-過ぎる
+-ぐ verbs	1	泳ぎたい	泳ぐ	v5	-たい
+-ぐ verbs	1	泳ぎたがる	泳ぐ	v5	-たい|-がる
+-ぐ verbs	1	泳いだら	泳ぐ	v5	-たら
+-ぐ verbs	1	泳いだり	泳ぐ	v5	-たり
+-ぐ verbs	1	泳がず	泳ぐ	v5	-ず
+-ぐ verbs	1	泳がぬ	泳ぐ	v5	-ぬ
+-ぐ verbs	1	泳がん	泳ぐ	v5	-ん
+-ぐ verbs	1	泳がんかった	泳ぐ	v5	-ん|-た
+-ぐ verbs	1	泳がんばかり	泳ぐ	v5	-んばかり
+-ぐ verbs	1	泳がんとする	泳ぐ	v5	-んとする
+-ぐ verbs	1	泳がざる	泳ぐ	v5	-ざる
+-ぐ verbs	1	泳がねば	泳ぐ	v5	-ねば
+-ぐ verbs	1	泳がにゃ	泳ぐ	v5	-ねば|-ゃ
+-ぐ verbs	1	泳ぎ	泳ぐ	v5	continuative
+-ぐ verbs	1	泳ぎましょう	泳ぐ	v5	-ます|volitional
+-ぐ verbs	1	泳ぎませう	泳ぐ	v5	-ます|volitional
+-ぐ verbs	1	泳ぎましょっか	泳ぐ	v5	-ます|volitional slang
+-ぐ verbs	1	泳ごう	泳ぐ	v5	volitional
+-ぐ verbs	1	泳がう	泳ぐ	v5	volitional
+-ぐ verbs	1	泳ごっか	泳ぐ	v5	volitional slang
+-ぐ verbs	1	泳ぐまい	泳ぐ	v5	-まい
+-ぐ verbs	1	泳がされる	泳ぐ	v5	short causative|passive
+-ぐ verbs	1	泳いでおく	泳ぐ	v5	-て|-おく
+-ぐ verbs	1	泳いどく	泳ぐ	v5	-て|-おく
+-ぐ verbs	1	泳がないでおく	泳ぐ	v5	negative|-おく
+-ぐ verbs	1	泳がないどく	泳ぐ	v5	negative|-おく
+-ぐ verbs	1	泳いでいる	泳ぐ	v5	-て|-いる
+-ぐ verbs	1	泳いでゐる	泳ぐ	v5	-て|-いる
+-ぐ verbs	1	泳いでおる	泳ぐ	v5	-て|-いる
+-ぐ verbs	1	泳いでる	泳ぐ	v5	-て|-いる
+-ぐ verbs	1	泳いでしまう	泳ぐ	v5	-て|-しまう
+-ぐ verbs	1	泳ぎやがる	泳ぐ	v5	-やがる
+-ぐ verbs	1	泳ぎやがって	泳ぐ	v5	-やがる|-て
+-ぐ verbs	1	泳ぎやがった	泳ぐ	v5	-やがる|-た
+-ぐ verbs	1	泳ぎやがれ	泳ぐ	v5	-やがる|imperative
+-ぐ verbs	1	泳ぎやしない	泳ぐ	v5	-やしない
+-ぐ verbs	1	泳ぎやしません	泳ぐ	v5	-やしません
+-ぐ verbs	1	泳ぎますまい	泳ぐ	v5	-ます|-まい
+-ぐ verbs	1	泳ぎましたら	泳ぐ	v5	-ます|-たら
+-ぐ verbs	1	泳ぎますれば	泳ぐ	v5	-ます|-ば
+-ぐ verbs	1	泳ぎませんかった	泳ぐ	v5	-ます|negative|-た
+-す verbs	1	話す	話す	v5	
+-す verbs	1	話します	話す	v5	-ます
+-す verbs	1	話した	話す	v5	-た
+-す verbs	1	話しました	話す	v5	-ます|-た
+-す verbs	1	話して	話す	v5	-て
+-す verbs	1	話せる	話す	v5	potential
+-す verbs	1	話される	話す	v5	passive
+-す verbs	1	話させる	話す	v5	causative
+-す verbs	1	話さす	話す	v5	short causative
+-す verbs	1	話さします	話す	v5	short causative|-ます
+-す verbs	1	話させられる	話す	v5	causative|potential or passive
+-す verbs	1	話せ	話す	v5	imperative
+-す verbs	1	話さない	話す	v5	negative
+-す verbs	1	話しません	話す	v5	-ます|negative
+-す verbs	1	話さなかった	話す	v5	negative|-た
+-す verbs	1	話しませんでした	話す	v5	-ます|negative|-た
+-す verbs	1	話さなくて	話す	v5	negative|-て
+-す verbs	1	話せない	話す	v5	potential|negative
+-す verbs	1	話されない	話す	v5	passive|negative
+-す verbs	1	話させない	話す	v5	causative|negative
+-す verbs	1	話ささない	話す	v5	short causative|negative
+-す verbs	1	話させられない	話す	v5	causative|potential or passive|negative
+-す verbs	1	話しまして	話す	v5	-ます|-て
+-す verbs	1	話せば	話す	v5	-ば
+-す verbs	1	話しゃ	話す	v5	-ば|-ゃ
+-す verbs	1	話しちゃ	話す	v5	-ちゃ
+-す verbs	1	話しちゃう	話す	v5	-ちゃう
+-す verbs	1	話しちまう	話す	v5	-ちまう
+-す verbs	1	話しなさい	話す	v5	-なさい
+-す verbs	1	話しそう	話す	v5	-そう
+-す verbs	1	話しさう	話す	v5	-そう
+-す verbs	1	話しすぎる	話す	v5	-すぎる
+-す verbs	1	話し過ぎる	話す	v5	-過ぎる
+-す verbs	1	話したい	話す	v5	-たい
+-す verbs	1	話したがる	話す	v5	-たい|-がる
+-す verbs	1	話したら	話す	v5	-たら
+-す verbs	1	話したり	話す	v5	-たり
+-す verbs	1	話さず	話す	v5	-ず
+-す verbs	1	話さぬ	話す	v5	-ぬ
+-す verbs	1	話さん	話す	v5	-ん
+-す verbs	1	話さんかった	話す	v5	-ん|-た
+-す verbs	1	話さんばかり	話す	v5	-んばかり
+-す verbs	1	話さんとする	話す	v5	-んとする
+-す verbs	1	話さざる	話す	v5	-ざる
+-す verbs	1	話さねば	話す	v5	-ねば
+-す verbs	1	話さにゃ	話す	v5	-ねば|-ゃ
+-す verbs	1	話し	話す	v5	continuative
+-す verbs	1	話しましょう	話す	v5	-ます|volitional
+-す verbs	1	話しませう	話す	v5	-ます|volitional
+-す verbs	1	話しましょっか	話す	v5	-ます|volitional slang
+-す verbs	1	話そう	話す	v5	volitional
+-す verbs	1	話さう	話す	v5	volitional
+-す verbs	1	話そっか	話す	v5	volitional slang
+-す verbs	1	話すまい	話す	v5	-まい
+-す verbs	1	話しておく	話す	v5	-て|-おく
+-す verbs	1	話しとく	話す	v5	-て|-おく
+-す verbs	1	話さないでおく	話す	v5	negative|-おく
+-す verbs	1	話さないどく	話す	v5	negative|-おく
+-す verbs	1	話している	話す	v5	-て|-いる
+-す verbs	1	話してゐる	話す	v5	-て|-いる
+-す verbs	1	話しておる	話す	v5	-て|-いる
+-す verbs	1	話してる	話す	v5	-て|-いる
+-す verbs	1	話しとる	話す	v5	-て|-いる
+-す verbs	1	話してしまう	話す	v5	-て|-しまう
+-す verbs	1	話しやがる	話す	v5	-やがる
+-す verbs	1	話しやがって	話す	v5	-やがる|-て
+-す verbs	1	話しやがった	話す	v5	-やがる|-た
+-す verbs	1	話しやがれ	話す	v5	-やがる|imperative
+-す verbs	1	話しやしない	話す	v5	-やしない
+-す verbs	1	話しやしません	話す	v5	-やしません
+-す verbs	1	増せん	増す	v5	potential|-ん
+-す verbs	1	増せんかった	増す	v5	potential|-ん|-た
+-す verbs	1	増せんばかり	増す	v5	potential|-んばかり
+-す verbs	1	増せんとする	増す	v5	potential|-んとする
+-す verbs	1	話しますまい	話す	v5	-ます|-まい
+-す verbs	1	話しましたら	話す	v5	-ます|-たら
+-す verbs	1	話しますれば	話す	v5	-ます|-ば
+-す verbs	1	話しませんかった	話す	v5	-ます|negative|-た
+-つ verbs	1	待つ	待つ	v5	
+-つ verbs	1	待ちます	待つ	v5	-ます
+-つ verbs	1	待った	待つ	v5	-た
+-つ verbs	1	待ちました	待つ	v5	-ます|-た
+-つ verbs	1	待って	待つ	v5	-て
+-つ verbs	1	待てる	待つ	v5	potential
+-つ verbs	1	待たれる	待つ	v5	passive
+-つ verbs	1	待たせる	待つ	v5	causative
+-つ verbs	1	待たす	待つ	v5	short causative
+-つ verbs	1	待たします	待つ	v5	short causative|-ます
+-つ verbs	1	待たせられる	待つ	v5	causative|potential or passive
+-つ verbs	1	待て	待つ	v5	imperative
+-つ verbs	1	待たない	待つ	v5	negative
+-つ verbs	1	待ちません	待つ	v5	-ます|negative
+-つ verbs	1	待たなかった	待つ	v5	negative|-た
+-つ verbs	1	待ちませんでした	待つ	v5	-ます|negative|-た
+-つ verbs	1	待たなくて	待つ	v5	negative|-て
+-つ verbs	1	待てない	待つ	v5	potential|negative
+-つ verbs	1	待たれない	待つ	v5	passive|negative
+-つ verbs	1	待たせない	待つ	v5	causative|negative
+-つ verbs	1	待たさない	待つ	v5	short causative|negative
+-つ verbs	1	待たせられない	待つ	v5	causative|potential or passive|negative
+-つ verbs	1	待ちまして	待つ	v5	-ます|-て
+-つ verbs	1	待てば	待つ	v5	-ば
+-つ verbs	1	待ちゃ	待つ	v5	-ば|-ゃ
+-つ verbs	1	待っちゃ	待つ	v5	-ちゃ
+-つ verbs	1	待っちゃう	待つ	v5	-ちゃう
+-つ verbs	1	待っちまう	待つ	v5	-ちまう
+-つ verbs	1	待ちなさい	待つ	v5	-なさい
+-つ verbs	1	待ちそう	待つ	v5	-そう
+-つ verbs	1	待ちさう	待つ	v5	-そう
+-つ verbs	1	待ちすぎる	待つ	v5	-すぎる
+-つ verbs	1	待ち過ぎる	待つ	v5	-過ぎる
+-つ verbs	1	待ちたい	待つ	v5	-たい
+-つ verbs	1	待ちたがる	待つ	v5	-たい|-がる
+-つ verbs	1	待ったら	待つ	v5	-たら
+-つ verbs	1	待ったり	待つ	v5	-たり
+-つ verbs	1	待たず	待つ	v5	-ず
+-つ verbs	1	待たぬ	待つ	v5	-ぬ
+-つ verbs	1	待たん	待つ	v5	-ん
+-つ verbs	1	待たんかった	待つ	v5	-ん|-た
+-つ verbs	1	待たんばかり	待つ	v5	-んばかり
+-つ verbs	1	待たんとする	待つ	v5	-んとする
+-つ verbs	1	待たざる	待つ	v5	-ざる
+-つ verbs	1	待たねば	待つ	v5	-ねば
+-つ verbs	1	待たにゃ	待つ	v5	-ねば|-ゃ
+-つ verbs	1	待ち	待つ	v5	continuative
+-つ verbs	1	待ちましょう	待つ	v5	-ます|volitional
+-つ verbs	1	待ちませう	待つ	v5	-ます|volitional
+-つ verbs	1	待ちましょっか	待つ	v5	-ます|volitional slang
+-つ verbs	1	待とう	待つ	v5	volitional
+-つ verbs	1	待たう	待つ	v5	volitional
+-つ verbs	1	待とっか	待つ	v5	volitional slang
+-つ verbs	1	待つまい	待つ	v5	-まい
+-つ verbs	1	待たされる	待つ	v5	short causative|passive
+-つ verbs	1	待っておく	待つ	v5	-て|-おく
+-つ verbs	1	待っとく	待つ	v5	-て|-おく
+-つ verbs	1	待たないでおく	待つ	v5	negative|-おく
+-つ verbs	1	待たないどく	待つ	v5	negative|-おく
+-つ verbs	1	待っている	待つ	v5	-て|-いる
+-つ verbs	1	待ってゐる	待つ	v5	-て|-いる
+-つ verbs	1	待っておる	待つ	v5	-て|-いる
+-つ verbs	1	待ってる	待つ	v5	-て|-いる
+-つ verbs	1	待っとる	待つ	v5	-て|-いる
+-つ verbs	1	待ってしまう	待つ	v5	-て|-しまう
+-つ verbs	1	待ちやがる	待つ	v5	-やがる
+-つ verbs	1	待ちやがって	待つ	v5	-やがる|-て
+-つ verbs	1	待ちやがった	待つ	v5	-やがる|-た
+-つ verbs	1	待ちやがれ	待つ	v5	-やがる|imperative
+-つ verbs	1	待ちやしない	待つ	v5	-やしない
+-つ verbs	1	待ちやしません	待つ	v5	-やしません
+-つ verbs	1	待ちますまい	待つ	v5	-ます|-まい
+-つ verbs	1	待ちましたら	待つ	v5	-ます|-たら
+-つ verbs	1	待ちますれば	待つ	v5	-ます|-ば
+-つ verbs	1	待ちませんかった	待つ	v5	-ます|negative|-た
+-ぬ verbs	1	死ぬ	死ぬ	v5	
+-ぬ verbs	1	死にます	死ぬ	v5	-ます
+-ぬ verbs	1	死んだ	死ぬ	v5	-た
+-ぬ verbs	1	死にました	死ぬ	v5	-ます|-た
+-ぬ verbs	1	死んで	死ぬ	v5	-て
+-ぬ verbs	1	死ねる	死ぬ	v5	potential
+-ぬ verbs	1	死なれる	死ぬ	v5	passive
+-ぬ verbs	1	死なせる	死ぬ	v5	causative
+-ぬ verbs	1	死なす	死ぬ	v5	short causative
+-ぬ verbs	1	死なします	死ぬ	v5	short causative|-ます
+-ぬ verbs	1	死なせられる	死ぬ	v5	causative|potential or passive
+-ぬ verbs	1	死ね	死ぬ	v5	imperative
+-ぬ verbs	1	死なない	死ぬ	v5	negative
+-ぬ verbs	1	死にません	死ぬ	v5	-ます|negative
+-ぬ verbs	1	死ななかった	死ぬ	v5	negative|-た
+-ぬ verbs	1	死にませんでした	死ぬ	v5	-ます|negative|-た
+-ぬ verbs	1	死ななくて	死ぬ	v5	negative|-て
+-ぬ verbs	1	死ねない	死ぬ	v5	potential|negative
+-ぬ verbs	1	死なれない	死ぬ	v5	passive|negative
+-ぬ verbs	1	死なせない	死ぬ	v5	causative|negative
+-ぬ verbs	1	死なさない	死ぬ	v5	short causative|negative
+-ぬ verbs	1	死なせられない	死ぬ	v5	causative|potential or passive|negative
+-ぬ verbs	1	死にまして	死ぬ	v5	-ます|-て
+-ぬ verbs	1	死ねば	死ぬ	v5	-ば
+-ぬ verbs	1	死にゃ	死ぬ	v5	-ば|-ゃ
+-ぬ verbs	1	死んじゃ	死ぬ	v5	-ちゃ
+-ぬ verbs	1	死んじゃう	死ぬ	v5	-ちゃう
+-ぬ verbs	1	死んじまう	死ぬ	v5	-ちまう
+-ぬ verbs	1	死になさい	死ぬ	v5	-なさい
+-ぬ verbs	1	死にそう	死ぬ	v5	-そう
+-ぬ verbs	1	死にさう	死ぬ	v5	-そう
+-ぬ verbs	1	死にすぎる	死ぬ	v5	-すぎる
+-ぬ verbs	1	死に過ぎる	死ぬ	v5	-過ぎる
+-ぬ verbs	1	死にたい	死ぬ	v5	-たい
+-ぬ verbs	1	死にたがる	死ぬ	v5	-たい|-がる
+-ぬ verbs	1	死んだら	死ぬ	v5	-たら
+-ぬ verbs	1	死んだり	死ぬ	v5	-たり
+-ぬ verbs	1	死なず	死ぬ	v5	-ず
+-ぬ verbs	1	死なぬ	死ぬ	v5	-ぬ
+-ぬ verbs	1	死なん	死ぬ	v5	-ん
+-ぬ verbs	1	死なんかった	死ぬ	v5	-ん|-た
+-ぬ verbs	1	死なんばかり	死ぬ	v5	-んばかり
+-ぬ verbs	1	死なんとする	死ぬ	v5	-んとする
+-ぬ verbs	1	死なざる	死ぬ	v5	-ざる
+-ぬ verbs	1	死なねば	死ぬ	v5	-ねば
+-ぬ verbs	1	死なにゃ	死ぬ	v5	-ねば|-ゃ
+-ぬ verbs	1	死に	死ぬ	v5	continuative
+-ぬ verbs	1	死にましょう	死ぬ	v5	-ます|volitional
+-ぬ verbs	1	死にませう	死ぬ	v5	-ます|volitional
+-ぬ verbs	1	死にましょっか	死ぬ	v5	-ます|volitional slang
+-ぬ verbs	1	死のう	死ぬ	v5	volitional
+-ぬ verbs	1	死なう	死ぬ	v5	volitional
+-ぬ verbs	1	死のっか	死ぬ	v5	volitional slang
+-ぬ verbs	1	死ぬまい	死ぬ	v5	-まい
+-ぬ verbs	1	死なされる	死ぬ	v5	short causative|passive
+-ぬ verbs	1	死んでおく	死ぬ	v5	-て|-おく
+-ぬ verbs	1	死んどく	死ぬ	v5	-て|-おく
+-ぬ verbs	1	死なないでおく	死ぬ	v5	negative|-おく
+-ぬ verbs	1	死なないどく	死ぬ	v5	negative|-おく
+-ぬ verbs	1	死んでいる	死ぬ	v5	-て|-いる
+-ぬ verbs	1	死んでゐる	死ぬ	v5	-て|-いる
+-ぬ verbs	1	死んでおる	死ぬ	v5	-て|-いる
+-ぬ verbs	1	死んでる	死ぬ	v5	-て|-いる
+-ぬ verbs	1	死んでしまう	死ぬ	v5	-て|-しまう
+-ぬ verbs	1	死にやがる	死ぬ	v5	-やがる
+-ぬ verbs	1	死にやがって	死ぬ	v5	-やがる|-て
+-ぬ verbs	1	死にやがった	死ぬ	v5	-やがる|-た
+-ぬ verbs	1	死にやがれ	死ぬ	v5	-やがる|imperative
+-ぬ verbs	1	死にやしない	死ぬ	v5	-やしない
+-ぬ verbs	1	死にやしません	死ぬ	v5	-やしません
+-ぬ verbs	1	死にますまい	死ぬ	v5	-ます|-まい
+-ぬ verbs	1	死にましたら	死ぬ	v5	-ます|-たら
+-ぬ verbs	1	死にますれば	死ぬ	v5	-ます|-ば
+-ぬ verbs	1	死にませんかった	死ぬ	v5	-ます|negative|-た
+-ぶ verbs	1	遊ぶ	遊ぶ	v5	
+-ぶ verbs	1	遊びます	遊ぶ	v5	-ます
+-ぶ verbs	1	遊んだ	遊ぶ	v5	-た
+-ぶ verbs	1	遊びました	遊ぶ	v5	-ます|-た
+-ぶ verbs	1	遊んで	遊ぶ	v5	-て
+-ぶ verbs	1	遊べる	遊ぶ	v5	potential
+-ぶ verbs	1	遊ばれる	遊ぶ	v5	passive
+-ぶ verbs	1	遊ばせる	遊ぶ	v5	causative
+-ぶ verbs	1	遊ばす	遊ぶ	v5	short causative
+-ぶ verbs	1	遊ばします	遊ぶ	v5	short causative|-ます
+-ぶ verbs	1	遊ばせられる	遊ぶ	v5	causative|potential or passive
+-ぶ verbs	1	遊べ	遊ぶ	v5	imperative
+-ぶ verbs	1	遊ばない	遊ぶ	v5	negative
+-ぶ verbs	1	遊びません	遊ぶ	v5	-ます|negative
+-ぶ verbs	1	遊ばなかった	遊ぶ	v5	negative|-た
+-ぶ verbs	1	遊びませんでした	遊ぶ	v5	-ます|negative|-た
+-ぶ verbs	1	遊ばなくて	遊ぶ	v5	negative|-て
+-ぶ verbs	1	遊べない	遊ぶ	v5	potential|negative
+-ぶ verbs	1	遊ばれない	遊ぶ	v5	passive|negative
+-ぶ verbs	1	遊ばせない	遊ぶ	v5	causative|negative
+-ぶ verbs	1	遊ばさない	遊ぶ	v5	short causative|negative
+-ぶ verbs	1	遊ばせられない	遊ぶ	v5	causative|potential or passive|negative
+-ぶ verbs	1	遊びまして	遊ぶ	v5	-ます|-て
+-ぶ verbs	1	遊べば	遊ぶ	v5	-ば
+-ぶ verbs	1	遊びゃ	遊ぶ	v5	-ば|-ゃ
+-ぶ verbs	1	遊んじゃ	遊ぶ	v5	-ちゃ
+-ぶ verbs	1	遊んじゃう	遊ぶ	v5	-ちゃう
+-ぶ verbs	1	遊んじまう	遊ぶ	v5	-ちまう
+-ぶ verbs	1	遊びなさい	遊ぶ	v5	-なさい
+-ぶ verbs	1	遊びそう	遊ぶ	v5	-そう
+-ぶ verbs	1	遊びさう	遊ぶ	v5	-そう
+-ぶ verbs	1	遊びすぎる	遊ぶ	v5	-すぎる
+-ぶ verbs	1	遊び過ぎる	遊ぶ	v5	-過ぎる
+-ぶ verbs	1	遊びたい	遊ぶ	v5	-たい
+-ぶ verbs	1	遊びたがる	遊ぶ	v5	-たい|-がる
+-ぶ verbs	1	遊んだら	遊ぶ	v5	-たら
+-ぶ verbs	1	遊んだり	遊ぶ	v5	-たり
+-ぶ verbs	1	遊ばず	遊ぶ	v5	-ず
+-ぶ verbs	1	遊ばぬ	遊ぶ	v5	-ぬ
+-ぶ verbs	1	遊ばん	遊ぶ	v5	-ん
+-ぶ verbs	1	遊ばんかった	遊ぶ	v5	-ん|-た
+-ぶ verbs	1	遊ばんばかり	遊ぶ	v5	-んばかり
+-ぶ verbs	1	遊ばんとする	遊ぶ	v5	-んとする
+-ぶ verbs	1	遊ばざる	遊ぶ	v5	-ざる
+-ぶ verbs	1	遊ばねば	遊ぶ	v5	-ねば
+-ぶ verbs	1	遊ばにゃ	遊ぶ	v5	-ねば|-ゃ
+-ぶ verbs	1	遊び	遊ぶ	v5	continuative
+-ぶ verbs	1	遊びましょう	遊ぶ	v5	-ます|volitional
+-ぶ verbs	1	遊びませう	遊ぶ	v5	-ます|volitional
+-ぶ verbs	1	遊びましょっか	遊ぶ	v5	-ます|volitional slang
+-ぶ verbs	1	遊ぼう	遊ぶ	v5	volitional
+-ぶ verbs	1	遊ばう	遊ぶ	v5	volitional
+-ぶ verbs	1	遊ぼっか	遊ぶ	v5	volitional slang
+-ぶ verbs	1	遊ぶまい	遊ぶ	v5	-まい
+-ぶ verbs	1	遊ばされる	遊ぶ	v5	short causative|passive
+-ぶ verbs	1	遊んでおく	遊ぶ	v5	-て|-おく
+-ぶ verbs	1	遊んどく	遊ぶ	v5	-て|-おく
+-ぶ verbs	1	遊んでおく	遊ぶ	v5	-て|-おく
+-ぶ verbs	1	遊ばないでおく	遊ぶ	v5	negative|-おく
+-ぶ verbs	1	遊んでいる	遊ぶ	v5	-て|-いる
+-ぶ verbs	1	遊んでゐる	遊ぶ	v5	-て|-いる
+-ぶ verbs	1	遊んでおる	遊ぶ	v5	-て|-いる
+-ぶ verbs	1	遊んでる	遊ぶ	v5	-て|-いる
+-ぶ verbs	1	遊んでしまう	遊ぶ	v5	-て|-しまう
+-ぶ verbs	1	遊びやがる	遊ぶ	v5	-やがる
+-ぶ verbs	1	遊びやがって	遊ぶ	v5	-やがる|-て
+-ぶ verbs	1	遊びやがった	遊ぶ	v5	-やがる|-た
+-ぶ verbs	1	遊びやがれ	遊ぶ	v5	-やがる|imperative
+-ぶ verbs	1	遊びやしない	遊ぶ	v5	-やしない
+-ぶ verbs	1	遊びやしません	遊ぶ	v5	-やしません
+-ぶ verbs	1	遊びますまい	遊ぶ	v5	-ます|-まい
+-ぶ verbs	1	遊びましたら	遊ぶ	v5	-ます|-たら
+-ぶ verbs	1	遊びますれば	遊ぶ	v5	-ます|-ば
+-ぶ verbs	1	遊びませんかった	遊ぶ	v5	-ます|negative|-た
+-む verbs	1	飲む	飲む	v5	
+-む verbs	1	飲みます	飲む	v5	-ます
+-む verbs	1	飲んだ	飲む	v5	-た
+-む verbs	1	飲みました	飲む	v5	-ます|-た
+-む verbs	1	飲んで	飲む	v5	-て
+-む verbs	1	飲める	飲む	v5	potential
+-む verbs	1	飲まれる	飲む	v5	passive
+-む verbs	1	飲ませる	飲む	v5	causative
+-む verbs	1	飲ます	飲む	v5	short causative
+-む verbs	1	飲まします	飲む	v5	short causative|-ます
+-む verbs	1	飲ませられる	飲む	v5	causative|potential or passive
+-む verbs	1	飲め	飲む	v5	imperative
+-む verbs	1	飲まない	飲む	v5	negative
+-む verbs	1	飲みません	飲む	v5	-ます|negative
+-む verbs	1	飲まなかった	飲む	v5	negative|-た
+-む verbs	1	飲みませんでした	飲む	v5	-ます|negative|-た
+-む verbs	1	飲まなくて	飲む	v5	negative|-て
+-む verbs	1	飲めない	飲む	v5	potential|negative
+-む verbs	1	飲まれない	飲む	v5	passive|negative
+-む verbs	1	飲ませない	飲む	v5	causative|negative
+-む verbs	1	飲まさない	飲む	v5	short causative|negative
+-む verbs	1	飲ませられない	飲む	v5	causative|potential or passive|negative
+-む verbs	1	飲みまして	飲む	v5	-ます|-て
+-む verbs	1	飲めば	飲む	v5	-ば
+-む verbs	1	飲みゃ	飲む	v5	-ば|-ゃ
+-む verbs	1	飲んじゃ	飲む	v5	-ちゃ
+-む verbs	1	飲んじゃう	飲む	v5	-ちゃう
+-む verbs	1	飲んじまう	飲む	v5	-ちまう
+-む verbs	1	飲みなさい	飲む	v5	-なさい
+-む verbs	1	飲みそう	飲む	v5	-そう
+-む verbs	1	飲みさう	飲む	v5	-そう
+-む verbs	1	飲みすぎる	飲む	v5	-すぎる
+-む verbs	1	飲み過ぎる	飲む	v5	-過ぎる
+-む verbs	1	飲みたい	飲む	v5	-たい
+-む verbs	1	飲みたがる	飲む	v5	-たい|-がる
+-む verbs	1	飲んだら	飲む	v5	-たら
+-む verbs	1	飲んだり	飲む	v5	-たり
+-む verbs	1	飲まず	飲む	v5	-ず
+-む verbs	1	飲まぬ	飲む	v5	-ぬ
+-む verbs	1	飲まん	飲む	v5	-ん
+-む verbs	1	飲まんかった	飲む	v5	-ん|-た
+-む verbs	1	飲まんばかり	飲む	v5	-んばかり
+-む verbs	1	飲まんとする	飲む	v5	-んとする
+-む verbs	1	飲まざる	飲む	v5	-ざる
+-む verbs	1	飲まねば	飲む	v5	-ねば
+-む verbs	1	飲まにゃ	飲む	v5	-ねば|-ゃ
+-む verbs	1	飲み	飲む	v5	continuative
+-む verbs	1	飲みましょう	飲む	v5	-ます|volitional
+-む verbs	1	飲みませう	飲む	v5	-ます|volitional
+-む verbs	1	飲みましょっか	飲む	v5	-ます|volitional slang
+-む verbs	1	飲もう	飲む	v5	volitional
+-む verbs	1	飲まう	飲む	v5	volitional
+-む verbs	1	飲もっか	飲む	v5	volitional slang
+-む verbs	1	飲むまい	飲む	v5	-まい
+-む verbs	1	飲まされる	飲む	v5	short causative|passive
+-む verbs	1	飲んでおく	飲む	v5	-て|-おく
+-む verbs	1	飲んどく	飲む	v5	-て|-おく
+-む verbs	1	飲まないでおく	飲む	v5	negative|-おく
+-む verbs	1	飲まないどく	飲む	v5	negative|-おく
+-む verbs	1	飲んでいる	飲む	v5	-て|-いる
+-む verbs	1	飲んでゐる	飲む	v5	-て|-いる
+-む verbs	1	飲んでおる	飲む	v5	-て|-いる
+-む verbs	1	飲んでる	飲む	v5	-て|-いる
+-む verbs	1	飲んでしまう	飲む	v5	-て|-しまう
+-む verbs	1	飲みやがる	飲む	v5	-やがる
+-む verbs	1	飲みやがって	飲む	v5	-やがる|-て
+-む verbs	1	飲みやがった	飲む	v5	-やがる|-た
+-む verbs	1	飲みやがれ	飲む	v5	-やがる|imperative
+-む verbs	1	飲みやしない	飲む	v5	-やしない
+-む verbs	1	飲みやしません	飲む	v5	-やしません
+-む verbs	1	飲みますまい	飲む	v5	-ます|-まい
+-む verbs	1	飲みましたら	飲む	v5	-ます|-たら
+-む verbs	1	飲みますれば	飲む	v5	-ます|-ば
+-む verbs	1	飲みませんかった	飲む	v5	-ます|negative|-た
+godan verbs	1	作る	作る	v5	
+godan verbs	1	作ります	作る	v5	-ます
+godan verbs	1	作った	作る	v5	-た
+godan verbs	1	作りました	作る	v5	-ます|-た
+godan verbs	1	作って	作る	v5	-て
+godan verbs	1	作れる	作る	v5	potential
+godan verbs	1	作られる	作る	v5	passive
+godan verbs	1	作らせる	作る	v5	causative
+godan verbs	1	作らす	作る	v5	short causative
+godan verbs	1	作らします	作る	v5	short causative|-ます
+godan verbs	1	作らせられる	作る	v5	causative|potential or passive
+godan verbs	1	作れ	作る	v5	imperative
+godan verbs	1	作らない	作る	v5	negative
+godan verbs	1	作りません	作る	v5	-ます|negative
+godan verbs	1	作らなかった	作る	v5	negative|-た
+godan verbs	1	作りませんでした	作る	v5	-ます|negative|-た
+godan verbs	1	作らなくて	作る	v5	negative|-て
+godan verbs	1	作れない	作る	v5	potential|negative
+godan verbs	1	作られない	作る	v5	passive|negative
+godan verbs	1	作らせない	作る	v5	causative|negative
+godan verbs	1	作らさない	作る	v5	short causative|negative
+godan verbs	1	作らせられない	作る	v5	causative|potential or passive|negative
+godan verbs	1	作りまして	作る	v5	-ます|-て
+godan verbs	1	作れば	作る	v5	-ば
+godan verbs	1	作りゃ	作る	v5	-ば|-ゃ
+godan verbs	1	作っちゃ	作る	v5	-ちゃ
+godan verbs	1	作っちゃう	作る	v5	-ちゃう
+godan verbs	1	作っちまう	作る	v5	-ちまう
+godan verbs	1	作りなさい	作る	v5	-なさい
+godan verbs	1	作りそう	作る	v5	-そう
+godan verbs	1	作りさう	作る	v5	-そう
+godan verbs	1	作りすぎる	作る	v5	-すぎる
+godan verbs	1	作り過ぎる	作る	v5	-過ぎる
+godan verbs	1	作りたい	作る	v5	-たい
+godan verbs	1	作りたがる	作る	v5	-たい|-がる
+godan verbs	1	作ったら	作る	v5	-たら
+godan verbs	1	作ったり	作る	v5	-たり
+godan verbs	1	作らず	作る	v5	-ず
+godan verbs	1	作らぬ	作る	v5	-ぬ
+godan verbs	1	作らん	作る	v5	-ん
+godan verbs	1	作らんかった	作る	v5	-ん|-た
+godan verbs	1	作らざる	作る	v5	-ざる
+godan verbs	1	作らねば	作る	v5	-ねば
+godan verbs	1	作らにゃ	作る	v5	-ねば|-ゃ
+godan verbs	1	作り	作る	v5	continuative
+godan verbs	1	作りましょう	作る	v5	-ます|volitional
+godan verbs	1	作りませう	作る	v5	-ます|volitional
+godan verbs	1	作りましょっか	作る	v5	-ます|volitional slang
+godan verbs	1	作ろう	作る	v5	volitional
+godan verbs	1	作らう	作る	v5	volitional
+godan verbs	1	作ろっか	作る	v5	volitional slang
+godan verbs	1	作るまい	作る	v5	-まい
+godan verbs	1	作らされる	作る	v5	short causative|passive
+godan verbs	1	作っておく	作る	v5	-て|-おく
+godan verbs	1	作っとく	作る	v5	-て|-おく
+godan verbs	1	作らないでおく	作る	v5	negative|-おく
+godan verbs	1	作らないどく	作る	v5	negative|-おく
+godan verbs	1	作っている	作る	v5	-て|-いる
+godan verbs	1	作ってゐる	作る	v5	-て|-いる
+godan verbs	1	作っておる	作る	v5	-て|-いる
+godan verbs	1	作ってる	作る	v5	-て|-いる
+godan verbs	1	作っとる	作る	v5	-て|-いる
+godan verbs	1	作ってしまう	作る	v5	-て|-しまう
+godan verbs	1	作りやがる	作る	v5	-やがる
+godan verbs	1	作りやがって	作る	v5	-やがる|-て
+godan verbs	1	作りやがった	作る	v5	-やがる|-た
+godan verbs	1	作りやがれ	作る	v5	-やがる|imperative
+godan verbs	1	作りやしない	作る	v5	-やしない
+godan verbs	1	作りやしません	作る	v5	-やしません
+godan verbs	1	作りますまい	作る	v5	-ます|-まい
+godan verbs	1	作りましたら	作る	v5	-ます|-たら
+godan verbs	1	作りますれば	作る	v5	-ます|-ば
+godan verbs	1	作りませんかった	作る	v5	-ます|negative|-た
+special honorific -ます verbs	1	いらっしゃいます	いらっしゃる	v5	-ます
+special honorific -ます verbs	1	ございました	ござる	v5	-ます|-た
+special honorific -ます verbs	1	なさいます	なさる	v5	-ます
+special honorific -ます verbs	1	くださいます	くださる	v5	-ます
+special honorific -ます verbs	1	下さいます	下さる	v5	-ます
+special honorific -ます verbs	1	おっしゃいました	おっしゃる	v5	-ます|-た
+special honorific -ます verbs	1	仰いました	仰る	v5	-ます|-た
+special honorific -ます verbs	1	仰有いました	仰有る	v5	-ます|-た
+special honorific -ます verbs	1	いらっしゃいません	いらっしゃる	v5	-ます|negative
+irregular verbs	1	為る	為る	vs	
+irregular verbs	1	為ます	為る	vs	-ます
+irregular verbs	1	為た	為る	vs	-た
+irregular verbs	1	為ました	為る	vs	-ます|-た
+irregular verbs	1	為て	為る	vs	-て
+irregular verbs	1	為られる	為る	vs	potential or passive
+irregular verbs	1	為れる	為る	vs	passive
+irregular verbs	1	為せる	為る	vs	causative
+irregular verbs	1	為させる	為る	vs	causative
+irregular verbs	1	為す	為る	vs	short causative
+irregular verbs	1	為します	為る	vs	short causative|-ます
+irregular verbs	1	為せられる	為る	vs	causative|potential or passive
+irregular verbs	1	為させられる	為る	vs	causative|potential or passive
+irregular verbs	1	為ろ	為る	vs	imperative
+irregular verbs	1	為ない	為る	vs	negative
+irregular verbs	1	為ません	為る	vs	-ます|negative
+irregular verbs	1	為なかった	為る	vs	negative|-た
+irregular verbs	1	為ませんでした	為る	vs	-ます|negative|-た
+irregular verbs	1	為なくて	為る	vs	negative|-て
+irregular verbs	1	為られない	為る	vs	potential or passive|negative
+irregular verbs	1	為れない	為る	vs	passive|negative
+irregular verbs	1	為せない	為る	vs	causative|negative
+irregular verbs	1	為させない	為る	vs	causative|negative
+irregular verbs	1	為さない	為る	vs	short causative|negative
+irregular verbs	1	為せられない	為る	vs	causative|potential or passive|negative
+irregular verbs	1	為させられない	為る	vs	causative|potential or passive|negative
+irregular verbs	1	為まして	為る	vs	-ます|-て
+irregular verbs	1	為れば	為る	vs	-ば
+irregular verbs	1	為りゃ	為る	vs	-ば|-ゃ
+irregular verbs	1	為ちゃ	為る	vs	-ちゃ
+irregular verbs	1	為ちゃう	為る	vs	-ちゃう
+irregular verbs	1	為ちまう	為る	vs	-ちまう
+irregular verbs	1	為なさい	為る	vs	-なさい
+irregular verbs	1	為そう	為る	vs	-そう
+irregular verbs	1	為さう	為る	vs	-そう
+irregular verbs	1	為すぎる	為る	vs	-すぎる
+irregular verbs	1	為過ぎる	為る	vs	-過ぎる
+irregular verbs	1	為たい	為る	vs	-たい
+irregular verbs	1	為たがる	為る	vs	-たい|-がる
+irregular verbs	1	為たら	為る	vs	-たら
+irregular verbs	1	為たり	為る	vs	-たり
+irregular verbs	1	為ず	為る	vs	-ず
+irregular verbs	1	為ぬ	為る	vs	-ぬ
+irregular verbs	1	為ん	為る	vs	-ん
+irregular verbs	1	為んかった	為る	vs	-ん|-た
+irregular verbs	1	為んばかり	為る	vs	-んばかり
+irregular verbs	1	為んとする	為る	vs	-んとする
+irregular verbs	1	為ざる	為る	vs	-ざる
+irregular verbs	1	為ねば	為る	vs	-ねば
+irregular verbs	1	為にゃ	為る	vs	-ねば|-ゃ
+irregular verbs	1	為ましょう	為る	vs	-ます|volitional
+irregular verbs	1	為ませう	為る	vs	-ます|volitional
+irregular verbs	1	為ましょっか	為る	vs	-ます|volitional slang
+irregular verbs	1	為よう	為る	vs	volitional
+irregular verbs	1	為やう	為る	vs	volitional
+irregular verbs	1	為よっか	為る	vs	volitional slang
+irregular verbs	1	為るまい	為る	vs	-まい
+irregular verbs	1	為まい	為る	vs	-まい
+irregular verbs	1	為ておく	為る	vs	-て|-おく
+irregular verbs	1	為とく	為る	vs	-て|-おく
+irregular verbs	1	為ないでおく	為る	vs	negative|-おく
+irregular verbs	1	為ないどく	為る	vs	negative|-おく
+irregular verbs	1	為ている	為る	vs	-て|-いる
+irregular verbs	1	為てゐる	為る	vs	-て|-いる
+irregular verbs	1	為ておる	為る	vs	-て|-いる
+irregular verbs	1	為てる	為る	vs	-て|-いる
+irregular verbs	1	為とる	為る	vs	-て|-いる
+irregular verbs	1	為てしまう	為る	vs	-て|-しまう
+irregular verbs	1	為ますまい	為る	vs	-ます|-まい
+irregular verbs	1	為ましたら	為る	vs	-ます|-たら
+irregular verbs	1	為ますれば	為る	vs	-ます|-ば
+irregular verbs	1	為ませんかった	為る	vs	-ます|negative|-た
+irregular verbs	1	する	する	vs	
+irregular verbs	1	します	する	vs	-ます
+irregular verbs	1	した	する	vs	-た
+irregular verbs	1	しました	する	vs	-ます|-た
+irregular verbs	1	して	する	vs	-て
+irregular verbs	1	できる	する	vs	potential
+irregular verbs	1	出来る	する	vs	potential
+irregular verbs	1	せられる	する	vs	potential or passive
+irregular verbs	1	される	する	vs	passive
+irregular verbs	1	させる	する	vs	causative
+irregular verbs	1	せさせる	する	vs	causative
+irregular verbs	1	さす	する	vs	short causative
+irregular verbs	1	さします	する	vs	short causative|-ます
+irregular verbs	1	させられる	する	vs	causative|potential or passive
+irregular verbs	1	せさせられる	する	vs	causative|potential or passive
+irregular verbs	1	しろ	する	vs	imperative
+irregular verbs	1	しない	する	vs	negative
+irregular verbs	1	しません	する	vs	-ます|negative
+irregular verbs	1	しなかった	する	vs	negative|-た
+irregular verbs	1	しませんでした	する	vs	-ます|negative|-た
+irregular verbs	1	しなくて	する	vs	negative|-て
+irregular verbs	1	せられない	する	vs	potential or passive|negative
+irregular verbs	1	されない	する	vs	passive|negative
+irregular verbs	1	させない	する	vs	causative|negative
+irregular verbs	1	せさせない	する	vs	causative|negative
+irregular verbs	1	ささない	する	vs	short causative|negative
+irregular verbs	1	させられない	する	vs	causative|potential or passive|negative
+irregular verbs	1	せさせられない	する	vs	causative|potential or passive|negative
+irregular verbs	1	しまして	する	vs	-ます|-て
+irregular verbs	1	すれば	する	vs	-ば
+irregular verbs	1	すりゃ	する	vs	-ば|-ゃ
+irregular verbs	1	しちゃ	する	vs	-ちゃ
+irregular verbs	1	しちゃう	する	vs	-ちゃう
+irregular verbs	1	しちまう	する	vs	-ちまう
+irregular verbs	1	しなさい	する	vs	-なさい
+irregular verbs	1	しそう	する	vs	-そう
+irregular verbs	1	しさう	する	vs	-そう
+irregular verbs	1	しすぎる	する	vs	-すぎる
+irregular verbs	1	し過ぎる	する	vs	-過ぎる
+irregular verbs	1	したい	する	vs	-たい
+irregular verbs	1	したがる	する	vs	-たい|-がる
+irregular verbs	1	したら	する	vs	-たら
+irregular verbs	1	したり	する	vs	-たり
+irregular verbs	1	せず	する	vs	-ず
+irregular verbs	1	せぬ	する	vs	-ぬ
+irregular verbs	1	せん	する	vs	-ん
+irregular verbs	1	せんかった	する	vs	-ん|-た
+irregular verbs	1	せんばかり	する	vs	-んばかり
+irregular verbs	1	せんとする	する	vs	-んとする
+irregular verbs	1	せざる	する	vs	-ざる
+irregular verbs	1	せねば	する	vs	-ねば
+irregular verbs	1	せにゃ	する	vs	-ねば|-ゃ
+irregular verbs	1	し	する	vs	continuative
+irregular verbs	1	しましょう	する	vs	-ます|volitional
+irregular verbs	1	しませう	する	vs	-ます|volitional
+irregular verbs	1	しましょっか	する	vs	-ます|volitional slang
+irregular verbs	1	しよう	する	vs	volitional
+irregular verbs	1	しやう	する	vs	volitional
+irregular verbs	1	しよっか	する	vs	volitional slang
+irregular verbs	1	するまい	する	vs	-まい
+irregular verbs	1	しまい	する	vs	-まい
+irregular verbs	1	しなきゃ	する	vs	negative|-ば|-ゃ
+irregular verbs	1	しておく	する	vs	-て|-おく
+irregular verbs	1	しとく	する	vs	-て|-おく
+irregular verbs	1	しないでおく	する	vs	negative|-おく
+irregular verbs	1	しないどく	する	vs	negative|-おく
+irregular verbs	1	している	する	vs	-て|-いる
+irregular verbs	1	してゐる	する	vs	-て|-いる
+irregular verbs	1	しておる	する	vs	-て|-いる
+irregular verbs	1	してる	する	vs	-て|-いる
+irregular verbs	1	しとる	する	vs	-て|-いる
+irregular verbs	1	してしまう	する	vs	-て|-しまう
+irregular verbs	1	しやがる	する	vs	-やがる
+irregular verbs	1	しやがって	する	vs	-やがる|-て
+irregular verbs	1	しやがった	する	vs	-やがる|-た
+irregular verbs	1	しやがれ	する	vs	-やがる|imperative
+irregular verbs	1	しやしない	する	vs	-やしない
+irregular verbs	1	しやしません	する	vs	-やしません
+irregular verbs	1	為やしない	為る	vs	-やしない
+irregular verbs	1	為やしません	為る	vs	-やしません
+irregular verbs	1	しますまい	する	vs	-ます|-まい
+irregular verbs	1	しましたら	する	vs	-ます|-たら
+irregular verbs	1	しますれば	する	vs	-ます|-ば
+irregular verbs	1	しませんかった	する	vs	-ます|negative|-た
+irregular verbs	1	来る	来る	vk	
+irregular verbs	1	来ます	来る	vk	-ます
+irregular verbs	1	来た	来る	vk	-た
+irregular verbs	1	来ました	来る	vk	-ます|-た
+irregular verbs	1	来て	来る	vk	-て
+irregular verbs	1	来られる	来る	vk	potential or passive
+irregular verbs	1	来られる	来る	vk	potential or passive
+irregular verbs	1	来させる	来る	vk	causative
+irregular verbs	1	来さす	来る	vk	short causative
+irregular verbs	1	来さします	来る	vk	short causative|-ます
+irregular verbs	1	来させられる	来る	vk	causative|potential or passive
+irregular verbs	1	来い	来る	vk	imperative
+irregular verbs	1	来ない	来る	vk	negative
+irregular verbs	1	来ません	来る	vk	-ます|negative
+irregular verbs	1	来なかった	来る	vk	negative|-た
+irregular verbs	1	来ませんでした	来る	vk	-ます|negative|-た
+irregular verbs	1	来なくて	来る	vk	negative|-て
+irregular verbs	1	来られない	来る	vk	potential or passive|negative
+irregular verbs	1	来られない	来る	vk	potential or passive|negative
+irregular verbs	1	来させない	来る	vk	causative|negative
+irregular verbs	1	来ささない	来る	vk	short causative|negative
+irregular verbs	1	来させられない	来る	vk	causative|potential or passive|negative
+irregular verbs	1	来まして	来る	vk	-ます|-て
+irregular verbs	1	来れば	来る	vk	-ば
+irregular verbs	1	来りゃ	来る	vk	-ば|-ゃ
+irregular verbs	1	来ちゃ	来る	vk	-ちゃ
+irregular verbs	1	来ちゃう	来る	vk	-ちゃう
+irregular verbs	1	来ちまう	来る	vk	-ちまう
+irregular verbs	1	来なさい	来る	vk	-なさい
+irregular verbs	1	来そう	来る	vk	-そう
+irregular verbs	1	来さう	来る	vk	-そう
+irregular verbs	1	来すぎる	来る	vk	-すぎる
+irregular verbs	1	来過ぎる	来る	vk	-過ぎる
+irregular verbs	1	来たい	来る	vk	-たい
+irregular verbs	1	来たがる	来る	vk	-たい|-がる
+irregular verbs	1	来たら	来る	vk	-たら
+irregular verbs	1	来たり	来る	vk	-たり
+irregular verbs	1	来ず	来る	vk	-ず
+irregular verbs	1	来ぬ	来る	vk	-ぬ
+irregular verbs	1	来ん	来る	vk	-ん
+irregular verbs	1	来んかった	来る	vk	-ん|-た
+irregular verbs	1	来んばかり	来る	vk	-んばかり
+irregular verbs	1	来んとする	来る	vk	-んとする
+irregular verbs	1	来ざる	来る	vk	-ざる
+irregular verbs	1	来ねば	来る	vk	-ねば
+irregular verbs	1	来にゃ	来る	vk	-ねば|-ゃ
+irregular verbs	1	来	来る	vk	continuative
+irregular verbs	1	来ましょう	来る	vk	-ます|volitional
+irregular verbs	1	来ませう	来る	vk	-ます|volitional
+irregular verbs	1	来ましょっか	来る	vk	-ます|volitional slang
+irregular verbs	1	来よう	来る	vk	volitional
+irregular verbs	1	来やう	来る	vk	volitional
+irregular verbs	1	来よっか	来る	vk	volitional slang
+irregular verbs	1	来るまい	来る	vk	-まい
+irregular verbs	1	来まい	来る	vk	-まい
+irregular verbs	1	来ておく	来る	vk	-て|-おく
+irregular verbs	1	来とく	来る	vk	-て|-おく
+irregular verbs	1	来ないでおく	来る	vk	negative|-おく
+irregular verbs	1	来ないどく	来る	vk	negative|-おく
+irregular verbs	1	来ている	来る	vk	-て|-いる
+irregular verbs	1	来てゐる	来る	vk	-て|-いる
+irregular verbs	1	来ておる	来る	vk	-て|-いる
+irregular verbs	1	来てる	来る	vk	-て|-いる
+irregular verbs	1	来とる	来る	vk	-て|-いる
+irregular verbs	1	来てしまう	来る	vk	-て|-しまう
+irregular verbs	1	来ますまい	来る	vk	-ます|-まい
+irregular verbs	1	来ましたら	来る	vk	-ます|-たら
+irregular verbs	1	来ますれば	来る	vk	-ます|-ば
+irregular verbs	1	来ませんかった	来る	vk	-ます|negative|-た
+irregular verbs	1	來る	來る	vk	
+irregular verbs	1	來ます	來る	vk	-ます
+irregular verbs	1	來た	來る	vk	-た
+irregular verbs	1	來ました	來る	vk	-ます|-た
+irregular verbs	1	來て	來る	vk	-て
+irregular verbs	1	來られる	來る	vk	potential or passive
+irregular verbs	1	來られる	來る	vk	potential or passive
+irregular verbs	1	來させる	來る	vk	causative
+irregular verbs	1	來さす	來る	vk	short causative
+irregular verbs	1	來さします	來る	vk	short causative|-ます
+irregular verbs	1	來させられる	來る	vk	causative|potential or passive
+irregular verbs	1	來い	來る	vk	imperative
+irregular verbs	1	來ない	來る	vk	negative
+irregular verbs	1	來ません	來る	vk	-ます|negative
+irregular verbs	1	來なかった	來る	vk	negative|-た
+irregular verbs	1	來ませんでした	來る	vk	-ます|negative|-た
+irregular verbs	1	來なくて	來る	vk	negative|-て
+irregular verbs	1	來られない	來る	vk	potential or passive|negative
+irregular verbs	1	來られない	來る	vk	potential or passive|negative
+irregular verbs	1	來させない	來る	vk	causative|negative
+irregular verbs	1	來ささない	來る	vk	short causative|negative
+irregular verbs	1	來させられない	來る	vk	causative|potential or passive|negative
+irregular verbs	1	來まして	來る	vk	-ます|-て
+irregular verbs	1	來れば	來る	vk	-ば
+irregular verbs	1	來りゃ	來る	vk	-ば|-ゃ
+irregular verbs	1	來ちゃ	來る	vk	-ちゃ
+irregular verbs	1	來ちゃう	來る	vk	-ちゃう
+irregular verbs	1	來ちまう	來る	vk	-ちまう
+irregular verbs	1	來なさい	來る	vk	-なさい
+irregular verbs	1	來そう	來る	vk	-そう
+irregular verbs	1	來さう	來る	vk	-そう
+irregular verbs	1	來すぎる	來る	vk	-すぎる
+irregular verbs	1	來過ぎる	來る	vk	-過ぎる
+irregular verbs	1	來たい	來る	vk	-たい
+irregular verbs	1	來たがる	來る	vk	-たい|-がる
+irregular verbs	1	來たら	來る	vk	-たら
+irregular verbs	1	來たり	來る	vk	-たり
+irregular verbs	1	來ず	來る	vk	-ず
+irregular verbs	1	來ぬ	來る	vk	-ぬ
+irregular verbs	1	來ん	來る	vk	-ん
+irregular verbs	1	來んかった	來る	vk	-ん|-た
+irregular verbs	1	來んばかり	來る	vk	-んばかり
+irregular verbs	1	來んとする	來る	vk	-んとする
+irregular verbs	1	來ざる	來る	vk	-ざる
+irregular verbs	1	來ねば	來る	vk	-ねば
+irregular verbs	1	來にゃ	來る	vk	-ねば|-ゃ
+irregular verbs	1	來	來る	vk	continuative
+irregular verbs	1	來ましょう	來る	vk	-ます|volitional
+irregular verbs	1	來ませう	來る	vk	-ます|volitional
+irregular verbs	1	來ましょっか	來る	vk	-ます|volitional slang
+irregular verbs	1	來よう	來る	vk	volitional
+irregular verbs	1	來やう	來る	vk	volitional
+irregular verbs	1	來よっか	來る	vk	volitional slang
+irregular verbs	1	來るまい	來る	vk	-まい
+irregular verbs	1	來とく	來る	vk	-て|-おく
+irregular verbs	1	來ておく	來る	vk	-て|-おく
+irregular verbs	1	來とく	來る	vk	-て|-おく
+irregular verbs	1	來ないでおく	來る	vk	negative|-おく
+irregular verbs	1	來ないどく	來る	vk	negative|-おく
+irregular verbs	1	來ている	來る	vk	-て|-いる
+irregular verbs	1	來てゐる	來る	vk	-て|-いる
+irregular verbs	1	來ておる	來る	vk	-て|-いる
+irregular verbs	1	來てる	來る	vk	-て|-いる
+irregular verbs	1	來とる	來る	vk	-て|-いる
+irregular verbs	1	來てしまう	來る	vk	-て|-しまう
+irregular verbs	1	來ますまい	來る	vk	-ます|-まい
+irregular verbs	1	來ましたら	來る	vk	-ます|-たら
+irregular verbs	1	來ますれば	來る	vk	-ます|-ば
+irregular verbs	1	來ませんかった	來る	vk	-ます|negative|-た
+irregular verbs	1	くる	くる	vk	
+irregular verbs	1	きます	くる	vk	-ます
+irregular verbs	1	きた	くる	vk	-た
+irregular verbs	1	きました	くる	vk	-ます|-た
+irregular verbs	1	きて	くる	vk	-て
+irregular verbs	1	こられる	くる	vk	potential or passive
+irregular verbs	1	こられる	くる	vk	potential or passive
+irregular verbs	1	こさせる	くる	vk	causative
+irregular verbs	1	こさす	くる	vk	short causative
+irregular verbs	1	こさします	くる	vk	short causative|-ます
+irregular verbs	1	こさせられる	くる	vk	causative|potential or passive
+irregular verbs	1	こい	くる	vk	imperative
+irregular verbs	1	こない	くる	vk	negative
+irregular verbs	1	きません	くる	vk	-ます|negative
+irregular verbs	1	こなかった	くる	vk	negative|-た
+irregular verbs	1	きませんでした	くる	vk	-ます|negative|-た
+irregular verbs	1	こなくて	くる	vk	negative|-て
+irregular verbs	1	こられない	くる	vk	potential or passive|negative
+irregular verbs	1	こられない	くる	vk	potential or passive|negative
+irregular verbs	1	こさせない	くる	vk	causative|negative
+irregular verbs	1	こささない	くる	vk	short causative|negative
+irregular verbs	1	こさせられない	くる	vk	causative|potential or passive|negative
+irregular verbs	1	きまして	くる	vk	-ます|-て
+irregular verbs	1	くれば	くる	vk	-ば
+irregular verbs	1	くりゃ	くる	vk	-ば|-ゃ
+irregular verbs	1	きちゃ	くる	vk	-ちゃ
+irregular verbs	1	きちゃう	くる	vk	-ちゃう
+irregular verbs	1	きちまう	くる	vk	-ちまう
+irregular verbs	1	きなさい	くる	vk	-なさい
+irregular verbs	1	きそう	くる	vk	-そう
+irregular verbs	1	きさう	くる	vk	-そう
+irregular verbs	1	きすぎる	くる	vk	-すぎる
+irregular verbs	1	き過ぎる	くる	vk	-過ぎる
+irregular verbs	1	きたい	くる	vk	-たい
+irregular verbs	1	きたがる	くる	vk	-たい|-がる
+irregular verbs	1	きたら	くる	vk	-たら
+irregular verbs	1	きたり	くる	vk	-たり
+irregular verbs	1	こず	くる	vk	-ず
+irregular verbs	1	こぬ	くる	vk	-ぬ
+irregular verbs	1	こん	くる	vk	-ん
+irregular verbs	1	こんかった	くる	vk	-ん|-た
+irregular verbs	1	こんばかり	くる	vk	-んばかり
+irregular verbs	1	こんとする	くる	vk	-んとする
+irregular verbs	1	こざる	くる	vk	-ざる
+irregular verbs	1	こねば	くる	vk	-ねば
+irregular verbs	1	こにゃ	くる	vk	-ねば|-ゃ
+irregular verbs	1	き	くる	vk	continuative
+irregular verbs	1	きましょう	くる	vk	-ます|volitional
+irregular verbs	1	きませう	くる	vk	-ます|volitional
+irregular verbs	1	きましょっか	くる	vk	-ます|volitional slang
+irregular verbs	1	こよう	くる	vk	volitional
+irregular verbs	1	こやう	くる	vk	volitional
+irregular verbs	1	こよっか	くる	vk	volitional slang
+irregular verbs	1	くるまい	くる	vk	-まい
+irregular verbs	1	こまい	くる	vk	-まい
+irregular verbs	1	きておく	くる	vk	-て|-おく
+irregular verbs	1	きとく	くる	vk	-て|-おく
+irregular verbs	1	こないでおく	くる	vk	negative|-おく
+irregular verbs	1	こないどく	くる	vk	negative|-おく
+irregular verbs	1	きている	くる	vk	-て|-いる
+irregular verbs	1	きてゐる	くる	vk	-て|-いる
+irregular verbs	1	きておる	くる	vk	-て|-いる
+irregular verbs	1	きてる	くる	vk	-て|-いる
+irregular verbs	1	きとる	くる	vk	-て|-いる
+irregular verbs	1	きてしまう	くる	vk	-て|-しまう
+irregular verbs	1	きやがる	くる	vk	-やがる
+irregular verbs	1	きやがって	くる	vk	-やがる|-て
+irregular verbs	1	きやがった	くる	vk	-やがる|-た
+irregular verbs	1	きやがれ	くる	vk	-やがる|imperative
+irregular verbs	1	きやしない	くる	vk	-やしない
+irregular verbs	1	きやしません	くる	vk	-やしません
+irregular verbs	1	来やしない	来る	vk	-やしない
+irregular verbs	1	来やしません	来る	vk	-やしません
+irregular verbs	1	きますまい	くる	vk	-ます|-まい
+irregular verbs	1	きましたら	くる	vk	-ます|-たら
+irregular verbs	1	きますれば	くる	vk	-ます|-ば
+irregular verbs	1	きませんかった	くる	vk	-ます|negative|-た
+-ずる verbs	1	論ずる	論ずる	vz	
+-ずる verbs	1	論じます	論ずる	vz	-ます
+-ずる verbs	1	論じた	論ずる	vz	-た
+-ずる verbs	1	論じました	論ずる	vz	-ます|-た
+-ずる verbs	1	論じて	論ずる	vz	-て
+-ずる verbs	1	論ぜられる	論ずる	vz	potential or passive
+-ずる verbs	1	論ざれる	論ずる	vz	potential or passive
+-ずる verbs	1	論じされる	論ずる	vz	passive
+-ずる verbs	1	論ぜされる	論ずる	vz	passive
+-ずる verbs	1	論じさせる	論ずる	vz	causative
+-ずる verbs	1	論ぜさせる	論ずる	vz	causative
+-ずる verbs	1	論じさす	論ずる	vz	short causative
+-ずる verbs	1	論ぜさす	論ずる	vz	short causative
+-ずる verbs	1	論じさします	論ずる	vz	short causative|-ます
+-ずる verbs	1	論ぜさします	論ずる	vz	short causative|-ます
+-ずる verbs	1	論じさせられる	論ずる	vz	causative|potential or passive
+-ずる verbs	1	論ぜさせられる	論ずる	vz	causative|potential or passive
+-ずる verbs	1	論じろ	論ずる	vz	imperative
+-ずる verbs	1	論じない	論ずる	vz	negative
+-ずる verbs	1	論じません	論ずる	vz	-ます|negative
+-ずる verbs	1	論じなかった	論ずる	vz	negative|-た
+-ずる verbs	1	論じませんでした	論ずる	vz	-ます|negative|-た
+-ずる verbs	1	論じなくて	論ずる	vz	negative|-て
+-ずる verbs	1	論ぜられない	論ずる	vz	potential or passive|negative
+-ずる verbs	1	論じされない	論ずる	vz	passive|negative
+-ずる verbs	1	論ぜされない	論ずる	vz	passive|negative
+-ずる verbs	1	論じさせない	論ずる	vz	causative|negative
+-ずる verbs	1	論ぜさせない	論ずる	vz	causative|negative
+-ずる verbs	1	論じささない	論ずる	vz	short causative|negative
+-ずる verbs	1	論ぜささない	論ずる	vz	short causative|negative
+-ずる verbs	1	論じさせられない	論ずる	vz	causative|potential or passive|negative
+-ずる verbs	1	論ぜさせられない	論ずる	vz	causative|potential or passive|negative
+-ずる verbs	1	論じまして	論ずる	vz	-ます|-て
+-ずる verbs	1	論ずれば	論ずる	vz	-ば
+-ずる verbs	1	論ずりゃ	論ずる	vz	-ば|-ゃ
+-ずる verbs	1	論じちゃ	論ずる	vz	-ちゃ
+-ずる verbs	1	論じちゃう	論ずる	vz	-ちゃう
+-ずる verbs	1	論じちまう	論ずる	vz	-ちまう
+-ずる verbs	1	論じなさい	論ずる	vz	-なさい
+-ずる verbs	1	論じそう	論ずる	vz	-そう
+-ずる verbs	1	論じさう	論ずる	vz	-そう
+-ずる verbs	1	論じすぎる	論ずる	vz	-すぎる
+-ずる verbs	1	論じ過ぎる	論ずる	vz	-過ぎる
+-ずる verbs	1	論じたい	論ずる	vz	-たい
+-ずる verbs	1	論じたがる	論ずる	vz	-たい|-がる
+-ずる verbs	1	論じたら	論ずる	vz	-たら
+-ずる verbs	1	論じたり	論ずる	vz	-たり
+-ずる verbs	1	論ぜず	論ずる	vz	-ず
+-ずる verbs	1	論ぜぬ	論ずる	vz	-ぬ
+-ずる verbs	1	論ぜん	論ずる	vz	-ん
+-ずる verbs	1	論ぜんかった	論ずる	vz	-ん|-た
+-ずる verbs	1	論ぜんばかり	論ずる	vz	-んばかり
+-ずる verbs	1	論ぜんとする	論ずる	vz	-んとする
+-ずる verbs	1	論ぜざる	論ずる	vz	-ざる
+-ずる verbs	1	論ぜねば	論ずる	vz	-ねば
+-ずる verbs	1	論ぜにゃ	論ずる	vz	-ねば|-ゃ
+-ずる verbs	1	論じましょう	論ずる	vz	-ます|volitional
+-ずる verbs	1	論じませう	論ずる	vz	-ます|volitional
+-ずる verbs	1	論じよう	論ずる	vz	volitional
+-ずる verbs	1	論じやう	論ずる	vz	volitional
+-ずる verbs	1	論ずるまい	論ずる	vz	-まい
+-ずる verbs	1	論じまい	論ずる	vz	-まい
+-ずる verbs	1	論じとく	論ずる	vz	-て|-おく
+-ずる verbs	1	論じている	論ずる	vz	-て|-いる
+-ずる verbs	1	論じてゐる	論ずる	vz	-て|-いる
+-ずる verbs	1	論じておる	論ずる	vz	-て|-いる
+-ずる verbs	1	論じてる	論ずる	vz	-て|-いる
+-ずる verbs	1	論じとる	論ずる	vz	-て|-いる
+-ずる verbs	1	論じてしまう	論ずる	vz	-て|-しまう
+-ずる verbs	1	論じやがる	論ずる	vz	-やがる
+-ずる verbs	1	論じやがって	論ずる	vz	-やがる|-て
+-ずる verbs	1	論じやがった	論ずる	vz	-やがる|-た
+-ずる verbs	1	論じやがれ	論ずる	vz	-やがる|imperative
+-ずる verbs	1	論じやしない	論ずる	vz	-やしない
+-ずる verbs	1	論じやしません	論ずる	vz	-やしません
+-え verbs and adjectives	1	すげえ	すごい	adj-i	-え
+-え verbs and adjectives	1	やべえ	やばい	adj-i	-え
+-え verbs and adjectives	1	うるせえ	うるさい	adj-i	-え
+-え verbs and adjectives	1	ひでえ	ひどい	adj-i	-え
+-え verbs and adjectives	1	ねえ	ない	adj-i	-え
+-え verbs and adjectives	1	できねえ	できる	v1	negative|-え
+-え verbs and adjectives	1	しんじねえ	しんじる	v1	negative|-え
+-え verbs and adjectives	1	さめえ	さむい	adj-i	-え
+-え verbs and adjectives	1	さみい	さむい	adj-i	-え
+-え verbs and adjectives	1	あちぇえ	あつい	adj-i	-え
+-え verbs and adjectives	1	あちい	あつい	adj-i	-え
+-え verbs and adjectives	1	やせえ	やすい	adj-i	-え
+-え verbs and adjectives	1	たけえ	たかい	adj-i	-え
+-え verbs and adjectives	1	かわええ	かわいい	adj-i	-え
+-え verbs and adjectives	1	ついぇえ	つよい	adj-i	-え
+-え verbs and adjectives	1	こうぇえ	こわい	adj-i	-え
+-え verbs and adjectives	1	みじけえ	みじかい	adj-i	-え
+-え verbs and adjectives	1	なげえ	ながい	adj-i	-え
+-え verbs and adjectives	1	くせえ	くさい	adj-i	-え
+-え verbs and adjectives	1	うめえ	うまい	adj-i	-え
+-え verbs and adjectives	1	でけえ	でかい	adj-i	-え
+-え verbs and adjectives	1	まっぜえ	まずい	adj-i	-え
+-え verbs and adjectives	1	ちっちぇえ	ちっちゃい	adj-i	-え
+-え verbs and adjectives	1	あけえ	あかい	adj-i	-え
+-え verbs and adjectives	1	こええ	こわい	adj-i	-え
+-え verbs and adjectives	1	つええ	つよい	adj-i	-え
+-え verbs and adjectives	1	すげぇ	すごい	adj-i	-え
+-え verbs and adjectives	1	やべぇ	やばい	adj-i	-え
+-え verbs and adjectives	1	うるせぇ	うるさい	adj-i	-え
+-え verbs and adjectives	1	ひでぇ	ひどい	adj-i	-え
+-え verbs and adjectives	1	ねぇ	ない	adj-i	-え
+-え verbs and adjectives	1	できねぇ	できる	v1	negative|-え
+-え verbs and adjectives	1	しんじねぇ	しんじる	v1	negative|-え
+-え verbs and adjectives	1	さめぇ	さむい	adj-i	-え
+-え verbs and adjectives	1	さみぃ	さむい	adj-i	-え
+-え verbs and adjectives	1	あちぃ	あつい	adj-i	-え
+-え verbs and adjectives	1	やせぇ	やすい	adj-i	-え
+-え verbs and adjectives	1	たけぇ	たかい	adj-i	-え
+-え verbs and adjectives	1	みじけぇ	みじかい	adj-i	-え
+-え verbs and adjectives	1	なげぇ	ながい	adj-i	-え
+-え verbs and adjectives	1	くせぇ	くさい	adj-i	-え
+-え verbs and adjectives	1	うめぇ	うまい	adj-i	-え
+-え verbs and adjectives	1	でけぇ	でかい	adj-i	-え
+-え verbs and adjectives	1	まっぜぇ	まずい	adj-i	-え
+-え verbs and adjectives	1	あけぇ	あかい	adj-i	-え
+n-slang	1	わかんねえ	わかる	v5	negative|n-slang|-え
+n-slang	1	すんな	する	vs	imperative negative slang
+n-slang	1	やんなさい	やる	v5	-なさい|n-slang
+n-slang	1	食べらんない	食べる	v1	potential or passive|negative|n-slang
+n-slang	1	やんなきゃ	やる	v5	negative|n-slang|-ば|-ゃ
+n-slang	1	くんなきゃ	くれる	v1	negative|-ば|-ゃ|n-slang
+irregular verbs	0	すます	する	vs	*
+irregular verbs	0	すた	する	vs	*
+irregular verbs	0	すました	する	vs	*
+irregular verbs	0	すて	する	vs	*
+irregular verbs	0	すれる	する	vs	*
+irregular verbs	0	すせる	する	vs	*
+irregular verbs	0	すせられる	する	vs	*
+irregular verbs	0	すろ	する	vs	*
+irregular verbs	0	すない	する	vs	*
+irregular verbs	0	すません	する	vs	*
+irregular verbs	0	すなかった	する	vs	*
+irregular verbs	0	すませんでした	する	vs	*
+irregular verbs	0	すなくて	する	vs	*
+irregular verbs	0	すれない	する	vs	*
+irregular verbs	0	すせない	する	vs	*
+irregular verbs	0	すせられない	する	vs	*
+irregular verbs	0	くます	くる	vk	*
+irregular verbs	0	くた	くる	vk	*
+irregular verbs	0	くました	くる	vk	*
+irregular verbs	0	くて	くる	vk	*
+irregular verbs	0	くられる	くる	vk	*
+irregular verbs	0	くられる	くる	vk	*
+irregular verbs	0	くさせる	くる	vk	*
+irregular verbs	0	くさせられる	くる	vk	*
+irregular verbs	0	くい	くる	vk	*
+irregular verbs	0	くない	くる	vk	*
+irregular verbs	0	くません	くる	vk	*
+irregular verbs	0	くなかった	くる	vk	*
+irregular verbs	0	くませんでした	くる	vk	*
+irregular verbs	0	くなくて	くる	vk	*
+irregular verbs	0	くられない	くる	vk	*
+irregular verbs	0	くられない	くる	vk	*
+irregular verbs	0	くさせない	くる	vk	*
+irregular verbs	0	くさせられない	くる	vk	*
+uncommon irregular verbs	1	のたもうて	のたまう	v5	-て
+uncommon irregular verbs	1	のたもうた	のたまう	v5	-た
+uncommon irregular verbs	1	のたもうたら	のたまう	v5	-たら
+uncommon irregular verbs	1	のたもうたり	のたまう	v5	-たり
+uncommon irregular verbs	1	宣うて	宣う	v5	-て
+uncommon irregular verbs	1	宣うた	宣う	v5	-た
+uncommon irregular verbs	1	宣うたら	宣う	v5	-たら
+uncommon irregular verbs	1	宣うたり	宣う	v5	-たり
+uncommon irregular verbs	1	曰うて	曰う	v5	-て
+uncommon irregular verbs	1	曰うた	曰う	v5	-た
+uncommon irregular verbs	1	曰うたら	曰う	v5	-たら
+uncommon irregular verbs	1	曰うたり	曰う	v5	-たり
+uncommon irregular verbs	1	たもうて	たまう	v5	-て
+uncommon irregular verbs	1	たもうた	たまう	v5	-た
+uncommon irregular verbs	1	たもうたら	たまう	v5	-たら
+uncommon irregular verbs	1	たもうたり	たまう	v5	-たり
+uncommon irregular verbs	1	給うて	給う	v5	-て
+uncommon irregular verbs	1	給うた	給う	v5	-た
+uncommon irregular verbs	1	給うたら	給う	v5	-たら
+uncommon irregular verbs	1	給うたり	給う	v5	-たり
+uncommon irregular verbs	1	賜うて	賜う	v5	-て
+uncommon irregular verbs	1	賜うた	賜う	v5	-た
+uncommon irregular verbs	1	賜うたら	賜う	v5	-たら
+uncommon irregular verbs	1	賜うたり	賜う	v5	-たり
+uncommon irregular verbs	1	たゆとうて	たゆたう	v5	-て
+uncommon irregular verbs	1	たゆとうた	たゆたう	v5	-た
+uncommon irregular verbs	1	たゆとうたら	たゆたう	v5	-たら
+uncommon irregular verbs	1	たゆとうたり	たゆたう	v5	-たり
+uncommon irregular verbs	1	こうて	こう	v5	-て
+uncommon irregular verbs	1	とうて	とう	v5	-て
+uncommon irregular verbs	1	請うて	請う	v5	-て
+uncommon irregular verbs	1	乞うて	乞う	v5	-て
+uncommon irregular verbs	1	恋うて	恋う	v5	-て
+uncommon irregular verbs	1	問うて	問う	v5	-て
+uncommon irregular verbs	1	訪うて	訪う	v5	-て
+uncommon irregular verbs	1	こうた	こう	v5	-た
+uncommon irregular verbs	1	とうた	とう	v5	-た
+uncommon irregular verbs	1	請うた	請う	v5	-た
+uncommon irregular verbs	1	乞うた	乞う	v5	-た
+uncommon irregular verbs	1	恋うた	恋う	v5	-た
+uncommon irregular verbs	1	問うた	問う	v5	-た
+uncommon irregular verbs	1	訪うた	訪う	v5	-た
+uncommon irregular verbs	1	こうたら	こう	v5	-たら
+uncommon irregular verbs	1	とうたら	とう	v5	-たら
+uncommon irregular verbs	1	請うたら	請う	v5	-たら
+uncommon irregular verbs	1	乞うたら	乞う	v5	-たら
+uncommon irregular verbs	1	恋うたら	恋う	v5	-たら
+uncommon irregular verbs	1	問うたら	問う	v5	-たら
+uncommon irregular verbs	1	訪うたら	訪う	v5	-たら
+uncommon irregular verbs	1	こうたり	こう	v5	-たり
+uncommon irregular verbs	1	とうたり	とう	v5	-たり
+uncommon irregular verbs	1	請うたり	請う	v5	-たり
+uncommon irregular verbs	1	乞うたり	乞う	v5	-たり
+uncommon irregular verbs	1	恋うたり	恋う	v5	-たり
+uncommon irregular verbs	1	問うたり	問う	v5	-たり
+uncommon irregular verbs	1	訪うたり	訪う	v5	-たり
+combinations	1	抱き抱えていなければ	抱き抱える	v1	-て|-いる|negative|-ば
+combinations	1	抱きかかえていなければ	抱きかかえる	v1	-て|-いる|negative|-ば
+combinations	1	打ち込んでいませんでした	打ち込む	v5	-て|-いる|-ます|negative|-た
+combinations	1	食べさせられたくなかった	食べる	v1	causative|potential or passive|-たい|negative|-た
+combinations	1	食べんとしませんかった	食べる	v1	-んとする|-ます|negative|-た
+combinations	1	食べないどきたくありません	食べる	v1	negative|-おく|-たい|-ます|negative
+ないでいる	1	食べないでいる	食べる	v1	negative|-いる
+ないでいる	1	食べないでゐる	食べる	v1	negative|-いる
+kawaii	1	かわいげ	かわいい	adj-i	-げ
+kawaii	1	可愛げ	可愛い	adj-i	-げ
+kawaii	1	可愛気	可愛い	adj-i	-げ
+-やしない combinations	1	食べやしませんでした	食べる	v1	-やしません|-た
+-やしない combinations	1	食べやしなかった	食べる	v1	-やしない|-た
+-やしない combinations	1	食べやしねえ	食べる	v1	-やしない|-え
+historical kana (歴史的仮名遣い)	1	思ふ	思う	v5	-ふ
+historical kana (歴史的仮名遣い)	1	思へば	思う	v5	-ば
+historical kana (歴史的仮名遣い)	1	思はず	思う	v5	-ず
+historical kana (歴史的仮名遣い)	1	思はぬ	思う	v5	-ぬ
+historical kana (歴史的仮名遣い)	1	思はん	思う	v5	-ん
+historical kana (歴史的仮名遣い)	1	思はんばかり	思う	v5	-んばかり
+historical kana (歴史的仮名遣い)	1	思はんとする	思う	v5	-んとする
+historical kana (歴史的仮名遣い)	1	思はむ	思う	v5	-む
+historical kana (歴史的仮名遣い)	1	思はざる	思う	v5	-ざる
+historical kana (歴史的仮名遣い)	1	思はねば	思う	v5	-ねば
+historical kana (歴史的仮名遣い)	1	思はせる	思う	v5	causative
+historical kana (歴史的仮名遣い)	1	思はす	思う	v5	short causative
+historical kana (歴史的仮名遣い)	1	思へ	思う	v5	imperative
+historical kana (歴史的仮名遣い)	1	思ひ	思う	v5	continuative
+historical kana (歴史的仮名遣い)	1	思はない	思う	v5	negative
+historical kana (歴史的仮名遣い)	1	思はれる	思う	v5	passive
+historical kana (歴史的仮名遣い)	1	思ひます	思う	v5	-ます
+historical kana (歴史的仮名遣い)	1	思ひやしない	思う	v5	-やしない
+historical kana (歴史的仮名遣い)	1	思ひやしません	思う	v5	-やしません
+historical kana (歴史的仮名遣い)	1	思はう	思う	v5	volitional
+historical kana (歴史的仮名遣い)	1	思ひなさい	思う	v5	-なさい
+historical kana (歴史的仮名遣い)	1	思ひすぎる	思う	v5	-すぎる
+historical kana (歴史的仮名遣い)	1	思ひ過ぎる	思う	v5	-過ぎる
+historical kana (歴史的仮名遣い)	1	思ひたい	思う	v5	-たい
+historical kana (歴史的仮名遣い)	1	思ひやがる	思う	v5	-やがる
+historical kana (歴史的仮名遣い) - combinations	1	思はせられたくない	思う	v5	causative|potential or passive|-たい|negative
+historical kana (歴史的仮名遣い) - combinations	1	思ってしまふ	思う	v5	-て|-しまう|-ふ
+historical kana (歴史的仮名遣い) - combinations	1	思ってしまひました	思う	v5	-て|-しまう|-ます|-た
+historical kana (歴史的仮名遣い) - combinations	1	思ってしまはう	思う	v5	-て|-しまう|volitional
+historical kana (歴史的仮名遣い) - combinations	1	思ってゐぬ	思う	v5	-て|-いる|-ぬ
+incorrect chains	0	食べて	食べる	*	-て|-いる|continuative
+incorrect chains	0	なりません	なる	*	-ます|potential|-ん
+incorrect chains	0	食べさせられる	食べる	*	short causative|potential|potential or passive
+incorrect chains	0	食べまさない	食べる	*	-ます|negative
+incorrect chains	0	食べましたい	食べる	*	-ます|-たい
+incorrect chains	0	済ません	済ます	*	-ます|negative
+incorrect chains	0	済ましょう	済ます	*	-ます|volitional
+incorrect short causative -> passive chains	0	食べさされる	食べる	*	short causative|passive
+incorrect short causative -> passive chains	0	話さされる	話す	*	short causative|passive
+incorrect short causative -> passive chains	0	論じさされる	論ずる	*	short causative|passive
+incorrect short causative -> passive chains	0	論ぜさされる	論ずる	*	short causative|passive
+incorrect short causative -> passive chains	0	さされる	する	*	short causative|passive
+incorrect short causative -> passive chains	0	為される	為る	*	short causative|passive
+incorrect short causative -> passive chains	0	こさされる	くる	*	short causative|passive
+incorrect short causative -> passive chains	0	来さされる	来る	*	short causative|passive
+incorrect short causative -> passive chains	0	來さされる	來る	*	short causative|passive
+-く stem of kansai-ben adjectives	1	宜しゅう	宜しい	*	-く|kansai-ben -く
+-く stem of kansai-ben adjectives	1	よろしゅう	よろしい	*	-く|kansai-ben -く
+-く stem of kansai-ben adjectives	1	良う	良い	*	-く|kansai-ben -く
+-く stem of kansai-ben adjectives	1	よう	よい	*	-く|kansai-ben -く
+-て form of kansai-ben adjectives	1	よろしゅうて	よろしい	*	-て|kansai-ben adjective -て
+-て form of kansai-ben adjectives	1	宜しゅうて	宜しい	*	-て|kansai-ben adjective -て
+-て form of kansai-ben adjectives	1	ようて	よい	*	-て|kansai-ben adjective -て
+-て form of kansai-ben adjectives	1	良うて	良い	*	-て|kansai-ben adjective -て
+Negative form of kansai-ben adjectives	1	よろしゅうない	よろしい	*	negative|kansai-ben adjective negative
+Negative form of kansai-ben adjectives	1	宜しゅうない	宜しい	*	negative|kansai-ben adjective negative
+Negative form of kansai-ben adjectives	1	ようない	よい	*	negative|kansai-ben adjective negative
+Negative form of kansai-ben adjectives	1	良うない	良い	*	negative|kansai-ben adjective negative
+Negative form of kansai-ben verbs	1	食べへん	食べる	*	negative|kansai-ben negative
+Negative form of kansai-ben verbs	1	食べへんかった	食べる	*	negative|-た|kansai-ben negative
+-て form of kansai-ben verbs	1	買うて	買う	*	-て|kansai-ben -て
+-て form of kansai-ben verbs	1	こうて	かう	*	-て|kansai-ben -て
+-て form of kansai-ben verbs	1	ほうて	はう	*	-て|kansai-ben -て
+-た form of kansai-ben terms	1	買うた	買う	*	-た|kansai-ben -た
+-た form of kansai-ben terms	1	こうた	かう	*	-た|kansai-ben -た
+-た form of kansai-ben terms	1	ほうた	はう	*	-た|kansai-ben -た
+-たら form of kansai-ben terms	1	買うたら	買う	*	-たら|kansai-ben -たら
+-たら form of kansai-ben terms	1	こうたら	かう	*	-たら|kansai-ben -たら
+-たら form of kansai-ben terms	1	ほうたら	はう	*	-たら|kansai-ben -たら
+-たり form of kansai-ben terms	1	買うたり	買う	*	-たり|kansai-ben -たり
+-たり form of kansai-ben terms	1	こうたり	かう	*	-たり|kansai-ben -たり
+-たり form of kansai-ben terms	1	ほうたり	はう	*	-たり|kansai-ben -たり

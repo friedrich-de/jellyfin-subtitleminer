@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
-    <!-- Test names read as sentences, test types stay public for the runner, and stubs live as long as their test. -->
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1001</NoWarn>
+    <!-- Test names read as sentences, test types stay public for the runner, stubs live as long as their test, and test data is written inline. -->
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA1001;CA1861</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +14,7 @@
     <!-- Unlike the plugin, the tests need the Jellyfin assemblies at run time. -->
     <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinVersion)" />
     <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="$(SqliteVersion)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +25,11 @@
     <!-- Two files named the way the plugin's build names the page's files, one of them as a build on Windows would. -->
     <EmbeddedResource Include="Resources\index.html" LogicalName="page/index.html" />
     <EmbeddedResource Include="Resources\app.js" LogicalName="page\assets\app-1a2b3c.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Yomitan's and Hoshidicts' tests of the Japanese rules (Dictionary/Japanese/SOURCES.md in the plugin). -->
+    <None Include="Dictionary\Japanese\*.tsv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

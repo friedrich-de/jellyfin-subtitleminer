@@ -12,5 +12,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- The Jellyfin server version this builds against. Jellyfin 12.4 runs on .NET 10. -->
     <JellyfinVersion>12.4.0</JellyfinVersion>
+    <!-- The SQLite library Jellyfin 12.4 ships (Microsoft.Data.Sqlite.Core in its folder), which the dictionaries use. -->
+    <SqliteVersion>10.0.14</SqliteVersion>
   </PropertyGroup>
 </Project>

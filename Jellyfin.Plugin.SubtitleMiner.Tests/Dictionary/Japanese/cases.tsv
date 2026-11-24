@@ -1,0 +1,48 @@
+# Source: hand-written for the hoshidicts Japanese pack, GPL-3.0-or-later. Whole-word honorifics and cat speech come from tests/deinflector_test.cpp at 35e2dab; one case per hoshidicts-only transform (source "own").
+# category	valid	source	term	rule	reasons (forward order, | separated; * means any)
+whole-word honorifics	0	偽ございます	偽ござる	v5	*
+whole-word honorifics	0	偽なさいました	偽なさる	v5	*
+whole-word honorifics	0	偽いらっしゃいます	偽いらっしゃる	v5	*
+whole-word honorifics	1	ございます	ござる	v5	-ます
+whole-word honorifics	1	なさいました	なさる	v5	-ます|-た
+whole-word honorifics	1	いらっしゃいます	いらっしゃる	v5	-ます
+historical kana	1	思ふ	思う	v5	-ふ
+historical kana	1	言ふ	言う	v5	-ふ
+historical kana	1	思はない	思う	v5	negative
+cat speech	1	できにゃい	できる	v1	negative|nekoSpeech
+cat speech	1	わかんにゃい	わかる	v5	negative|n-slang|nekoSpeech
+cat speech	1	読んにゃ	読む	v5	-た|nekoSpeech
+cat speech	1	いにゃっしゃいます	いらっしゃる	v5	-ます|nekoSpeech
+cat speech	1	わかりにゃした	わかる	v5	-ます|-た|nekoSpeech
+cat speech	1	飲んにゃう	飲む	v5	-ちゃう|nekoSpeech
+cat speech	1	にゃにゃ	なにゃ	*	nekoSpeech
+cat speech	1	にゃにゃ	にゃな	*	nekoSpeech
+cat speech	1	にゃにゃ	じゃにゃ	*	nekoSpeech
+cat speech	1	にゃにゃ	にゃじゃ	*	nekoSpeech
+cat speech	0	にゃにゃ	なな	*	*
+cat speech	0	できない	できる	v1	negative|nekoSpeech
+cat speech	0	こんにゃく	こんにゃく	*	nekoSpeech
+auxiliaries	1	食べましゅ	食べる	v1	-ます|-ましゅ
+auxiliaries	1	食べてください	食べる	v1	-て|-ください
+auxiliaries	1	書いてくださる	書く	v5	-て|-くださる
+auxiliaries	1	見てごらん	見る	v1	-て|-ごらん
+auxiliaries	1	見てご覧	見る	v1	-て|-ごらん
+auxiliaries	1	見てごらんなさい	見る	v1	-て|-ごらんなさい
+auxiliaries	1	読んでいただく	読む	v5	-て|-いただく
+auxiliaries	1	教えてあげる	教える	v1	-て|-あげる
+auxiliaries	1	教えてくれる	教える	v1	-て|-くれる
+auxiliaries	1	教えてもらう	教える	v1	-て|-もらう
+auxiliaries	1	作ってやる	作る	v5	-て|-やる
+auxiliaries	1	送ってさしあげる	送る	v5	-て|-さしあげる
+auxiliaries	1	食べてみる	食べる	v1	-て|-みる
+auxiliaries	1	食べてみた	食べる	v1	-て|-みる|-た
+auxiliaries	1	やってみせる	やる	v5	-て|-みせる
+auxiliaries	1	書いてある	書く	v5	-て|-ある
+auxiliaries	1	持っていく	持つ	v5	-て|-いく
+auxiliaries	1	持ってく	持つ	v5	-て|-いく
+auxiliaries	1	走ってくる	走る	v5	-て|-くる
+auxiliaries	1	食べなさそう	食べる	v1	negative|-なさそう
+auxiliaries	1	食べながら	食べる	v1	-ながら
+auxiliaries	1	歩きながら	歩く	v5	-ながら
+imperative	1	いらっしゃいませ	いらっしゃる	v5	-ます|imperative
+imperative	1	くれ	くれる	v1	imperative

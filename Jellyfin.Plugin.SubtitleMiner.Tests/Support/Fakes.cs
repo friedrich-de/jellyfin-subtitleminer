@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.SubtitleMiner.Anki;
 using Jellyfin.Plugin.SubtitleMiner.Api;
+using Jellyfin.Plugin.SubtitleMiner.Dictionary;
 using Jellyfin.Plugin.SubtitleMiner.Library;
 using Jellyfin.Plugin.SubtitleMiner.Media;
 using Jellyfin.Plugin.SubtitleMiner.Playback;
@@ -159,6 +160,22 @@ internal sealed class FakeAnkiHandler : HttpMessageHandler
     }
 }
 
+/// <summary>Answers downloads with what a test gave for each address, or 404.</summary>
+internal sealed class FakeDownloadHandler : HttpMessageHandler
+{
+    public Dictionary<string, byte[]> Files { get; } = [];
+
+    public List<Uri> Asked { get; } = [];
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        Asked.Add(request.RequestUri!);
+        return Task.FromResult(Files.TryGetValue(request.RequestUri!.AbsoluteUri, out var data)
+            ? new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(data) }
+            : new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { ReasonPhrase = "Not Found" });
+    }
+}
+
 /// <summary>The plugin's services over fakes, with a scratch folder that goes away with the test.</summary>
 internal sealed class TestServices : IDisposable
 {
@@ -173,6 +190,8 @@ internal sealed class TestServices : IDisposable
         Settings = new UserSettingsStore(Path.Combine(Scratch, "users"), Keys, NullLogger<UserSettingsStore>.Instance);
         AnkiClient = new AnkiClient(AnkiNetwork, NullLogger<AnkiClient>.Instance);
         Anki = new AnkiGate(Settings, Shared);
+        Dictionaries = new DictionaryLibrary(Path.Combine(Scratch, "dictionaries"), NullLogger<DictionaryLibrary>.Instance);
+        DictionaryDownloads = new DictionaryDownloader(DownloadNetwork);
     }
 
     public static Guid UserId { get; } = Guid.Parse("11111111-2222-3333-4444-555555555555");
@@ -208,6 +227,13 @@ internal sealed class TestServices : IDisposable
     /// <summary>Gets the one gate of the server, as there is one in Jellyfin.</summary>
     public AnkiGate Anki { get; }
 
+    public DictionaryLibrary Dictionaries { get; }
+
+    /// <summary>Gets what answers the downloads of dictionaries.</summary>
+    public FakeDownloadHandler DownloadNetwork { get; } = new();
+
+    public DictionaryDownloader DictionaryDownloads { get; }
+
     /// <summary>Signs the test in as an administrator, or as a user who is not one.</summary>
     public void SignInAs(bool administrator) => Callers.Caller = new Caller(TestServices.UserId, "mika", administrator);
 
@@ -233,6 +259,7 @@ internal sealed class TestServices : IDisposable
         Shared,
         AnkiClient,
         Anki,
+        new DictionaryServices(Dictionaries, DictionaryDownloads, Path.Combine(Scratch, "dictionary-uploads")),
         Time);
 
     /// <summary>Makes a file in the scratch folder and returns its path.</summary>
@@ -248,6 +275,9 @@ internal sealed class TestServices : IDisposable
         Subtitles.Dispose();
         Cutter.Dispose();
         AnkiClient.Dispose();
+        Dictionaries.Dispose();
+        DictionaryDownloads.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         Directory.Delete(Scratch, recursive: true);
     }
 }
