@@ -27,5 +27,16 @@ constructed (`new CSSStyleSheet()`, `replaceSync`) and adopted by the popup's sh
 answer for a word does not land on another word shown there meanwhile, and it updates what Back
 returns to. `setCardState` acts on whatever is shown at that index.
 
+Subtitle Miner also added to `index.js` (typed in `index.d.ts`):
+
+- a `scale` option, the size of everything in the popup in percent: it goes to Hachidori's popup
+  scale, which `embed-css.js` zooms the popup by (it was `zoom: 1`), and to the view's
+  `getPopupScalePercent`, so that Hachidori's own measurements inside the popup stay right;
+- `audioSources(result)` and `chosenAudio(result)`: holding the audio button, a right-click,
+  Shift-click or Down lists a word's sounds in Hachidori's `.gsm-hoshidicts-audio-menu` styles, and
+  choosing one calls `onPlayAudio(result, index, name)`. Escape or a press elsewhere closes the
+  list, and `back()` closes it first. Hachidori's content script draws this list in the extension;
+  the popup alone had none. `embed-css.js` keeps a hold on the button from selecting text.
+
 Nothing else is changed. `src/dictionary/vendored.test.ts` fails if a `<style>` element
 comes back, so that a newer copy gets the same change.

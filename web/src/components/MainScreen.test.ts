@@ -341,6 +341,37 @@ describe('the main screen', () => {
     expect(screen.find('[data-testid="selected-count"]').exists()).toBe(false);
   });
 
+  it('keeps the chosen lines in one run, as the sound of a card is one piece', async () => {
+    const server = plugin();
+    const screen = await open(server);
+    server.send([sampleWatch()]);
+    await settle();
+    const checks = screen.findAll('.line .check');
+    const chosen = () =>
+      screen
+        .findAll('.line .check')
+        .flatMap((check, index) => (check.attributes('aria-checked') === 'true' ? [index] : []));
+
+    // A line apart from the run starts a new one.
+    await checks[0]!.trigger('click');
+    await checks[2]!.trigger('click');
+    expect(chosen()).toEqual([2]);
+    // A line next to it joins it, at either end.
+    await checks[1]!.trigger('click');
+    await checks[0]!.trigger('click');
+    expect(chosen()).toEqual([0, 1, 2]);
+    // An end leaves it; a line inside it starts it anew.
+    await checks[2]!.trigger('click');
+    expect(chosen()).toEqual([0, 1]);
+    await checks[2]!.trigger('click');
+    await checks[1]!.trigger('click');
+    expect(chosen()).toEqual([1]);
+    // Shift takes every line between.
+    await checks[2]!.trigger('click');
+    await checks[0]!.trigger('click', { shiftKey: true });
+    expect(chosen()).toEqual([0, 1, 2]);
+  });
+
   it('says why nothing can be cut, and refuses more than a minute of sound', async () => {
     const long = [line(0, 1_000, 40_000, 'ながい'), line(1, 40_000, 70_000, 'もっと')];
     const server = plugin({ x0a1b2c3d4e5f: long });
@@ -414,6 +445,16 @@ describe('the main screen', () => {
     await follow.trigger('click');
     await settle();
     expect(scrolled.at(-1)).toBe('3');
+
+    // The button over the lines goes back to the line playing too, and goes away.
+    expect(screen.find('[data-testid="go-to-playing"]').exists()).toBe(false);
+    await screen.get('main').trigger('touchmove');
+    await settle(5_000);
+    await screen.get('[data-testid="go-to-playing"]').trigger('click');
+    await settle();
+    expect(follow.attributes('aria-checked')).toBe('true');
+    expect(scrolled.at(-1)).toBe('4');
+    expect(screen.find('[data-testid="go-to-playing"]').exists()).toBe(false);
   });
 
   it('shows that the connection broke and keeps what it had meanwhile', async () => {
@@ -506,11 +547,13 @@ describe('the main screen', () => {
 
     await screen.findAll('.line .check')[0]!.trigger('click');
     await settle(300);
-    await screen.get('[data-testid="add-to-newest"]').trigger('click');
-    await settle();
-    expect(screen.get('[data-testid="sending"]').text()).toContain(
+    // The card made an hour ago is not taken: the page says so before anything is pressed.
+    expect(screen.get('[data-testid="newest-card"]').text()).toContain(
       'Your newest card was made 60 minutes ago',
     );
+    expect(screen.get('[data-testid="add-to-newest"]').attributes('disabled')).toBeDefined();
+    await screen.get('[data-testid="add-to-newest"]').trigger('click');
+    await settle();
     expect(anki.calls.map((call) => call.action)).not.toContain('updateNoteFields');
 
     await screen.get('[data-testid="add-new"]').trigger('click');

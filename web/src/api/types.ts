@@ -155,6 +155,27 @@ export interface DictionariesView {
   Import: DictionaryImport;
   /** Whether the user may add, arrange and remove them: administrators may. */
   MayManage: boolean;
+  /** Where words' sounds come from. Missing from a plugin older than 2.0. */
+  WordAudio?: WordAudioView;
+}
+
+/** Where words' sounds come from. Its address stays on the server: it often holds a key. */
+export interface WordAudioView {
+  /** Whether an administrator set an audio source. */
+  Set: boolean;
+  /** The source's host, for administrators only. */
+  Host?: string;
+}
+
+/** The sounds the audio source has for a word, by name; their addresses stay on the server. */
+export interface WordAudioSourcesView {
+  Sources: string[];
+}
+
+/** The audio source as an administrator set it, and what trying it with 食べる found. */
+export interface WordAudioSaved {
+  WordAudio: WordAudioView;
+  Tried: 'found' | 'notFound' | 'failed' | 'none';
 }
 
 /**

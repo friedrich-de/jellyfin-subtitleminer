@@ -9,6 +9,8 @@ import {
   LOGOUT_URL,
   MemoryStorage,
   problem,
+  PUBLIC_INFO_URL,
+  SERVER_ID,
   status,
   STATUS_URL,
   webClientLogins,
@@ -36,9 +38,10 @@ describe('signing in with a login the browser already holds', () => {
       kind: 'signed-in',
       session: { token: 'web-token', source: 'jellyfin', status: status() },
     });
-    expect(server.sent).toHaveLength(1);
-    expect(server.sent[0]?.url).toBe(STATUS_URL);
-    expect(server.sent[0]?.headers.authorization).toBe('MediaBrowser Token="web-token"');
+    // First which server this is, asked without a login, then the status with the login to it.
+    expect(server.sent.map((request) => request.url)).toEqual([PUBLIC_INFO_URL, STATUS_URL]);
+    expect(server.sent[0]?.headers.authorization).toBeUndefined();
+    expect(server.sent[1]?.headers.authorization).toBe('MediaBrowser Token="web-token"');
   });
 
   it('never sends the header Jellyfin 12 stopped reading', async () => {
@@ -46,20 +49,54 @@ describe('signing in with a login the browser already holds', () => {
 
     await resolveSession(env(server.fetch, storageWith('web-token')));
 
-    expect(Object.keys(server.sent[0]?.headers ?? {})).not.toContain('x-emby-authorization');
-    expect(Object.keys(server.sent[0]?.headers ?? {})).not.toContain('x-emby-token');
+    for (const request of server.sent) {
+      expect(Object.keys(request.headers)).not.toContain('x-emby-authorization');
+      expect(Object.keys(request.headers)).not.toContain('x-emby-token');
+    }
   });
 
-  it('tries the next login when the server no longer accepts one', async () => {
-    const server = fakeServer(problem(401, 'Unauthorized'), json(status({ UserName: 'second' })));
+  it("never sends the web client's login to another server", async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      WEB_CLIENT_KEY,
+      webClientLogins(
+        { token: 'elsewhere', used: 300, server: '0c1d2e3f405162738495a6b7c8d9eaf0' },
+        // The same server, as Jellyfin writes its id in another place.
+        { token: 'here', used: 200, server: '4FE8B1C2-A6D9-4A07-B2C3-5E6F71D08A93' },
+      ),
+    );
+    const server = fakeServer(json(status()));
 
-    const result = await resolveSession(env(server.fetch, storageWith('dead', 'alive')));
+    const result = await resolveSession(env(server.fetch, storage));
 
-    expect(result.kind === 'signed-in' && result.session.token).toBe('alive');
-    expect(server.sent.map((request) => request.headers.authorization)).toEqual([
-      'MediaBrowser Token="dead"',
-      'MediaBrowser Token="alive"',
-    ]);
+    expect(SERVER_ID).toBe('4fe8b1c2a6d94a07b2c35e6f71d08a93');
+    expect(result.kind === 'signed-in' && result.session.token).toBe('here');
+    expect(server.sent.map((request) => request.headers.authorization ?? '')).not.toContain(
+      'MediaBrowser Token="elsewhere"',
+    );
+  });
+
+  it('asks for a sign-in when the web client is signed in to other servers only', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(WEB_CLIENT_KEY, webClientLogins({ token: 'elsewhere', server: 'other' }));
+    const server = fakeServer();
+
+    expect(await resolveSession(env(server.fetch, storage))).toEqual({ kind: 'signed-out' });
+    expect(server.sent.map((request) => request.url)).toEqual([PUBLIC_INFO_URL]);
+  });
+
+  it("sends the page's own login only to the server it was made at", async () => {
+    const storage = new MemoryStorage();
+    writeOwnSession(storage, {
+      accessToken: 'other-path-token',
+      userId: 'u',
+      userName: 'mika',
+      base: 'https://jellyfin.example/other/SubtitleMiner/',
+    });
+    const server = fakeServer();
+
+    expect(await resolveSession(env(server.fetch, storage))).toEqual({ kind: 'signed-out' });
+    expect(server.sent).toHaveLength(0);
   });
 
   it("prefers the page's own login and forgets it once the server refuses it", async () => {
@@ -144,6 +181,7 @@ describe('signing in with a name and password', () => {
       accessToken: 'fresh-token',
       userId: 'user-1',
       userName: 'mika',
+      base: BASE,
     });
   });
 
@@ -246,6 +284,6 @@ describe('addresses', () => {
 
     await resolveSession(withQuery);
 
-    expect(server.sent[0]?.url).toBe(STATUS_URL);
+    expect(server.sent.map((request) => request.url)).toEqual([PUBLIC_INFO_URL, STATUS_URL]);
   });
 });

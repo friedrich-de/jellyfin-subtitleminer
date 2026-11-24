@@ -44,6 +44,7 @@ public sealed class PluginServices
         Dictionaries = dictionaries.Library;
         DictionaryDownloads = dictionaries.Downloads;
         DictionaryScratch = dictionaries.Scratch;
+        WordAudio = dictionaries.WordAudio;
         Time = time;
     }
 
@@ -76,13 +77,17 @@ public sealed class PluginServices
     /// <summary>Gets the folder where uploaded and downloaded dictionaries wait for their import.</summary>
     internal string DictionaryScratch { get; }
 
+    /// <summary>Gets where the sound of a word comes from.</summary>
+    internal WordAudioSource WordAudio { get; }
+
     internal TimeProvider Time { get; }
 }
 
 /// <summary>
-/// The dictionaries, what downloads them, and where their zips wait for their import.
+/// The dictionaries, what downloads them, where their zips wait for their import, and where words' sounds come from.
 /// </summary>
 /// <param name="Library">The dictionaries.</param>
 /// <param name="Downloads">What downloads them.</param>
 /// <param name="Scratch">Where zips wait.</param>
-internal sealed record DictionaryServices(DictionaryLibrary Library, DictionaryDownloader Downloads, string Scratch);
+/// <param name="WordAudio">Where words' sounds come from.</param>
+internal sealed record DictionaryServices(DictionaryLibrary Library, DictionaryDownloader Downloads, string Scratch, WordAudioSource WordAudio);

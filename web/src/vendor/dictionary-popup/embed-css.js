@@ -16,11 +16,18 @@ export const EMBED_CSS = `
 .gsm-hoshidicts-popup {
   position: relative;
   z-index: auto;
-  zoom: 1;
+  /* Subtitle Miner: the popup's own scale (the scale option), not the page's zoom. */
+  zoom: var(--gsm-hoshidicts-popup-scale, 100%);
   flex: 0 1 auto;
   width: 100%;
   height: auto;
   min-height: 0;
+}
+/* Subtitle Miner: holding the audio button opens its list of sounds, not the browser's menu or a selection. */
+.gsm-hoshidicts-audio-button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 /* The definitions give way before the headword does. */
 .gsm-hoshidicts-popup > .gsm-hoshidicts-result-chrome {

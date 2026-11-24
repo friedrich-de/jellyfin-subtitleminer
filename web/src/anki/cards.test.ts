@@ -11,12 +11,13 @@ import {
   DuplicateCardError,
   fieldHtml,
   keepMarks,
+  newestCard,
   plainText,
   sentenceWithWord,
   undoUpdate,
   wordsInDeck,
 } from './cards';
-import { type AnkiConnect, AnkiError, type MediaCut } from './connect';
+import { type AnkiConnect, AnkiError, type MediaCut, WordAudioMissingError } from './connect';
 import { defaultPageSettings, guessRoles, type PageSettings } from './pageSettings';
 
 const NOW = new Date(2026, 10, 24, 20, 0, 0).getTime();
@@ -35,7 +36,10 @@ function ankiOver(collection: Collection): AnkiConnect & { cuts: MediaCut[] } {
     },
     store(cut) {
       cuts.push(cut);
-      const name = `${cut.kind}-${cut.itemId}.bin`;
+      if (cut.kind === 'word-audio' && cut.term === '無音') {
+        return Promise.reject(new WordAudioMissingError('No sound.'));
+      }
+      const name = `${cut.kind}-${cut.kind === 'word-audio' ? cut.term : cut.itemId}.bin`;
       collection.media.set(name, 'data');
       return Promise.resolve(name);
     },
@@ -144,6 +148,26 @@ describe('making cards', () => {
     });
   });
 
+  it('names the card it would change before anything is sent', async () => {
+    const collection = createCollection({ now: () => NOW });
+    const anki = ankiOver(collection);
+    await expect(newestCard(anki, lapis(), NOW)).rejects.toThrow('Anki has no "Lapis" card');
+
+    collection.makeNote({
+      id: NOW - 3 * 60_000 - 5_000,
+      deck: 'Mining',
+      modelName: 'Lapis',
+      fields: { Expression: '<b>約束</b>', Sentence: '約束したからね。' },
+    });
+    const found = await newestCard(anki, lapis(), NOW);
+
+    expect(found).toMatchObject({ label: '約束', minutes: 3 });
+    expect(found.roles.Sentence).toBe('sentence');
+    // Looking changes nothing.
+    expect(anki.cuts).toEqual([]);
+    expect(collection.notes.get(found.info.noteId)!.fields.Sentence).toBe('約束したからね。');
+  });
+
   it('guesses the fields of a card of another note type', async () => {
     const collection = createCollection({ now: () => NOW });
     collection.models['Mining Note'] = [
@@ -235,6 +259,7 @@ const EAT: WordContent = {
   meaning: '<div class="yomitan-glossary" style="text-align: left">to eat</div>',
   frequency: '512',
   pitch: '2',
+  pitchCategories: 'kifuku',
   at: { start: 2, length: 8 },
 };
 
@@ -284,6 +309,72 @@ describe('making a card of a word from the dictionary', () => {
     const before = collection.media.size;
     await expect(addNew(anki, lapis(), EATEN, MEDIA)).rejects.toThrow(DuplicateCardError);
     expect(collection.media.size).toBe(before);
+  });
+
+  it("gives the word's sound to its field when the server has an audio source", async () => {
+    const collection = createCollection({ now: () => NOW });
+    const anki = ankiOver(collection);
+
+    const outcome = await addNew(anki, lapis(), EATEN, { ...MEDIA, wordAudio: true });
+
+    expect(outcome.noWordAudio).toBeUndefined();
+    expect(collection.notes.get(outcome.noteId)!.fields).toMatchObject({
+      ExpressionAudio: '[sound:word-audio-食べる.bin]',
+      SentenceAudio: '[sound:sound-item-1.bin]',
+    });
+    expect(anki.cuts).toContainEqual({ kind: 'word-audio', term: '食べる', reading: 'たべる' });
+
+    // The sound chosen in the popup is the one fetched.
+    const other = ankiOver(createCollection({ now: () => NOW }));
+    await addNew(other, lapis(), EATEN, { ...MEDIA, wordAudio: true, wordAudioChoice: 'jpod' });
+    expect(other.cuts).toContainEqual({
+      kind: 'word-audio',
+      term: '食べる',
+      reading: 'たべる',
+      choice: 'jpod',
+    });
+  });
+
+  it('puts only the part of a definition selected in the popup into SelectionText', async () => {
+    const collection = createCollection({ now: () => NOW });
+    const anki = ankiOver(collection);
+    const picked = { ...EATEN, word: { ...EAT, selection: ' to eat\n(food) ' } };
+
+    const first = await addNew(anki, lapis(), picked, MEDIA);
+    expect(collection.notes.get(first.noteId)!.fields).toMatchObject({
+      SelectionText: 'to eat<br>(food)',
+      MainDefinition: EAT.meaning,
+    });
+
+    // Nothing selected leaves it empty, and Lapis shows MainDefinition.
+    const plain = { ...EATEN, word: { ...EAT, expression: '食う' } };
+    const second = await addNew(anki, lapis(), plain, MEDIA);
+    expect(collection.notes.get(second.noteId)!.fields.SelectionText).toBe('');
+  });
+
+  it('makes the card of a word without a sound, and says so', async () => {
+    const collection = createCollection({ now: () => NOW });
+    const anki = ankiOver(collection);
+    const quiet = { ...EATEN, word: { ...EAT, expression: '無音' } };
+
+    const outcome = await addNew(anki, lapis(), quiet, { ...MEDIA, wordAudio: true });
+
+    expect(outcome.noWordAudio).toBe(true);
+    expect(collection.notes.get(outcome.noteId)!.fields).toMatchObject({
+      Expression: '無音',
+      ExpressionAudio: '',
+      Picture: '<img src="picture-item-1.bin">',
+    });
+  });
+
+  it('asks for no sound of the word without an audio source, nor for a card of lines', async () => {
+    const collection = createCollection({ now: () => NOW });
+    const anki = ankiOver(collection);
+
+    await addNew(anki, lapis(), EATEN, MEDIA);
+    await addNew(anki, lapis(), CONTENT, { ...MEDIA, wordAudio: true });
+
+    expect(anki.cuts.map((cut) => cut.kind)).not.toContain('word-audio');
   });
 
   it('needs a field for the word', async () => {

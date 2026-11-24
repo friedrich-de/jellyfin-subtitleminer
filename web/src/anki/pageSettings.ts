@@ -13,7 +13,10 @@ export type FieldRole =
   | 'furigana'
   | 'meaning'
   | 'frequency'
-  | 'pitch';
+  | 'pitch'
+  | 'pitchCategories'
+  | 'wordAudio'
+  | 'selectionText';
 
 /** The parts that only a card made from a word in the dictionary popup has. */
 export const WORD_ROLES: ReadonlySet<FieldRole> = new Set([
@@ -23,21 +26,34 @@ export const WORD_ROLES: ReadonlySet<FieldRole> = new Set([
   'meaning',
   'frequency',
   'pitch',
+  'pitchCategories',
+  'wordAudio',
+  'selectionText',
 ]);
 
+/**
+ * The choices for a field, named as Lapis and most mining note types name their fields, each with
+ * what it holds and an example of it.
+ */
 export const FIELD_ROLES: readonly { role: FieldRole; label: string }[] = [
-  { role: 'none', label: 'Nothing, or what Yomitan puts there' },
-  { role: 'sentence', label: 'The lines' },
-  { role: 'translation', label: 'The second line, the meaning' },
-  { role: 'picture', label: 'The picture' },
-  { role: 'sound', label: 'The sound' },
-  { role: 'source', label: 'Where it is from' },
-  { role: 'word', label: 'The word looked up' },
-  { role: 'reading', label: "The word's reading" },
-  { role: 'furigana', label: 'The word with its reading over it' },
-  { role: 'meaning', label: "The word's meaning" },
-  { role: 'frequency', label: 'How common the word is' },
-  { role: 'pitch', label: "The word's pitch accent" },
+  { role: 'none', label: 'Nothing: left as it is, or to Yomitan' },
+  { role: 'sentence', label: 'Sentence: the chosen lines (e.g. 昨日の話をしよう)' },
+  {
+    role: 'translation',
+    label: "SentenceTranslation: the second track's lines (e.g. Remember?)",
+  },
+  { role: 'sound', label: 'SentenceAudio: the sound of the lines (e.g. [sound:….mp3])' },
+  { role: 'picture', label: 'Picture: a still from the video (e.g. <img src="….jpg">)' },
+  { role: 'source', label: 'MiscInfo: where it is from (e.g. Show · S1 E3 · 04:12)' },
+  { role: 'word', label: 'Expression: the word looked up (e.g. 食べる)' },
+  { role: 'reading', label: 'ExpressionReading: its reading (e.g. たべる)' },
+  { role: 'furigana', label: 'ExpressionFurigana: with its reading (e.g. 食[た]べる)' },
+  { role: 'wordAudio', label: 'ExpressionAudio: its sound (e.g. [sound:….mp3])' },
+  { role: 'meaning', label: 'MainDefinition: its meanings (e.g. to eat)' },
+  { role: 'selectionText', label: 'SelectionText: what you select in the popup (e.g. to eat)' },
+  { role: 'frequency', label: 'Frequency: how common it is (e.g. 512)' },
+  { role: 'pitch', label: 'PitchPosition: its pitch accent (e.g. 2)' },
+  { role: 'pitchCategories', label: 'PitchCategories: its pitch pattern (e.g. nakadaka)' },
 ];
 
 export interface AnkiChoices {
@@ -66,7 +82,16 @@ export interface MediaChoices {
 export interface DictionaryChoices {
   /** A tap on a word looks it up in the server's dictionaries. Off for those who use Yomitan. */
   lookUp: boolean;
+  /** The size of the popup's text, in percent of its usual size. */
+  textSize: number;
+  /** Leaves out the tags: ★, the dictionary's name, parts of speech and the like. */
+  hideTags: boolean;
+  /** Each definition's glosses on one line, as Yomitan's compact glossaries. */
+  compact: boolean;
 }
+
+/** The popup's text sizes to choose from, in percent. */
+export const TEXT_SIZES = [70, 80, 90, 100, 115, 130] as const;
 
 /** What only the page reads, kept on the server with the user's other settings. */
 export interface PageSettings {
@@ -90,7 +115,7 @@ export function defaultPageSettings(): PageSettings {
       padBeforeMs: 250,
       padAfterMs: 250,
     },
-    dictionary: { lookUp: true },
+    dictionary: { lookUp: true, textSize: 100, hideTags: false, compact: false },
   };
 }
 
@@ -152,7 +177,12 @@ export function readPageSettings(stored: unknown): PageSettings {
       padBeforeMs: whole(media.padBeforeMs, 250, 0, 2_000),
       padAfterMs: whole(media.padAfterMs, 250, 0, 2_000),
     },
-    dictionary: { lookUp: dictionary.lookUp !== false },
+    dictionary: {
+      lookUp: dictionary.lookUp !== false,
+      textSize: whole(dictionary.textSize, 100, Math.min(...TEXT_SIZES), Math.max(...TEXT_SIZES)),
+      hideTags: dictionary.hideTags === true,
+      compact: dictionary.compact === true,
+    },
   };
 }
 
@@ -163,7 +193,8 @@ export function tagsFrom(typed: string): string[] {
 
 const WORD = '(expression|word|vocab(ulary)?|term)';
 
-const GUESSES: readonly [RegExp, FieldRole][] = [
+/** What a field's name says it is for. A part that also goes into a second field says so. */
+const GUESSES: readonly [RegExp, FieldRole, 'also'?][] = [
   [/^sentence([ _-]?(kanji|text|jp|ja|japanese))?$/i, 'sentence'],
   [/^(sentence[ _-]?(translation|meaning|english|eng|en)|translation)$/i, 'translation'],
   [/^((sentence[ _-]?)?audio|sentence[ _-]?sound|sound)$/i, 'sound'],
@@ -172,6 +203,7 @@ const GUESSES: readonly [RegExp, FieldRole][] = [
   [new RegExp(`^(${WORD}|key)$`, 'i'), 'word'],
   [new RegExp(`^(${WORD}[ _-]?reading|reading|kana)$`, 'i'), 'reading'],
   [new RegExp(`^(${WORD}[ _-]?furigana|furigana)$`, 'i'), 'furigana'],
+  [new RegExp(`^(${WORD}[ _-]?(audio|sound)|word[ _-]?pronunciation)$`, 'i'), 'wordAudio'],
   [
     new RegExp(
       `^(main[ _-]?definition|definition|meaning|glossary|${WORD}[ _-]?(meaning|definition|english))$`,
@@ -179,15 +211,20 @@ const GUESSES: readonly [RegExp, FieldRole][] = [
     ),
     'meaning',
   ],
-  [/^(freq(uency)?|frequencies|freq[ _-]?sort)$/i, 'frequency'],
+  [/^(selection[ _-]?text|selected[ _-]?(text|definition))$/i, 'selectionText'],
+  [/^(freq(uency)?|frequencies)$/i, 'frequency'],
+  // Lapis sorts new cards by it: the same number as the frequency.
+  [/^freq(uency)?[ _-]?sort$/i, 'frequency', 'also'],
   [/^(pitch([ _-]?(position|accent))?|accent)$/i, 'pitch'],
+  [/^pitch[ _-]?(categories|category|pattern)$/i, 'pitchCategories'],
 ];
 
 /**
  * What goes into each field of a note type, by the names of its fields: the sentence into
  * "Sentence", the sound into "SentenceAudio", the word into "Expression", and so on, as Lapis
- * and most mining note types name them. Each part goes into one field at most. The word's parts
- * fill only cards made from the dictionary popup; "Add to my newest card" leaves them to Yomitan.
+ * and most mining note types name them. Each part goes into one field at most, but for the
+ * frequency, which Lapis also sorts by. The word's parts fill only cards made from the dictionary
+ * popup; "Add to my newest card" leaves them to Yomitan.
  */
 export function guessRoles(fieldNames: readonly string[]): Record<string, FieldRole> {
   return rolesFor(fieldNames, {});
@@ -209,9 +246,15 @@ export function rolesFor(
       roles[name] = chosen[name]!;
       continue;
     }
-    const role = GUESSES.find(([pattern]) => pattern.test(name.trim()))?.[1] ?? 'none';
-    roles[name] = role !== 'none' && !taken.has(role) ? role : 'none';
-    if (role !== 'none') taken.add(role);
+    const [, role, also] = GUESSES.find(([pattern]) => pattern.test(name.trim())) ?? [];
+    if (role === undefined) {
+      roles[name] = 'none';
+    } else if (also === 'also') {
+      roles[name] = role;
+    } else {
+      roles[name] = taken.has(role) ? 'none' : role;
+      taken.add(role);
+    }
   }
   return roles;
 }

@@ -2,12 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 
 import type { PluginApi } from '@/api/plugin';
-import type { DictionariesView, DictionaryView } from '@/api/types';
+import { TEXT_SIZES } from '@/anki/pageSettings';
+import type { DictionariesView, DictionaryView, WordAudioSaved } from '@/api/types';
 
 const props = defineProps<{ api: PluginApi }>();
 
 /** Whether a tap on a word looks it up, as the user's page settings keep it. */
 const lookUp = defineModel<boolean>('lookUp', { required: true });
+/** How the popup looks, as the user's page settings keep it. */
+const textSize = defineModel<number>('textSize', { required: true });
+const hideTags = defineModel<boolean>('hideTags', { required: true });
+const compact = defineModel<boolean>('compact', { required: true });
 
 /** Dictionaries an administrator may add with one tap: free, and the ones most people use. */
 const SUGGESTED = [
@@ -30,6 +35,8 @@ const busy = ref(false);
 const sending = ref<string | null>(null);
 const address = ref('');
 const confirming = ref<string | null>(null);
+const audioAddress = ref('');
+const audioMessage = ref<{ text: string; error: boolean } | null>(null);
 let polling: number | null = null;
 
 const enabled = computed(() => list.value?.Dictionaries.filter((item) => item.Enabled) ?? []);
@@ -179,6 +186,38 @@ function webSite(item: DictionaryView): string | undefined {
   return item.Url !== undefined && /^https?:\/\//i.test(item.Url) ? item.Url : undefined;
 }
 
+const wordAudio = computed(() => list.value?.WordAudio ?? { Set: false });
+
+const TRIED: Readonly<Record<WordAudioSaved['Tried'], { text: string; error: boolean }>> = {
+  found: { text: 'Saved. It works: it has a sound for 食べる.', error: false },
+  notFound: {
+    text: 'Saved, but it has no sound for 食べる. Check that {term} and {reading} are in the right places.',
+    error: true,
+  },
+  failed: {
+    text: "Saved, but it could not be reached, or did not answer as Yomitan's audio sources do. Check the address and its key.",
+    error: true,
+  },
+  none: { text: 'Words have no sound now.', error: false },
+};
+
+/** Sets the audio source for words, or takes it away with "", and says how a try of it went. */
+async function saveWordAudio(typed: string): Promise<void> {
+  busy.value = true;
+  audioMessage.value = null;
+  try {
+    const saved = await props.api.saveWordAudio(typed.trim());
+    if (list.value !== null) list.value = { ...list.value, WordAudio: saved.WordAudio };
+    audioMessage.value = TRIED[saved.Tried];
+    // The address often holds a key: it is not kept on the page.
+    audioAddress.value = '';
+  } catch (error) {
+    audioMessage.value = { text: messageOf(error), error: true };
+  } finally {
+    busy.value = false;
+  }
+}
+
 const importText = computed(() => {
   const job = list.value?.Import;
   if (job === undefined) return '';
@@ -211,6 +250,24 @@ onBeforeUnmount(stopPolling);
           the word can be made from there. Turn it off to look words up with your own Yomitan
           instead.
         </p>
+        <div v-if="lookUp" class="look" data-testid="popup-look">
+          <label class="field">
+            <span class="name">Text size in the popup</span>
+            <select v-model.number="textSize" data-testid="text-size">
+              <option v-for="size in TEXT_SIZES" :key="size" :value="size">
+                {{ size === 100 ? '100% (usual)' : `${size}%` }}
+              </option>
+            </select>
+          </label>
+          <label class="check">
+            <input v-model="hideTags" type="checkbox" data-testid="hide-tags" />
+            Hide the tags: ★, the dictionary's name, parts of speech and the like
+          </label>
+          <label class="check">
+            <input v-model="compact" type="checkbox" data-testid="compact" />
+            Compact definitions: each meaning's words on one line, as in Yomitan
+          </label>
+        </div>
       </template>
       <p v-else class="muted small" data-testid="no-dictionaries">
         This Jellyfin server has no dictionaries{{
@@ -374,6 +431,66 @@ onBeforeUnmount(stopPolling);
             Sending {{ sending }} to the server…
           </p>
         </template>
+
+        <h3>Word audio, for everyone</h3>
+        <p class="muted small" data-testid="word-audio-state">
+          <template v-if="wordAudio.Set">
+            Words' sounds come from {{ wordAudio.Host ?? 'an audio source' }}, for the popup's play
+            button and for a word card's ExpressionAudio.
+          </template>
+          <template v-else>
+            Words have no sound. Give the address of an audio source as Yomitan's "Custom URL
+            (JSON)" takes it, with {term} and {reading} where the word and its reading go, and the
+            server fetches each word's sound from it.
+          </template>
+          The server keeps the address, with any key in it, and does not show it again.
+        </p>
+        <label class="field">
+          <span class="name">{{
+            wordAudio.Set ? 'Another audio source address' : 'Audio source address'
+          }}</span>
+          <span class="row">
+            <input
+              v-model="audioAddress"
+              type="text"
+              inputmode="url"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="https://example.org/audio/list?term={term}&reading={reading}"
+              data-testid="word-audio-address"
+              @keydown.enter.prevent="saveWordAudio(audioAddress)"
+            />
+            <button
+              class="button"
+              type="button"
+              :disabled="busy || audioAddress.trim() === ''"
+              data-testid="word-audio-save"
+              @click="saveWordAudio(audioAddress)"
+            >
+              Save
+            </button>
+          </span>
+        </label>
+        <div v-if="wordAudio.Set">
+          <button
+            class="button"
+            type="button"
+            :disabled="busy"
+            data-testid="word-audio-remove"
+            @click="saveWordAudio('')"
+          >
+            Remove the audio source
+          </button>
+        </div>
+        <p
+          v-if="audioMessage !== null"
+          class="small"
+          :class="audioMessage.error ? 'error' : 'ok'"
+          :role="audioMessage.error ? 'alert' : 'status'"
+          data-testid="word-audio-message"
+        >
+          {{ audioMessage.text }}
+        </p>
       </template>
 
       <p
@@ -424,6 +541,13 @@ h3 {
   width: 20px;
   height: 20px;
   accent-color: var(--accent);
+}
+
+.look {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
 }
 
 .dictionaries {
@@ -563,7 +687,8 @@ h3 {
   gap: 8px;
 }
 
-input[type='url'] {
+input[type='url'],
+select {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;

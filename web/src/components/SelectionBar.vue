@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, useTemplateRef, watch } from 'vue';
 
-import type { Making, Sending } from './making';
+import type { Making, Newest, Sending } from './making';
 
 const props = defineProps<{
   count: number;
@@ -12,7 +12,15 @@ const props = defineProps<{
   /** Whether cards go anywhere. */
   ankiReady: boolean;
   sending: Sending;
+  /** The card "Add to my newest card" would change. */
+  newest: Newest;
 }>();
+
+/** How long ago a card was made, in words. */
+function ago(minutes: number): string {
+  if (minutes < 1) return 'just now';
+  return minutes === 1 ? 'a minute ago' : `${minutes} minutes ago`;
+}
 
 const emit = defineEmits<{
   clear: [];
@@ -108,7 +116,8 @@ async function play(): Promise<void> {
           class="button primary"
           type="button"
           data-testid="add-to-newest"
-          :disabled="sending.kind === 'busy'"
+          aria-describedby="newest-card"
+          :disabled="sending.kind === 'busy' || newest.kind === 'none'"
           @click="emit('newest')"
         >
           Add to my newest card
@@ -132,6 +141,19 @@ async function play(): Promise<void> {
       >
         Set up Anki to make cards
       </button>
+      <p id="newest-card" class="newest small muted" data-testid="newest-card">
+        <template v-if="newest.kind === 'found'">
+          Adds to
+          <strong>{{
+            newest.label === '' ? 'a card with an empty first field' : `"${newest.label}"`
+          }}</strong>, made {{ ago(newest.minutes) }}.
+        </template>
+        <template v-else-if="newest.kind === 'none'">{{ newest.text }}</template>
+        <template v-else-if="newest.kind === 'failed'">
+          Your newest card could not be looked for: {{ newest.text }}
+        </template>
+        <template v-else>Looking for your newest card…</template>
+      </p>
       <p
         class="sent small"
         :class="{ error: sending.kind === 'failed' }"
@@ -234,7 +256,20 @@ async function play(): Promise<void> {
   flex: 1 1 100%;
 }
 
+.newest {
+  /* On a row of its own under the buttons, which it describes. */
+  order: 2;
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.newest strong {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
 .sent {
+  order: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;

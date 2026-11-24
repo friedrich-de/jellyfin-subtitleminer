@@ -148,8 +148,43 @@ test.describe('the main screen', () => {
     await page.getByRole('checkbox', { name: 'Line at 00:01' }).click();
     await page.getByRole('checkbox', { name: 'Line at 00:10' }).click({ modifiers: ['Shift'] });
     await expect(page.getByTestId('selected-count')).toHaveText('3 lines selected');
+
+    // A line apart from them starts anew: the lines of a card are always next to each other.
+    await page.getByRole('checkbox', { name: 'Line at 00:22' }).click();
+    await expect(page.getByTestId('selected-count')).toHaveText('1 line selected');
+    await expect(page.getByRole('checkbox', { name: 'Line at 00:01' })).not.toBeChecked();
     await page.getByRole('button', { name: 'Clear' }).click();
     await expect(page.getByTestId('selected-count')).toHaveCount(0);
+  });
+
+  test('goes back to the line playing after the user scrolled away', async ({
+    page,
+    jellyfin,
+    player,
+  }) => {
+    const tv = player(jellyfin.viewer, 'Den', 'mpv');
+    await tv.play(jellyfin.media.episode1.id, { positionMs: 19_000, paused: true });
+    await signInToJellyfin(page, jellyfin.viewer);
+    await page.goto('/SubtitleMiner/');
+    await expect(page.locator('[aria-current="time"] .said')).toHaveText(SHOWN[4]!);
+    await expect(page.getByTestId('go-to-playing')).toHaveCount(0);
+
+    await page.locator('.line').first().hover();
+    await page.mouse.wheel(0, -2_000);
+    const back = page.getByTestId('go-to-playing');
+    await expect(back).toBeVisible();
+    await expect(page.getByRole('switch', { name: 'Follow playback' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+
+    await back.click();
+    await expect(back).toHaveCount(0);
+    await expect(page.locator('[aria-current="time"]')).toBeInViewport();
+    await expect(page.getByRole('switch', { name: 'Follow playback' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
   });
 
   test('fits the screen and needs no sideways scrolling', async ({ page, jellyfin, player }) => {

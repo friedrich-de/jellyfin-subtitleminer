@@ -16,6 +16,16 @@ describe('the page settings', () => {
     expect(readPageSettings('nonsense')).toEqual(defaultPageSettings());
     expect(readPageSettings({ dictionary: { lookUp: false } }).dictionary.lookUp).toBe(false);
     expect(readPageSettings({ dictionary: { lookUp: 'no' } }).dictionary.lookUp).toBe(true);
+    expect(readPageSettings({}).dictionary).toEqual({
+      lookUp: true,
+      textSize: 100,
+      hideTags: false,
+      compact: false,
+    });
+    expect(
+      readPageSettings({ dictionary: { textSize: 10, hideTags: true, compact: 'yes' } }).dictionary,
+    ).toMatchObject({ textSize: 70, hideTags: true, compact: false });
+    expect(readPageSettings({ dictionary: { textSize: 500 } }).dictionary.textSize).toBe(130);
 
     const read = readPageSettings({
       anki: {
@@ -58,16 +68,20 @@ describe('the page settings', () => {
       ['Expression', 'word'],
       ['ExpressionFurigana', 'furigana'],
       ['ExpressionReading', 'reading'],
+      ['ExpressionAudio', 'wordAudio'],
+      ['SelectionText', 'selectionText'],
       ['MainDefinition', 'meaning'],
       ['Sentence', 'sentence'],
       ['SentenceAudio', 'sound'],
       ['Picture', 'picture'],
       ['PitchPosition', 'pitch'],
+      ['PitchCategories', 'pitchCategories'],
       ['Frequency', 'frequency'],
+      // Lapis sorts new cards by the frequency: it goes there too.
+      ['FreqSort', 'frequency'],
       ['MiscInfo', 'source'],
     ]);
-    // The page has no sound of the word, and the second list of meanings is the first's.
-    expect(roles.ExpressionAudio).toBe('none');
+    // The second list of meanings is the first's.
     expect(roles.Glossary).toBe('none');
   });
 
@@ -85,6 +99,7 @@ describe('the page settings', () => {
         'Sound',
         'Pitch Accent',
         'Freq',
+        'Word Audio',
       ]),
     ).toEqual({
       Front: 'none',
@@ -98,6 +113,7 @@ describe('the page settings', () => {
       Sound: 'none',
       'Pitch Accent': 'pitch',
       Freq: 'frequency',
+      'Word Audio': 'wordAudio',
     });
   });
 

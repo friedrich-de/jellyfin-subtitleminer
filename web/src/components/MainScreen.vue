@@ -8,10 +8,11 @@ import {
   type CardMedia,
   type CardOutcome,
   newCardProblem,
+  newestCard,
   undoUpdate,
   wordsInDeck,
 } from '@/anki/cards';
-import { type AnkiConnect, deviceAnki, serverAnki } from '@/anki/connect';
+import { AnkiError, type AnkiConnect, deviceAnki, serverAnki } from '@/anki/connect';
 import { readPageSettings } from '@/anki/pageSettings';
 import { HttpError, UnreachableError } from '@/api/http';
 import { createPluginApi, type PictureOptions, type SoundOptions } from '@/api/plugin';
@@ -51,7 +52,7 @@ import {
 } from '@/watch/watches';
 
 import AccountMenu from './AccountMenu.vue';
-import type { Making, Sending } from './making';
+import type { Making, Newest, Sending } from './making';
 import SelectionBar from './SelectionBar.vue';
 import SettingsScreen from './SettingsScreen.vue';
 import TranscriptView from './TranscriptView.vue';
@@ -130,6 +131,8 @@ async function loadDictionaries(): Promise<void> {
 const enabledDictionaries = computed(
   () => dictionaries.value?.Dictionaries.filter((dictionary) => dictionary.Enabled) ?? [],
 );
+/** Whether an administrator set an audio source for words. */
+const wordAudio = computed(() => dictionaries.value?.WordAudio?.Set === true);
 const lookingUp = computed(
   () => pageSettings.value.dictionary.lookUp && enabledDictionaries.value.length > 0,
 );
@@ -346,6 +349,12 @@ function userScrolled(): void {
   following.value = false;
 }
 
+/** Follows playback again, from the line being said now. */
+function goToPlaying(): void {
+  closeWord();
+  following.value = true;
+}
+
 const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown']);
 
 function onKey(event: KeyboardEvent): void {
@@ -359,23 +368,40 @@ function onKey(event: KeyboardEvent): void {
 const selected = ref<Set<number>>(new Set());
 let rangeFrom: number | undefined;
 
+/**
+ * Chooses lines as one run in a row, since a card's sound is one piece: a line next to the run
+ * joins it, a line apart from it starts a new run, and Shift takes every line from the last one
+ * chosen to this one. A line at either end of the run leaves it; one inside it starts the run anew.
+ */
 function toggle(id: number, range: boolean): void {
-  const next = new Set(selected.value);
   const ids = lines.value.map((line) => line.Id);
+  const at = ids.indexOf(id);
+  if (at === -1) return;
+  const run = ids.flatMap((lineId, index) => (selected.value.has(lineId) ? [index] : []));
+  let next: number[];
   if (range && rangeFrom !== undefined && ids.includes(rangeFrom)) {
-    const [from, to] = [ids.indexOf(rangeFrom), ids.indexOf(id)].sort((a, b) => a - b) as [
-      number,
-      number,
-    ];
-    for (const between of ids.slice(from, to + 1)) next.add(between);
-  } else if (next.has(id)) {
-    next.delete(id);
+    const ends = [...run, ids.indexOf(rangeFrom), at];
+    next = ids.slice(Math.min(...ends), Math.max(...ends) + 1);
+  } else if (run.length === 0) {
+    next = [id];
   } else {
-    next.add(id);
+    const first = Math.min(...run);
+    const last = Math.max(...run);
+    if (at === first || at === last) {
+      next = selected.value.has(id)
+        ? ids.slice(first, last + 1).filter((lineId) => lineId !== id)
+        : [id];
+    } else if (at > first && at < last) {
+      next = [id];
+    } else if (at === first - 1 || at === last + 1) {
+      next = ids.slice(Math.min(first, at), Math.max(last, at) + 1);
+    } else {
+      next = [id];
+    }
   }
 
   rangeFrom = id;
-  selected.value = next;
+  selected.value = new Set(next);
 }
 
 function clear(): void {
@@ -584,6 +610,58 @@ async function send(mode: 'newest' | 'new'): Promise<void> {
   } catch (error) {
     sending.value = { kind: 'failed', text: messageOf(error) };
   }
+  void lookForNewest();
+}
+
+// The card "Add to my newest card" would change, looked for while lines are chosen: again every
+// few seconds and when the page comes back into view, since the card is made in another window.
+
+const newest = shallowRef<Newest>({ kind: 'looking' });
+let newestTimer: number | null = null;
+let newestAsked = 0;
+
+async function lookForNewest(): Promise<void> {
+  const target = anki.value;
+  if (target === null || chosen.value.length === 0 || sending.value.kind === 'busy') return;
+  const asked = (newestAsked += 1);
+  try {
+    const found = await newestCard(target, pageSettings.value, Date.now());
+    if (asked !== newestAsked) return;
+    newest.value = { kind: 'found', label: found.label, minutes: found.minutes };
+  } catch (error) {
+    if (asked !== newestAsked) return;
+    newest.value =
+      error instanceof AnkiError && !error.unreachable
+        ? { kind: 'none', text: error.message }
+        : { kind: 'failed', text: messageOf(error) };
+  }
+}
+
+const followsNewest = computed(
+  () => view.value === 'lines' && chosen.value.length > 0 && anki.value !== null,
+);
+
+function stopNewest(): void {
+  if (newestTimer !== null) window.clearInterval(newestTimer);
+  newestTimer = null;
+  newestAsked += 1;
+}
+
+watch(
+  [followsNewest, anki, pageSettings],
+  ([follows], before) => {
+    stopNewest();
+    if (!follows) return;
+    // Only a new look, not every line chosen, empties what is shown.
+    if (before === undefined || !before[0]) newest.value = { kind: 'looking' };
+    void lookForNewest();
+    newestTimer = window.setInterval(() => void lookForNewest(), 10_000);
+  },
+  { immediate: true },
+);
+
+function onFocus(): void {
+  if (followsNewest.value) void lookForNewest();
 }
 
 async function undo(): Promise<void> {
@@ -642,13 +720,18 @@ function wordLines(): { of: ShownLine[]; start: number } | undefined {
   return { of, start };
 }
 
-function wordContent(result: LookupResult, inLine: boolean): CardContent | undefined {
+function wordContent(
+  result: LookupResult,
+  inLine: boolean,
+  selection = '',
+): CardContent | undefined {
   const watch = shown.value;
   const found = wordLines();
   const value = found === undefined ? undefined : spanOf(found.of);
   if (watch === undefined || found === undefined || value === undefined) return undefined;
   // A word looked up in a definition is not in the sentence to be picked out.
-  return { ...contentOf(watch, found.of, value), word: wordOf(result, inLine ? found.start : -1) };
+  const word = wordOf(result, inLine ? found.start : -1);
+  return { ...contentOf(watch, found.of, value), word: { ...word, selection } };
 }
 
 const wordCardProblem = computed(() =>
@@ -657,17 +740,30 @@ const wordCardProblem = computed(() =>
     : (newCardProblem(pageSettings.value, true) ?? ''),
 );
 
-async function addWordCard(result: LookupResult, inLine: boolean): Promise<string> {
+async function addWordCard(
+  result: LookupResult,
+  inLine: boolean,
+  selection: string,
+  sound: string | undefined,
+): Promise<string> {
   const target = anki.value;
   const watch = shown.value;
-  const content = wordContent(result, inLine);
+  const content = wordContent(result, inLine, selection);
   const value = spanOf(wordLines()?.of ?? []);
   if (target === null || watch === undefined || content === undefined || value === undefined) {
     throw new Error('The line of this word is gone. Look the word up again.');
   }
   try {
-    const outcome = await addNew(target, pageSettings.value, content, mediaOf(watch, value));
-    return `Made a new card, "${outcome.label === '' ? result.term.expression : outcome.label}".`;
+    const media = {
+      ...mediaOf(watch, value),
+      wordAudio: wordAudio.value,
+      ...(sound === undefined ? {} : { wordAudioChoice: sound }),
+    };
+    const outcome = await addNew(target, pageSettings.value, content, media);
+    const name = `"${outcome.label === '' ? result.term.expression : outcome.label}"`;
+    return outcome.noWordAudio === true
+      ? `Made a new card, ${name}, without the word's sound: the audio source has none for it.`
+      : `Made a new card, ${name}.`;
   } catch (error) {
     throw error instanceof HttpError ? new Error(messageOf(error)) : error;
   }
@@ -688,6 +784,7 @@ function onVisibility(): void {
     feed.stop();
   } else {
     feed.start();
+    onFocus();
   }
 }
 
@@ -699,6 +796,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('online', onOnline);
   window.addEventListener('keydown', onKey);
+  window.addEventListener('focus', onFocus);
   if (document.visibilityState !== 'hidden') feed.start();
   void loadSettings();
   void loadDictionaries();
@@ -708,6 +806,8 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibility);
   window.removeEventListener('online', onOnline);
   window.removeEventListener('keydown', onKey);
+  window.removeEventListener('focus', onFocus);
+  stopNewest();
   feed.stop();
   if (ticker !== null) window.clearInterval(ticker);
   if (settle !== null) window.clearTimeout(settle);
@@ -899,25 +999,45 @@ const secondLang = computed(() => languageTag(secondTrack.value));
       :add-card="wordCardProblem === '' ? addWordCard : undefined"
       :no-cards="wordCardProblem"
       :in-deck="wordCardProblem === '' ? wordsKnown : undefined"
+      :word-audio="wordAudio"
+      :look="pageSettings.dictionary"
       @found="onFound"
       @close="closeWord"
     />
 
-    <footer v-if="view === 'lines' && chosen.length > 0" class="bottom">
-      <SelectionBar
-        :count="chosen.length"
-        :span="spanText"
-        :picture="picture"
-        :sound="sound"
-        :anki-ready="anki !== null"
-        :sending="sending"
-        @clear="clear"
-        @newest="send('newest')"
-        @add="send('new')"
-        @undo="undo"
-        @settings="openSettings"
-      />
-    </footer>
+    <div v-if="view === 'lines'" class="dock">
+      <button
+        v-if="!following && anchor !== undefined"
+        class="button now"
+        type="button"
+        data-testid="go-to-playing"
+        @click="goToPlaying"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m8.94 3A9 9 0 0 0 13 3.06V1h-2v2.06A9 9 0 0 0 3.06 11H1v2h2.06A9 9 0 0 0 11 20.94V23h2v-2.06A9 9 0 0 0 20.94 13H23v-2zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14"
+          />
+        </svg>
+        Go to the line playing
+      </button>
+      <footer v-if="chosen.length > 0" class="bottom">
+        <SelectionBar
+          :count="chosen.length"
+          :span="spanText"
+          :picture="picture"
+          :sound="sound"
+          :anki-ready="anki !== null"
+          :sending="sending"
+          :newest="newest"
+          @clear="clear"
+          @newest="send('newest')"
+          @add="send('new')"
+          @undo="undo"
+          @settings="openSettings"
+        />
+      </footer>
+    </div>
   </div>
 </template>
 
@@ -1100,10 +1220,29 @@ select:hover {
   color: var(--text-strong);
 }
 
-.bottom {
+.dock {
   position: sticky;
   z-index: 10;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  /* Only its button and bar take taps; the lines behind the space between stay reachable. */
+  pointer-events: none;
+}
+
+.dock > * {
+  pointer-events: auto;
+}
+
+.now {
+  margin: 0 max(16px, env(safe-area-inset-right)) 12px 16px;
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.5);
+}
+
+.bottom {
+  align-self: stretch;
   padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
   padding-bottom: max(12px, env(safe-area-inset-bottom));
   background: var(--surface);

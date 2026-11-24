@@ -62,7 +62,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton(provider => new DictionaryServices(
             new DictionaryLibrary(Path.Combine(Data(provider), "dictionaries"), provider.GetRequiredService<ILogger<DictionaryLibrary>>()),
             new DictionaryDownloader(DictionaryDownloader.CreateHandler()),
-            Path.Combine(Scratch(provider), "dictionaries")));
+            Path.Combine(Scratch(provider), "dictionaries"),
+            new WordAudioSource(
+                WordAudioSource.CreateHandler(),
+                provider.GetRequiredService<ISharedSettings>(),
+                provider.GetRequiredService<UserSettingsStore>().Keys,
+                provider.GetRequiredService<ILogger<WordAudioSource>>())));
         serviceCollection.AddSingleton(provider => new PluginServices(
             new PageFiles(new EmbeddedPageFiles(typeof(Plugin).Assembly)),
             provider.GetRequiredService<ICallerResolver>(),

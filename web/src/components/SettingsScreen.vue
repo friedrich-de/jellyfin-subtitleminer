@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import type { Fetch } from '@/api/http';
 import type { PluginApi } from '@/api/plugin';
 import type { AnkiWhere, SettingsChange, SettingsView } from '@/api/types';
 import { type AnkiConnect, AnkiError, deviceAnki, serverAnki } from '@/anki/connect';
+import { findLapis } from '@/anki/lapis';
 import {
+  defaultPageSettings,
   FIELD_ROLES,
   type FieldRole,
   PICTURE_WIDTHS,
@@ -60,7 +62,11 @@ type Connection =
   | { kind: 'failed'; message: string };
 
 const connection = ref<Connection>({ kind: 'idle' });
+// Decks, note types and errors are those of one Anki: choosing another sets them aside until it is connected.
+watch(where, () => (connection.value = { kind: 'idle' }));
 const fieldNames = ref<string[]>(Object.keys(page.value.anki.fields));
+/** The Lapis note type chosen for the user, until they choose themselves. */
+const lapisFound = ref<string | null>(null);
 const saving = ref(false);
 const message = ref<{ text: string; error: boolean } | null>(null);
 
@@ -97,10 +103,27 @@ async function loadFields(anki: AnkiConnect, noteType: string): Promise<void> {
   page.value.anki.fields = rolesFor(names, page.value.anki.fields);
 }
 
+/**
+ * Chooses a Lapis note type, if this Anki has one, with the deck its cards are in and each field
+ * filled as Lapis means it, for someone who has no note type chosen.
+ */
+async function chooseLapis(anki: AnkiConnect, decks: string[], noteTypes: string[]): Promise<void> {
+  const found = await findLapis(anki, noteTypes, decks);
+  if (found === undefined || page.value.anki.noteType !== '') return;
+  page.value.anki.noteType = found.noteType;
+  if (page.value.anki.deck === '') page.value.anki.deck = found.deck;
+  page.value.anki.fields = found.fields;
+  fieldNames.value = found.fieldNames;
+  lapisFound.value = found.noteType;
+}
+
 /** Saves where the cards go, then asks that Anki for its decks and note types. */
 async function connect(): Promise<void> {
   message.value = null;
   connection.value = { kind: 'testing' };
+  const asked = where.value;
+  const answer = (found: Connection) =>
+    (connection.value = where.value === asked ? found : { kind: 'idle' });
   try {
     const view = await props.api.saveSettings({ Anki: ankiChange() });
     current.value = view;
@@ -116,10 +139,12 @@ async function connect(): Promise<void> {
       anki.invoke<string[]>('deckNames'),
       anki.invoke<string[]>('modelNames'),
     ]);
-    connection.value = { kind: 'connected', decks, noteTypes };
-    await loadFields(anki, page.value.anki.noteType);
+    answer({ kind: 'connected', decks, noteTypes });
+    if (where.value !== asked) return;
+    if (page.value.anki.noteType === '') await chooseLapis(anki, decks, noteTypes);
+    else await loadFields(anki, page.value.anki.noteType);
   } catch (error) {
-    connection.value = { kind: 'failed', message: messageOf(error) };
+    answer({ kind: 'failed', message: messageOf(error) });
   }
 }
 
@@ -127,6 +152,7 @@ async function onNoteType(event: Event): Promise<void> {
   const name = (event.target as HTMLSelectElement).value;
   page.value.anki.noteType = name;
   page.value.anki.fields = {};
+  lapisFound.value = null;
   const anki = ankiFor(current.value);
   if (anki === null) return;
   try {
@@ -172,6 +198,30 @@ async function save(): Promise<void> {
     message.value = { text: messageOf(error), error: true };
   } finally {
     saving.value = false;
+  }
+}
+
+/**
+ * Puts every choice of the page back as a new user has it, with Lapis chosen if this Anki has it.
+ * Where the cards go stays, so that no address or key has to be typed again. Nothing is kept until
+ * the settings are saved.
+ */
+async function restoreDefaults(): Promise<void> {
+  page.value = defaultPageSettings();
+  tags.value = page.value.anki.tags.join(' ');
+  fieldNames.value = [];
+  lapisFound.value = null;
+  message.value = {
+    text: 'Defaults restored. Where your cards go is kept. Save to keep the rest.',
+    error: false,
+  };
+  const anki = ankiFor(current.value);
+  const connected = connection.value;
+  if (anki === null || connected.kind !== 'connected') return;
+  try {
+    await chooseLapis(anki, connected.decks, connected.noteTypes);
+  } catch (error) {
+    message.value = { text: messageOf(error), error: true };
   }
 }
 
@@ -365,6 +415,10 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
               </option>
             </select>
           </label>
+          <p v-if="lapisFound !== null" class="small ok" role="status" data-testid="lapis-found">
+            "{{ lapisFound }}" is a Lapis note type, so it is chosen, with each field filled as
+            Lapis means it. Change anything you like.
+          </p>
 
           <div v-if="fieldNames.length > 0" class="fields" data-testid="fields">
             <p class="name">What goes into each field</p>
@@ -468,7 +522,13 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
         </label>
       </section>
 
-      <DictionarySettings v-model:look-up="page.dictionary.lookUp" :api="api" />
+      <DictionarySettings
+        v-model:look-up="page.dictionary.lookUp"
+        v-model:text-size="page.dictionary.textSize"
+        v-model:hide-tags="page.dictionary.hideTags"
+        v-model:compact="page.dictionary.compact"
+        :api="api"
+      />
 
       <section v-if="current.Everyone !== undefined" class="group" aria-labelledby="everyone-title">
         <h2 id="everyone-title">For everyone on this server</h2>
@@ -490,6 +550,15 @@ const WHERE_CHOICES: { value: AnkiWhere; title: string; text: string }[] = [
       <div class="actions">
         <button class="button primary" type="submit" :disabled="saving" data-testid="save">
           {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+        <button
+          class="button"
+          type="button"
+          :disabled="saving"
+          data-testid="restore-defaults"
+          @click="restoreDefaults"
+        >
+          Restore defaults
         </button>
         <p
           v-if="message !== null"
@@ -645,16 +714,31 @@ select:focus-visible {
 }
 
 .fields {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  /* The field's name as wide as the longest, and its choice, with an example, the rest. */
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.fields > .name {
+  grid-column: 1 / -1;
 }
 
 .field-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  align-items: center;
-  gap: 12px;
+  display: contents;
+}
+
+/* On a phone the choice gets the whole width under its field's name. */
+@media (max-width: 520px) {
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .field-name {
+    margin-top: 8px;
+  }
 }
 
 .field-name {

@@ -131,6 +131,8 @@ export function createCollection(options: { key?: string; now?: () => number } =
             noteId: id,
             modelName: note.modelName,
             tags: note.tags,
+            // One card for each note, under the note's own number.
+            cards: [id],
             fields: Object.fromEntries(
               Object.entries(note.fields).map(([name, value]) => [
                 name,
@@ -138,6 +140,13 @@ export function createCollection(options: { key?: string; now?: () => number } =
               ]),
             ),
           };
+        });
+      case 'cardsInfo':
+        return (params.cards as number[]).map((id) => {
+          const note = notes.get(id);
+          return note === undefined
+            ? {}
+            : { cardId: id, note: id, deckName: note.deck, modelName: note.modelName };
         });
       case 'storeMediaFile': {
         const name = String(params.filename);

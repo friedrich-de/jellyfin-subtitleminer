@@ -127,6 +127,8 @@ export interface Look {
   tabGroups?: { id: string; name: string; dictionaries: string[] }[];
   /** Extra CSS for the popup. */
   css?: string;
+  /** (Subtitle Miner) The size of everything in the popup, in percent, 50 to 200 (default 100). */
+  scale?: number;
 }
 
 export interface DictionaryStyle {
@@ -154,10 +156,14 @@ export interface PopupOptions<R extends LookupResult = LookupResult> extends Loo
   onAddCard?: (result: R, index: number) => void;
   /** The Anki button of a word that's in Anki. */
   onOpenCard?: (result: R, index: number) => void;
-  /** The audio button. Without it there's no audio button. */
-  onPlayAudio?: (result: R, index: number) => void;
+  /** The audio button. Without it there's no audio button. `source` is the sound chosen from `audioSources`, or undefined for a plain press. */
+  onPlayAudio?: (result: R, index: number, source?: string) => void;
   /** Whether a word has audio to play (default: every word). */
   hasAudio?: (result: R) => boolean;
+  /** (Subtitle Miner) The names of a word's sounds. With it, holding the audio button (or right-click, Shift-click, Down) lists them to choose one, as in Yomitan. */
+  audioSources?: (result: R) => Soon<string[]>;
+  /** (Subtitle Miner) The name of the sound chosen for a word, marked in that list. */
+  chosenAudio?: (result: R) => string | undefined;
   /**
    * Looks up the words `text` starts with: for a word tapped in a definition,
    * a link to another entry and a kanji of the headword. What it finds is
@@ -187,7 +193,7 @@ export interface DictionaryPopup<R extends LookupResult = LookupResult> {
   setAdded(expressions: Iterable<string>): void;
   /** Moves to an entry, as Hachidori's next and previous entry keys do. */
   setCurrent(index: number): void;
-  /** Goes back from a word looked up in a definition. False when there's nothing to go back to. */
+  /** Goes back from a word looked up in a definition, or closes the list of sounds. False when there's nothing to go back to. */
   back(): boolean;
   setTheme(look: Look): void;
   /** Empties the popup, and hides it. */

@@ -99,6 +99,17 @@ input {
   cursor: default;
 }
 
+/* A button that cannot be used now is grey, the main one too, and does not light up. */
+.button:disabled,
+.button:disabled:hover,
+.button.primary:disabled {
+  background: var(--raised);
+}
+
+.button.primary:disabled {
+  color: var(--text-muted);
+}
+
 .muted {
   color: var(--text-muted);
 }

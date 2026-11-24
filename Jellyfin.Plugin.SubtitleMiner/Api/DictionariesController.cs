@@ -348,6 +348,7 @@ public class DictionariesController : ControllerBase
                 Error = import.Error,
             },
             MayManage = caller.IsAdministrator,
+            WordAudio = WordAudioController.View(_services.WordAudio, caller),
         };
     }
 }

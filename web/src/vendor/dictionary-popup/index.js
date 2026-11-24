@@ -193,8 +193,14 @@ function characterAt(root, x, y) {
  *   initialResultCount  how many results are drawn at once; the rest follow as the page is idle (default 1).
  *   onAddCard(result, index)     the Anki button of a word not added yet. Without it there's no Anki button.
  *   onOpenCard(result, index)    the Anki button of a word that's in Anki.
- *   onPlayAudio(result, index)   the audio button. Without it there's no audio button.
+ *   onPlayAudio(result, index, source)  the audio button. Without it there's no audio button. `source` is the
+ *                                sound chosen from audioSources, or undefined for a plain press.
  *   hasAudio(result)             whether a word has audio to play (default: every word).
+ *   audioSources(result)         (Subtitle Miner) the names of a word's sounds, or a promise of them. With it, holding
+ *                                the audio button (or right-click, Shift-click, Down) lists them to choose one, as in
+ *                                Yomitan.
+ *   chosenAudio(result)          (Subtitle Miner) the name of the sound chosen for a word, marked in that list.
+ *   scale                        (Subtitle Miner) the size of everything in the popup, in percent (default 100).
  *   lookup(text)                 looks up the words `text` starts with, for a word tapped in a definition, a link
  *                                to another entry and a kanji of the headword: results, or {results, styles}, or
  *                                a promise of either. Without it definitions aren't looked up.
@@ -234,6 +240,8 @@ export function createDictionaryPopup(container, options = {}) {
 
   const appearance = HDPopup.createPopupAppearance(host);
   const display = () => ({ ...DEFAULT_DISPLAY, ...options.display });
+  // Subtitle Miner: the popup's size, as Hachidori's popup scale (embed-css.js zooms by it).
+  const scale = () => (Number.isFinite(options.scale) ? Math.min(200, Math.max(50, options.scale)) : 100);
 
   function applyLook() {
     appearance.update({
@@ -243,7 +251,7 @@ export function createDictionaryPopup(container, options = {}) {
       // The popup is as wide as its element and as tall as its entries (embed-css.js).
       popupWidthPx: 560,
       popupHeightPx: 420,
-      popupScalePercent: 100,
+      popupScalePercent: scale(),
       showPopupAudioButton: typeof options.onPlayAudio === "function",
       // Hachidori's own notes, a dictionary of the reader's, aren't part of this.
       personalDictionaryEnabled: false,
@@ -280,6 +288,7 @@ export function createDictionaryPopup(container, options = {}) {
     parseTagList: HDGlossary.parseTagList,
     getPopupColumns: () => display().popupColumns,
     getImageHoverPreview: () => "off",
+    getPopupScalePercent: scale,
     initialResultCount: Number.isInteger(options.initialResultCount) ? options.initialResultCount : undefined,
     idPrefix: `dictionary-popup-${(made += 1)}`,
     positionPopup() {},
@@ -310,6 +319,90 @@ export function createDictionaryPopup(container, options = {}) {
   function cardButtons() {
     return [...popup.querySelectorAll(".gsm-hoshidicts-mine-button[data-result-index]")];
   }
+
+  /**
+   * Subtitle Miner: the list of a word's sounds, as Yomitan shows it when its audio button is held: an overlay below
+   * the button, in Hachidori's styles for it. Choosing one plays it, and the page keeps it for the word's card.
+   */
+  let menu = null;
+
+  function closeAudioMenu() {
+    if (!menu) return false;
+    menu.element.remove();
+    menu.button.setAttribute("aria-expanded", "false");
+    menu = null;
+    return true;
+  }
+
+  async function openAudioMenu(button, result, at) {
+    closeAudioMenu();
+    const element = document.createElement("div");
+    element.className = "gsm-hoshidicts-audio-menu";
+    element.setAttribute("role", "dialog");
+    element.setAttribute("aria-label", `Sounds of ${result.term?.expression ?? ""}`);
+    const heading = document.createElement("p");
+    heading.className = "gsm-hoshidicts-audio-menu-heading";
+    heading.textContent = "Sounds";
+    const status = document.createElement("p");
+    status.className = "gsm-hoshidicts-audio-menu-status";
+    status.setAttribute("role", "status");
+    status.textContent = "Looking for sounds…";
+    element.append(heading, status);
+    popup.append(element);
+    const mine = { element, button };
+    menu = mine;
+    button.setAttribute("aria-expanded", "true");
+    // The popup is zoomed by its scale: lengths inside it are its own, the page's rectangles are not.
+    const factor = 100 / scale();
+    const place = () => {
+      const [box, from] = [popup.getBoundingClientRect(), button.getBoundingClientRect()];
+      element.style.top = `${Math.max(6, (from.bottom - box.top) * factor + 4)}px`;
+      element.style.right = `${Math.max(6, (box.right - from.right) * factor)}px`;
+    };
+    place();
+    let names;
+    try {
+      names = await options.audioSources(result);
+    } catch (error) {
+      if (menu === mine) status.textContent = error instanceof Error && error.message ? error.message : "The sounds could not be listed.";
+      return;
+    }
+    if (menu !== mine) return;
+    if (!Array.isArray(names) || names.length === 0) {
+      status.textContent = "The audio source has no sounds for this word.";
+      return;
+    }
+    status.remove();
+    const chosen = options.chosenAudio?.(result);
+    for (const name of names) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "gsm-hoshidicts-audio-menu-item";
+      item.textContent = name === chosen ? `✓ ${name}` : name;
+      if (name === chosen) item.setAttribute("aria-current", "true");
+      item.addEventListener("click", () => {
+        closeAudioMenu();
+        button.focus({ preventScroll: true });
+        options.onPlayAudio?.(result, at, name);
+      });
+      element.append(item);
+    }
+    place();
+    (element.querySelector("[aria-current]") ?? element.querySelector("button"))?.focus({ preventScroll: true });
+  }
+
+  // A press anywhere else in the popup closes the list, and Escape closes it before the popup.
+  root.addEventListener("pointerdown", (event) => {
+    if (menu && !menu.element.contains(event.target) && !menu.button.contains(event.target)) closeAudioMenu();
+  });
+  root.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && menu) {
+      const button = menu.button;
+      closeAudioMenu();
+      button.focus({ preventScroll: true });
+      event.stopPropagation();
+    }
+  });
 
   /** Puts each result's Anki button in, and listens to its audio button. The popup calls this as it draws results. */
   function bindActions({ audioButtons = [], miningActions = [] }) {
@@ -349,12 +442,59 @@ export function createDictionaryPopup(container, options = {}) {
         continue;
       }
       heard.set(item.button, index);
-      // Hachidori's button also opens a list of pronunciations; here it only plays.
-      item.button.title = "Play pronunciation";
-      item.button.removeAttribute("aria-haspopup");
-      item.button.removeAttribute("aria-expanded");
-      item.button.addEventListener("click", () => {
-        const at = heard.get(item.button);
+      const button = item.button;
+      const choosing = typeof options.audioSources === "function";
+      // Hachidori's button also opens a list of pronunciations: here only with audioSources, as Yomitan's does.
+      button.title = choosing ? "Play pronunciation; hold, right-click or Shift-click for other sounds" : "Play pronunciation";
+      if (!choosing) {
+        button.removeAttribute("aria-haspopup");
+        button.removeAttribute("aria-expanded");
+      }
+      const open = () => {
+        const at = heard.get(button);
+        if (choosing && shown?.given[at]) void openAudioMenu(button, shown.given[at], at);
+      };
+      // A hold opens the list; the click that ends it then plays nothing.
+      let holding = 0;
+      let opened = false;
+      button.addEventListener("pointerdown", (event) => {
+        opened = false;
+        window.clearTimeout(holding);
+        if (!choosing || event.button !== 0) return;
+        holding = window.setTimeout(() => {
+          opened = true;
+          open();
+        }, 500);
+      });
+      for (const ended of ["pointerup", "pointerleave", "pointercancel"]) {
+        button.addEventListener(ended, () => window.clearTimeout(holding));
+      }
+      button.addEventListener("contextmenu", (event) => {
+        if (!choosing) return;
+        event.preventDefault();
+        window.clearTimeout(holding);
+        if (!opened) {
+          opened = true;
+          open();
+        }
+      });
+      button.addEventListener("keydown", (event) => {
+        if (choosing && event.key === "ArrowDown") {
+          event.preventDefault();
+          open();
+        }
+      });
+      button.addEventListener("click", (event) => {
+        if (opened) {
+          opened = false;
+          return;
+        }
+        if (choosing && event.shiftKey) {
+          open();
+          return;
+        }
+        closeAudioMenu();
+        const at = heard.get(button);
         if (shown?.given[at]) options.onPlayAudio?.(shown.given[at], at);
       });
     }
@@ -403,6 +543,7 @@ export function createDictionaryPopup(container, options = {}) {
   }
 
   function draw(restore = null) {
+    closeAudioMenu();
     const { results, styles } = shown;
     settleColours();
     if (styles) applyStyles(styles);
@@ -561,8 +702,8 @@ export function createDictionaryPopup(container, options = {}) {
       else view.focusEntry({ offset: index - view.currentEntryIndex() });
     },
 
-    /** Goes back from a word looked up in a definition. False when there's nothing to go back to. */
-    back,
+    /** Goes back from a word looked up in a definition, or closes the list of sounds. False when there's nothing to go back to. */
+    back: () => closeAudioMenu() || back(),
 
     /** Changes the theme, opacity, display settings, dictionaries' names or extra CSS. */
     setTheme(change) {
@@ -573,6 +714,7 @@ export function createDictionaryPopup(container, options = {}) {
 
     /** Empties the popup, and hides it. */
     clear() {
+      closeAudioMenu();
       history.length = 0;
       asked += 1;
       shown = null;

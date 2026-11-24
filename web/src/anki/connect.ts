@@ -17,10 +17,25 @@ export class AnkiError extends Error {
   }
 }
 
-/** A picture or a piece of sound to cut from a video for a card. */
+/** The audio source for words has no sound for a word, or could not be reached. */
+export class WordAudioMissingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WordAudioMissingError';
+  }
+}
+
+/** A picture or a piece of sound to cut from a video for a card, or how a word sounds. */
 export type MediaCut =
   | { kind: 'picture'; itemId: string; source: string; options: PictureOptions }
-  | { kind: 'sound'; itemId: string; source: string; options: SoundOptions };
+  | { kind: 'sound'; itemId: string; source: string; options: SoundOptions }
+  | {
+      kind: 'word-audio';
+      term: string;
+      reading: string;
+      /** The name of the sound chosen in the popup; the first that works when left out. */
+      choice?: string;
+    };
 
 /** The user's Anki, wherever its AnkiConnect is. */
 export interface AnkiConnect {
@@ -67,13 +82,29 @@ export function markOf(text: string): string {
   return hash.toString(16).padStart(8, '0');
 }
 
+const EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'audio/mpeg': 'mp3',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'aac',
+  'audio/wav': 'wav',
+  'audio/webm': 'webm',
+  'audio/flac': 'flac',
+};
+
 /** The name a file goes into Anki under when the page puts it there itself. */
 export function mediaName(cut: MediaCut, type: string): string {
-  const at = cut.kind === 'picture' ? cut.options.atMs : cut.options.startMs;
   const extension =
-    { 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/avif': 'avif', 'audio/mpeg': 'mp3' }[
-      type
-    ] ?? (type.startsWith('audio/') ? 'ogg' : 'bin');
+    EXTENSIONS[type.split(';')[0]!.trim()] ?? (type.startsWith('audio/') ? 'ogg' : 'bin');
+  if (cut.kind === 'word-audio') {
+    // The same word from the same sound gets the same name, so its sound is in Anki once.
+    const choice = cut.choice === undefined || cut.choice === '' ? '' : `|${cut.choice}`;
+    return `subtitle-miner_word_${markOf(`${cut.term.trim()}|${cut.reading.trim() || cut.term.trim()}${choice}`)}.${extension}`;
+  }
+  const at = cut.kind === 'picture' ? cut.options.atMs : cut.options.startMs;
   const mark = markOf(JSON.stringify([cut.kind, cut.itemId, cut.source, cut.options]));
   return `subtitle-miner_${cut.itemId.replace(/-/g, '').slice(0, 8)}_${Math.round(at)}_${mark}.${extension}`;
 }
@@ -95,7 +126,7 @@ export function deviceAnki(
   fetchFn: Fetch,
   address: string,
   key: string,
-  api: Pick<PluginApi, 'picture' | 'sound'>,
+  api: Pick<PluginApi, 'picture' | 'sound' | 'wordAudio'>,
 ): AnkiConnect {
   async function invoke<T>(action: string, params?: Record<string, unknown>): Promise<T> {
     let response: Response;
@@ -127,9 +158,11 @@ export function deviceAnki(
     invoke,
     async store(cut) {
       const blob =
-        cut.kind === 'picture'
-          ? await api.picture(cut.itemId, cut.source, cut.options)
-          : await api.sound(cut.itemId, cut.source, cut.options);
+        cut.kind === 'word-audio'
+          ? await wordAudioOf(api, cut.term, cut.reading, cut.choice)
+          : cut.kind === 'picture'
+            ? await api.picture(cut.itemId, cut.source, cut.options)
+            : await api.sound(cut.itemId, cut.source, cut.options);
       const filename = mediaName(cut, blob.type);
       const stored = await invoke<unknown>('storeMediaFile', {
         filename,
@@ -138,6 +171,26 @@ export function deviceAnki(
       return typeof stored === 'string' && stored !== '' ? stored : filename;
     },
   };
+}
+
+/** Whether an answer of the plugin's word audio says the source has no sound for the word. */
+function wordAudioMissing(error: unknown): WordAudioMissingError | undefined {
+  return error instanceof HttpError && (error.status === 404 || error.status === 502)
+    ? new WordAudioMissingError(error.message)
+    : undefined;
+}
+
+async function wordAudioOf(
+  api: Pick<PluginApi, 'wordAudio'>,
+  term: string,
+  reading: string,
+  choice: string | undefined,
+): Promise<Blob> {
+  try {
+    return await api.wordAudio(term, reading, undefined, choice);
+  } catch (error) {
+    throw wordAudioMissing(error) ?? error;
+  }
 }
 
 function serverError(error: unknown): AnkiError {
@@ -149,7 +202,7 @@ function serverError(error: unknown): AnkiError {
 
 /** An AnkiConnect on a server, which the Jellyfin server calls for the page with the key. */
 export function serverAnki(
-  api: Pick<PluginApi, 'anki' | 'pictureToAnki' | 'soundToAnki'>,
+  api: Pick<PluginApi, 'anki' | 'pictureToAnki' | 'soundToAnki' | 'wordAudioToAnki'>,
 ): AnkiConnect {
   return {
     where: 'server',
@@ -163,12 +216,16 @@ export function serverAnki(
     async store(cut) {
       try {
         const stored =
-          cut.kind === 'picture'
-            ? await api.pictureToAnki(cut.itemId, cut.source, cut.options)
-            : await api.soundToAnki(cut.itemId, cut.source, cut.options);
+          cut.kind === 'word-audio'
+            ? await api.wordAudioToAnki(cut.term, cut.reading, cut.choice)
+            : cut.kind === 'picture'
+              ? await api.pictureToAnki(cut.itemId, cut.source, cut.options)
+              : await api.soundToAnki(cut.itemId, cut.source, cut.options);
         return stored.FileName;
       } catch (error) {
-        throw serverError(error);
+        throw (
+          (cut.kind === 'word-audio' ? wordAudioMissing(error) : undefined) ?? serverError(error)
+        );
       }
     },
   };

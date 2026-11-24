@@ -19,6 +19,11 @@ export interface StoredSession {
   accessToken: string;
   userId: string;
   userName: string;
+  /**
+   * The page's address the login was made at. Two Jellyfin servers under different paths of one
+   * address share the browser's storage, and one's login is never sent to the other.
+   */
+  base?: string;
 }
 
 function read(storage: Storage, key: string): unknown {
@@ -31,8 +36,18 @@ function read(storage: Storage, key: string): unknown {
   }
 }
 
-/** The web client's logins, the one used last first. */
-export function readWebClientTokens(storage: Storage): string[] {
+/** A server's id as Jellyfin writes it in one place or another: with or without dashes, in any case. */
+function sameServer(a: string, b: string): boolean {
+  const plain = (id: string) => id.replaceAll('-', '').toLowerCase();
+  return plain(a) === plain(b);
+}
+
+/**
+ * The web client's logins to one server, the one used last first. The web client keeps a login for
+ * each server it was used with, and a login to another server is never sent to this one.
+ * Without a server, whether the web client holds any login at all.
+ */
+export function readWebClientTokens(storage: Storage, serverId?: string): string[] {
   const stored = read(storage, WEB_CLIENT_KEY);
   if (stored === null || typeof stored !== 'object') return [];
   const servers = (stored as { Servers?: unknown }).Servers;
@@ -41,11 +56,13 @@ export function readWebClientTokens(storage: Storage): string[] {
   const logins: { token: string; used: number }[] = [];
   for (const server of servers as unknown[]) {
     if (server === null || typeof server !== 'object') continue;
-    const { AccessToken, DateLastAccessed } = server as {
+    const { AccessToken, DateLastAccessed, Id } = server as {
       AccessToken?: unknown;
       DateLastAccessed?: unknown;
+      Id?: unknown;
     };
     if (typeof AccessToken !== 'string' || AccessToken.length === 0) continue;
+    if (serverId !== undefined && !(typeof Id === 'string' && sameServer(Id, serverId))) continue;
     logins.push({
       token: AccessToken,
       used: typeof DateLastAccessed === 'number' ? DateLastAccessed : 0,
@@ -59,12 +76,13 @@ export function readWebClientTokens(storage: Storage): string[] {
 export function readOwnSession(storage: Storage): StoredSession | null {
   const stored = read(storage, SESSION_KEY);
   if (stored === null || typeof stored !== 'object') return null;
-  const { accessToken, userId, userName } = stored as Record<string, unknown>;
+  const { accessToken, userId, userName, base } = stored as Record<string, unknown>;
   if (typeof accessToken !== 'string' || accessToken.length === 0) return null;
   return {
     accessToken,
     userId: typeof userId === 'string' ? userId : '',
     userName: typeof userName === 'string' ? userName : '',
+    ...(typeof base === 'string' ? { base } : {}),
   };
 }
 
@@ -84,8 +102,28 @@ export function clearOwnSession(storage: Storage): void {
   }
 }
 
+/**
+ * A random id. crypto.randomUUID is there only where the browser trusts the address (HTTPS, or
+ * the device itself), and Jellyfin is often opened at http://192.168.1.10:8096, where it is not.
+ * getRandomValues is there everywhere.
+ */
+export function randomId(
+  random: {
+    getRandomValues(array: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>;
+    randomUUID?: () => string;
+  } = crypto,
+): string {
+  if (typeof random.randomUUID === 'function') return random.randomUUID();
+  const bytes = random.getRandomValues(new Uint8Array(16));
+  // A version 4 UUID, as randomUUID makes them.
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 /** This browser's id for Jellyfin's list of devices. Made once and kept. */
-export function deviceId(storage: Storage, make: () => string = () => crypto.randomUUID()): string {
+export function deviceId(storage: Storage, make: () => string = () => randomId()): string {
   try {
     const kept = storage.getItem(DEVICE_KEY);
     if (kept !== null && /^[A-Za-z0-9-]{8,64}$/.test(kept)) return kept;

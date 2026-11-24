@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, useTemplateRef, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
 
 import { type Box, characterAt, startsWord } from '@/dictionary/caret';
 import { clockOf, type ShownLine } from '@/watch/watches';
@@ -88,10 +88,63 @@ function onRowClick(event: MouseEvent, line: ShownLine): void {
   }
   emit('toggle', line.Id, event.shiftKey);
 }
+
+// Holding Shift over a word looks it up, as Yomitan scans with Shift: the mouse moved with Shift
+// held, or Shift pressed with the mouse over the word.
+
+/** Where the mouse is over the lines, for Shift pressed without moving it. */
+let pointer: { x: number; y: number } | undefined;
+/** The character looked up last, so moving within it asks nothing new. */
+let scanned: string | undefined;
+
+function scan(target: EventTarget | null, x: number, y: number): void {
+  if (!props.lookUp || !(target instanceof Element)) return;
+  const said = target.closest('.said');
+  const row = said?.closest<HTMLElement>('[data-line]');
+  if (said === null || said === undefined || row === null || row === undefined) return;
+  const id = Number(row.dataset.line);
+  const line = props.lines.find((candidate) => candidate.Id === id);
+  const at = line === undefined ? undefined : characterAt(said, x, y);
+  // Beside a word nothing happens: the popup stays as it is.
+  if (line === undefined || at === undefined || !startsWord(line.Text[at.offset])) return;
+  const key = `${id}:${at.offset}`;
+  if (key === scanned) return;
+  scanned = key;
+  emit('word', id, at);
+}
+
+function onMove(event: MouseEvent): void {
+  pointer = { x: event.clientX, y: event.clientY };
+  if (event.shiftKey) scan(event.target, event.clientX, event.clientY);
+  else scanned = undefined;
+}
+
+function onLeave(): void {
+  pointer = undefined;
+  scanned = undefined;
+}
+
+function onKey(event: KeyboardEvent): void {
+  if (event.key !== 'Shift' || event.repeat || pointer === undefined) return;
+  if (event.target instanceof Element && event.target.closest('input, textarea, select') !== null) {
+    return;
+  }
+  scanned = undefined;
+  scan(document.elementFromPoint(pointer.x, pointer.y), pointer.x, pointer.y);
+}
+
+onMounted(() => window.addEventListener('keydown', onKey));
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 </script>
 
 <template>
-  <ol ref="list" class="lines" aria-label="Subtitle lines">
+  <ol
+    ref="list"
+    class="lines"
+    aria-label="Subtitle lines"
+    @mousemove="onMove"
+    @mouseleave="onLeave"
+  >
     <li
       v-for="line in lines"
       :key="line.Id"

@@ -12,3 +12,12 @@ export type Sending =
   | { kind: 'busy'; text: string }
   | { kind: 'done'; text: string; canUndo: boolean }
   | { kind: 'failed'; text: string };
+
+/** The card "Add to my newest card" would change, or why there is none. */
+export type Newest =
+  | { kind: 'looking' }
+  | { kind: 'found'; label: string; minutes: number }
+  /** No card fits: the button is off, and this says why. */
+  | { kind: 'none'; text: string }
+  /** Anki could not be asked: the button stays, and sending says what is wrong. */
+  | { kind: 'failed'; text: string };

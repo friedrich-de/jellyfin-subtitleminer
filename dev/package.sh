@@ -116,10 +116,12 @@ plugin = {
     "description": (
         "A page for your phone or a second screen that follows what is playing on Jellyfin. "
         "It shows the subtitle lines as they are spoken and makes Anki cards from them, with "
-        "the sentence, a picture and the audio cut from the video."
+        "the sentence, a picture and the audio cut from the video. Words can be looked up "
+        "in Yomitan dictionaries kept on the Jellyfin server."
     ),
     "owner": "friedrich-de",
     "category": "Subtitles",
+    "imageUrl": "https://raw.githubusercontent.com/friedrich-de/jellyfin-subtitleminer/main/web/public/icons/icon-512.png",
     "versions": sorted([entry, *older], key=key, reverse=True),
 }
 path.write_text(json.dumps([plugin], indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
