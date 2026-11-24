@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- The same as icon.svg, filling the square and kept inside the circle every mask leaves visible. -->
+  <rect width="512" height="512" fill="#00a4dc"/>
+  <g transform="translate(256 256) scale(0.8) translate(-256 -256)">
+    <rect x="88" y="248" width="336" height="64" rx="32" fill="#101010"/>
+    <rect x="136" y="336" width="240" height="64" rx="32" fill="#101010"/>
+    <rect x="192" y="256" width="128" height="48" rx="24" fill="#ffffff"/>
+  </g>
+</svg>

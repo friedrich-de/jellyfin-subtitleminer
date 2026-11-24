@@ -27,5 +27,6 @@
     "e2e/**/*.ts",
     "vite.config.ts",
     "playwright.config.ts"
-  ]
+  ],
+  "exclude": ["src/worker/sw.ts"]
 }

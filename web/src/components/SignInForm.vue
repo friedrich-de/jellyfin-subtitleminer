@@ -55,7 +55,9 @@ function submit(): void {
         <button class="button primary" type="submit" :disabled="busy">
           {{ busy ? 'Signing in…' : 'Sign in' }}
         </button>
-        <a class="button" :href="jellyfinAddress">Open Jellyfin</a>
+        <!-- Beside the page, also in the installed app: the page goes on by itself once Jellyfin has
+             the login. -->
+        <a class="button" :href="jellyfinAddress" target="_blank" rel="noopener">Open Jellyfin</a>
       </div>
     </form>
   </section>

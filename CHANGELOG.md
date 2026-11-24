@@ -18,6 +18,8 @@ Done so far:
 - Anki cards from the chosen lines: "Add to my newest card" puts the lines, the picture and the sound into the card you just made with Yomitan, keeping the word Yomitan marked, and Undo puts the card back. "New card" makes one in the deck and note type you choose. A card made too long ago (15 minutes by default) is not taken for the newest one.
 - Cards go to an AnkiConnect on the device you use the page on (desktop Anki or AnkiConnect for Android), or to an AnkiConnect on a server, which the Jellyfin server calls for you with its key. Nothing has to run on your device then: the server's AnkiConnect gets the cards and the pictures and sound. The key stays on the Jellyfin server, encrypted, and the page never gets it back. Only the calls that read and add notes go through, never ones that delete or open windows.
 - Sending cards through the server is for administrators unless an administrator lets everyone, since the server then calls whatever address a user types.
+- The page installs as an app from the browser, with its own icon. The app opens without the server and says it cannot reach it; it keeps only the page's own files, never subtitles, pictures, sound or settings. Installing needs Jellyfin over HTTPS, or the address of the device itself.
+- "Open Jellyfin" on the sign-in screen opens beside the page, which goes on by itself once you have signed in there.
 - Settings are kept on the Jellyfin server for each user, so they follow you from device to device: where cards go, the deck, the note type and what goes into each field (guessed from the field names, for Lapis and most mining note types), tags, the picture's format and width, and how much sound to keep before and after the lines.
 
 ## 1.1.0.1

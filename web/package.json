@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
