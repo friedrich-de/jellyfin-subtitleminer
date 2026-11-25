@@ -230,6 +230,10 @@ public sealed class DictionariesControllerTests : IDisposable
         // The next one is counted on from there.
         await Upload(Words("Fourth"), "fourth.zip");
         Assert.Equal([1L, 2L, 3L, 4L], (await List()).Import.Finished.Select(outcome => outcome.Number));
+
+        // How imports ended is told only to those who may import: an address can hold a key.
+        _test.SignInAs(administrator: false);
+        Assert.Empty((await List()).Import.Finished);
     }
 
     [Fact]

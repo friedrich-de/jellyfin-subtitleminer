@@ -147,7 +147,7 @@ public sealed record DictionaryImportView
     /// <summary>Gets how many more dictionaries wait to be imported after this one.</summary>
     public int Waiting { get; init; }
 
-    /// <summary>Gets what the last imports came to, the oldest first.</summary>
+    /// <summary>Gets what the last imports came to, the oldest first. Empty for a user who may not import.</summary>
     public IReadOnlyList<DictionaryImportOutcomeView> Finished { get; init; } = [];
 }
 

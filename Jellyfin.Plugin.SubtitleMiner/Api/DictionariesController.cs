@@ -348,7 +348,11 @@ public class DictionariesController : ControllerBase
                 Title = import.Title,
                 Error = import.Error,
                 Waiting = import.Waiting,
-                Finished = import.Finished.Select(outcome => new DictionaryImportOutcomeView { Number = outcome.Number, Source = outcome.Source, Title = outcome.Title, Error = outcome.Error }).ToList(),
+
+                // Only for those who may import: an address a dictionary came from can hold a key.
+                Finished = caller.IsAdministrator
+                    ? import.Finished.Select(outcome => new DictionaryImportOutcomeView { Number = outcome.Number, Source = outcome.Source, Title = outcome.Title, Error = outcome.Error }).ToList()
+                    : [],
             },
             MayManage = caller.IsAdministrator,
             WordAudio = WordAudioController.View(_services.WordAudio, caller),
