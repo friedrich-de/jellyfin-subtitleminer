@@ -5,6 +5,7 @@ import { createPluginApi } from '@/api/plugin';
 import type {
   DictionariesView,
   DictionaryImport,
+  DictionaryImportOutcome,
   DictionaryView,
   WordAudioView,
 } from '@/api/types';
@@ -28,31 +29,78 @@ function dictionary(title: string, overrides: Partial<DictionaryView> = {}): Dic
   };
 }
 
-/** The plugin's dictionaries as the server keeps them, with an import that takes two looks. */
+/** An import the server was asked for, and how many looks it takes. */
+interface Asked {
+  Source: string;
+  Title?: string;
+  Error?: string;
+  looks: number;
+}
+
+/**
+ * The plugin's dictionaries as the server keeps them. One import runs at a time and the others
+ * wait their turn: a download takes two looks, an upload one, and a file that is not a zip none.
+ */
 function plugin(start: DictionaryView[], mayManage: boolean) {
   let list = [...start];
-  let job: DictionaryImport = { State: 'idle', Progress: 0 };
-  let looks = 0;
+  let job: Omit<DictionaryImport, 'Waiting' | 'Finished'> = { State: 'idle', Progress: 0 };
+  let current: Asked | null = null;
+  const waiting: Asked[] = [];
+  const finished: DictionaryImportOutcome[] = [];
   let wordAudio: WordAudioView = { Set: false };
+  /** An upload the server does not answer until the test lets it, by the file's name. */
+  const held = new Map<string, () => void>();
   const view = (): DictionariesView => ({
     Dictionaries: list,
-    Import: job,
+    Import: { ...job, Waiting: waiting.length, Finished: [...finished] },
     MayManage: mayManage,
     WordAudio: mayManage ? wordAudio : { Set: wordAudio.Set },
   });
+  const begin = (asked: Asked): void => {
+    current = asked;
+    job = {
+      State: asked.Source.startsWith('https://') ? 'downloading' : 'importing',
+      Progress: 0,
+      Source: asked.Source,
+    };
+    if (asked.looks === 0) look();
+  };
+  const end = (asked: Asked, error: string | undefined): void => {
+    finished.push({
+      Number: finished.length + 1,
+      Source: asked.Source,
+      ...(error === undefined ? { Title: asked.Title! } : { Error: error }),
+    });
+    if (error === undefined) {
+      list = [
+        ...list,
+        dictionary(asked.Title!, { Id: asked.Title!.split(/[. ]/)[0]!.toLowerCase() }),
+      ];
+    }
+    job =
+      error === undefined
+        ? { State: 'done', Progress: 1, Title: asked.Title!, Source: asked.Source }
+        : { State: 'failed', Progress: 0, Error: error, Source: asked.Source };
+  };
+  /** One look at the import: it gets half way, or ends and lets the next one start. */
+  function look(): void {
+    if (current === null) return;
+    if ((current.looks -= 1) > 0) {
+      job = { ...job, Progress: 0.5 };
+      return;
+    }
+    end(current, current.Error);
+    current = null;
+    const next = waiting.shift();
+    if (next !== undefined) begin(next);
+  }
+  const ask = (asked: Asked): void => {
+    if (current === null) begin(asked);
+    else waiting.push(asked);
+  };
   const server = fakeRoutes((request: RoutedRequest) => {
     if (request.path === 'Dictionaries' && request.method === 'GET') {
-      if (job.State === 'downloading' && (looks += 1) >= 2) {
-        list = [...list, dictionary('Jitendex.org [2026-11-23]', { Id: 'jitendex' })];
-        job = {
-          State: 'done',
-          Progress: 1,
-          Title: 'Jitendex.org [2026-11-23]',
-          Source: job.Source!,
-        };
-      } else if (job.State === 'downloading') {
-        job = { ...job, Progress: 0.5 };
-      }
+      look();
       return json(view());
     }
     if (request.path === 'Dictionaries' && request.method === 'PUT') {
@@ -66,12 +114,34 @@ function plugin(start: DictionaryView[], mayManage: boolean) {
     if (request.path === 'Dictionaries/Download') {
       const { Url } = request.body as { Url: string };
       if (!Url.startsWith('https://')) return problem(400, 'Not an address.');
-      job = { State: 'downloading', Progress: 0, Source: Url };
+      ask({ Source: Url, Title: 'Jitendex.org [2026-11-23]', looks: 2 });
       return json(view(), 202);
     }
     if (request.path === 'Dictionaries' && request.method === 'POST') {
-      job = { State: 'failed', Progress: 0, Error: 'That file is not a zip.' };
-      return json(view(), 202);
+      const name = request.query.get('name')!;
+      const take = (): Response => {
+        if (name.startsWith('broken')) {
+          ask({ Source: name, Error: 'That file is not a zip.', looks: 0 });
+        } else {
+          ask({ Source: name, Title: name.replace(/\.zip$/, ''), looks: 1 });
+        }
+        return json(view(), 202);
+      };
+      if (!name.startsWith('slow')) return take();
+      return new Promise<Response>((resolve, reject) => {
+        held.set(name, () => resolve(take()));
+        request.signal?.addEventListener('abort', () =>
+          reject(new DOMException('The request was aborted.', 'AbortError')),
+        );
+      });
+    }
+    if (request.path === 'Dictionaries/Import' && request.method === 'DELETE') {
+      if (current !== null) {
+        for (const asked of waiting.splice(0)) end(asked, 'The import was stopped.');
+        end(current, 'The import was stopped.');
+        current = null;
+      }
+      return json(view());
     }
     const removed = /^Dictionaries\/(.+)$/.exec(request.path)?.[1];
     if (removed !== undefined && request.method === 'DELETE') {
@@ -90,7 +160,7 @@ function plugin(start: DictionaryView[], mayManage: boolean) {
     }
     return undefined;
   });
-  return { ...server, list: () => list };
+  return { ...server, list: () => list, held };
 }
 
 let screen: VueWrapper | undefined;
@@ -115,6 +185,21 @@ async function open(server: ReturnType<typeof plugin>, lookUp = true) {
 }
 
 const find = (wrapper: VueWrapper, id: string) => wrapper.get(`[data-testid="${id}"]`);
+
+/** Picks files in the upload field, as the device's file dialog does. */
+async function pick(wrapper: VueWrapper, ...names: string[]): Promise<void> {
+  const input = find(wrapper, 'dictionary-file');
+  const files = names.map((name) => new File(['zip'], name, { type: 'application/zip' }));
+  Object.defineProperty(input.element, 'files', { value: files, configurable: true });
+  await input.trigger('change');
+}
+
+/** The names of the files sent to the server so far, in the order they were sent. */
+function uploads(server: ReturnType<typeof plugin>): string[] {
+  return server.sent
+    .filter((request) => request.path === 'Dictionaries' && request.method === 'POST')
+    .map((request) => request.query.get('name')!);
+}
 
 function button(wrapper: VueWrapper, label: string) {
   const found = wrapper.find(`[aria-label="${label}"]`);
@@ -197,9 +282,9 @@ describe('the dictionary settings', () => {
     });
     expect(find(page, 'import-progress').text()).toContain('Downloading Jitendex… 0%');
 
-    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(400);
     expect(find(page, 'import-progress').text()).toContain('50%');
-    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(400);
     expect(find(page, 'dictionary-message').text()).toBe('Jitendex.org [2026-11-23] is ready.');
     expect(page.find('[data-testid="import-progress"]').exists()).toBe(false);
     expect(page.text()).toContain('In Jitendex.org [2026-11-23], on the Jellyfin server.');
@@ -260,15 +345,135 @@ describe('the dictionary settings', () => {
     await flushPromises();
     expect(find(page, 'dictionary-message').text()).toBe('Not an address.');
 
-    const input = find(page, 'dictionary-file');
-    const file = new File(['not a zip'], 'words.zip', { type: 'application/zip' });
-    Object.defineProperty(input.element, 'files', { value: [file] });
-    await input.trigger('change');
+    await pick(page, 'broken.zip');
     await flushPromises();
     const upload = server.sent.at(-1)!;
     expect(upload.method).toBe('POST');
-    expect(upload.query.get('name')).toBe('words.zip');
+    expect(upload.query.get('name')).toBe('broken.zip');
     expect(upload.headers['content-type']).toBe('application/zip');
-    expect(page.text()).toContain('That file is not a zip.');
+    expect(find(page, 'dictionary-message').text()).toBe('That file is not a zip.');
+    expect(find(page, 'dictionary-message').attributes('role')).toBe('alert');
+  });
+
+  it('send several picked files one after another, and say how each of them ended', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const server = plugin([], true);
+    const page = await open(server);
+    expect(find(page, 'dictionary-file').attributes('multiple')).toBeDefined();
+
+    await pick(page, 'Jitendex.zip', 'broken.zip', 'slow Names.zip');
+    await flushPromises();
+    // The first is imported while the last is still on its way.
+    expect(uploads(server)).toEqual(['Jitendex.zip', 'broken.zip', 'slow Names.zip']);
+    expect(find(page, 'import-progress').text()).toContain(
+      'Importing Jitendex.zip… 0%, 1 more waiting',
+    );
+    expect(find(page, 'dictionary-sending').text()).toBe(
+      'Sending slow Names.zip to the server (3 of 3)…',
+    );
+    expect(page.find('[data-testid="dictionary-file"]').exists()).toBe(false);
+
+    // The server is done with what it has before the last file is there: nothing is said yet.
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.list().map((item) => item.Title)).toEqual(['Jitendex']);
+    expect(find(page, 'import-progress').text()).toContain('Sending slow Names.zip to the server');
+    expect(page.find('[data-testid="dictionary-message"]').exists()).toBe(false);
+
+    server.held.get('slow Names.zip')!();
+    await flushPromises();
+    expect(find(page, 'import-progress').text()).toContain('Importing slow Names.zip… 0%');
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(page.find('[data-testid="import-progress"]').exists()).toBe(false);
+    expect(find(page, 'dictionary-message').text()).toBe(
+      '2 dictionaries are ready: Jitendex, slow Names.\nbroken.zip: That file is not a zip.',
+    );
+    expect(find(page, 'dictionary-message').attributes('role')).toBe('alert');
+    expect((find(page, 'dictionary-file').element as HTMLInputElement).value).toBe('');
+
+    // What ended before is not told again.
+    await pick(page, 'Other.zip');
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(find(page, 'dictionary-message').text()).toBe('Other is ready.');
+  });
+
+  it('send no more files ahead than the server should keep waiting', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const server = plugin([], true);
+    const page = await open(server);
+    const names = ['A.zip', 'B.zip', 'C.zip', 'D.zip', 'E.zip', 'F.zip', 'G.zip'];
+
+    await pick(page, ...names);
+    await flushPromises();
+    // One is imported and four wait: the sixth is held back.
+    expect(uploads(server)).toEqual(names.slice(0, 5));
+    expect(find(page, 'import-progress').text()).toContain('Importing A.zip… 0%, 4 more waiting');
+    expect(find(page, 'dictionary-sending').text()).toBe('Sending F.zip to the server (6 of 7)…');
+
+    await vi.advanceTimersByTimeAsync(600);
+    expect(uploads(server)).toEqual(names.slice(0, 6));
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    expect(uploads(server)).toEqual(names);
+    expect(server.list().map((item) => item.Title)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    expect(find(page, 'dictionary-message').text()).toBe(
+      '7 dictionaries are ready: A, B, C, D, E, F, G.',
+    );
+    expect(find(page, 'dictionary-message').attributes('role')).toBe('status');
+  });
+
+  it('stop the import, those that wait and the files still on their way', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const server = plugin([], true);
+    const page = await open(server);
+
+    await pick(page, 'A.zip', 'B.zip', 'slow C.zip', 'D.zip');
+    await flushPromises();
+    expect(uploads(server)).toEqual(['A.zip', 'B.zip', 'slow C.zip']);
+
+    await button(page, 'Stop').trigger('click');
+    await flushPromises();
+
+    expect(server.sent.at(-1)!.path).toBe('Dictionaries/Import');
+    expect(
+      server.sent.find((request) => request.query.get('name') === 'slow C.zip')!.signal!.aborted,
+    ).toBe(true);
+    expect(uploads(server)).toEqual(['A.zip', 'B.zip', 'slow C.zip']);
+    expect(server.list()).toEqual([]);
+    expect(page.find('[data-testid="import-progress"]').exists()).toBe(false);
+    expect(find(page, 'dictionary-message').text()).toBe(
+      'B.zip, A.zip, slow C.zip, D.zip: The import was stopped.',
+    );
+
+    // A file sent alone and stopped says so in a line.
+    await pick(page, 'slow E.zip');
+    await flushPromises();
+    expect(find(page, 'import-progress').text()).toBe('Sending slow E.zip to the server…Stop');
+    await button(page, 'Stop').trigger('click');
+    await flushPromises();
+    expect(find(page, 'dictionary-message').text()).toBe('The import was stopped.');
+  });
+
+  it('say nothing of an import that another page started and this one never saw run', async () => {
+    const server = plugin([], true);
+    const page = await open(server);
+    const other = createPluginApi(server.fetch, BASE, 'token-2');
+    await other.uploadDictionary(new Blob(['zip']), 'Elsewhere.zip');
+    await other.dictionaries();
+    expect(server.list().map((item) => item.Title)).toEqual(['Elsewhere']);
+
+    await pick(page, 'broken.zip');
+    await flushPromises();
+    expect(find(page, 'dictionary-message').text()).toBe('That file is not a zip.');
+
+    await other.uploadDictionary(new Blob(['zip']), 'Elsewhere too.zip');
+    await other.dictionaries();
+    await find(page, 'dictionary-address').setValue('https://example.org/x.zip');
+    await find(page, 'dictionary-download').trigger('click');
+    await flushPromises();
+    await button(page, 'Stop').trigger('click');
+    await flushPromises();
+    expect(find(page, 'dictionary-message').text()).toBe('The import was stopped.');
   });
 });

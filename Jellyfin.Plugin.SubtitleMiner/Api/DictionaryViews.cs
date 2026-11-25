@@ -143,6 +143,32 @@ public sealed record DictionaryImportView
     /// <summary>Gets why it failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Error { get; init; }
+
+    /// <summary>Gets how many more dictionaries wait to be imported after this one.</summary>
+    public int Waiting { get; init; }
+
+    /// <summary>Gets what the last imports came to, the oldest first. Empty for a user who may not import.</summary>
+    public IReadOnlyList<DictionaryImportOutcomeView> Finished { get; init; } = [];
+}
+
+/// <summary>
+/// What an import came to.
+/// </summary>
+public sealed record DictionaryImportOutcomeView
+{
+    /// <summary>Gets which import of this run of the server it was, counted from 1.</summary>
+    public required long Number { get; init; }
+
+    /// <summary>Gets what was imported: a file's name or an address.</summary>
+    public required string Source { get; init; }
+
+    /// <summary>Gets the title of the dictionary, when it went in.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Title { get; init; }
+
+    /// <summary>Gets why it did not go in, when it did not.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Error { get; init; }
 }
 
 /// <summary>

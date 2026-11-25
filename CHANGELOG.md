@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0.0
+
+- Dictionaries are imported in seconds. Jitendex, with 437,000 words, took 27 seconds and now takes 2 to 4 on the same machine; JMdict went from 15 seconds to under 2. The server reads a dictionary's files side by side on up to 8 processor cores instead of one after another, keeps each definition as the dictionary wrote it instead of taking it apart and writing it anew, and compresses definitions together in blocks instead of one by one, which was two thirds of the time before.
+- Imported dictionaries take less room on the server: Jitendex 94 MB instead of 211 MB, JMdict 70 MB instead of 124 MB. Dictionaries imported by an earlier version keep working as they are; import one again to make it smaller.
+- Several dictionaries can be added at once. Pick as many zips as you like in the file field: they are sent one after another and imported in that order, each as soon as it is there, and the page says at the end which are ready and why any are not. A dictionary added while another is imported waits its turn instead of being turned away. Stop ends the import that runs and lets go of those that wait.
+- A dictionary whose zip is damaged or lies about the size of a file in it is refused with the file's name, and leaves nothing behind.
+
 ## 2.0.2.2
 
 - Pictures in the definitions of a dictionary added while the page was open, such as the marks Daijirin puts before a word's old form, said "Image failed to load" until the page was reloaded. The page did not know the new dictionary yet, as when its import was still running as the settings were closed. It now fetches the list of dictionaries again when a word comes from one it does not know, so the pictures and the dictionary's own styles show at once. A picture that could not be fetched is also asked for again the next time it is shown.

@@ -27,7 +27,7 @@ public class DictionariesController : ControllerBase
 
     internal const string OnlyAdministrators = "Only an administrator of this Jellyfin server may change its dictionaries.";
 
-    internal const string ImportRuns = "A dictionary is being imported. Wait until it is done, or stop it.";
+    internal const string ImportsFull = "Too many dictionaries wait to be imported. Wait until some are done, or stop the import.";
 
     private readonly PluginServices _services;
 
@@ -147,9 +147,10 @@ public class DictionariesController : ControllerBase
             return Problem(OnlyAdministrators, statusCode: StatusCodes.Status403Forbidden);
         }
 
-        if (_services.Dictionaries.Import.Running)
+        // Asked before the zip is taken in, so that a large one is not sent for nothing.
+        if (_services.Dictionaries.ImportsFull)
         {
-            return Problem(ImportRuns, statusCode: StatusCodes.Status409Conflict);
+            return Problem(ImportsFull, statusCode: StatusCodes.Status409Conflict);
         }
 
         Directory.CreateDirectory(_services.DictionaryScratch);
@@ -174,10 +175,10 @@ public class DictionariesController : ControllerBase
         }
 
         var source = string.IsNullOrWhiteSpace(name) ? "the uploaded file" : Path.GetFileName(name.Trim());
-        if (!_services.Dictionaries.TryStartImport(source, (_, _) => Task.FromResult(zip)))
+        if (!_services.Dictionaries.TryStartImport(source, (_, _) => Task.FromResult(zip), uploaded: zip))
         {
             System.IO.File.Delete(zip);
-            return Problem(ImportRuns, statusCode: StatusCodes.Status409Conflict);
+            return Problem(ImportsFull, statusCode: StatusCodes.Status409Conflict);
         }
 
         return Accepted(View(caller));
@@ -218,7 +219,7 @@ public class DictionariesController : ControllerBase
         var downloads = _services.DictionaryDownloads;
         if (!_services.Dictionaries.TryStartImport(address!.OriginalString, (progress, token) => downloads.DownloadAsync(address, scratch, progress, token)))
         {
-            return Problem(ImportRuns, statusCode: StatusCodes.Status409Conflict);
+            return Problem(ImportsFull, statusCode: StatusCodes.Status409Conflict);
         }
 
         return Accepted(View(caller));
@@ -346,6 +347,12 @@ public class DictionariesController : ControllerBase
                 Progress = import.Progress,
                 Title = import.Title,
                 Error = import.Error,
+                Waiting = import.Waiting,
+
+                // Only for those who may import: an address a dictionary came from can hold a key.
+                Finished = caller.IsAdministrator
+                    ? import.Finished.Select(outcome => new DictionaryImportOutcomeView { Number = outcome.Number, Source = outcome.Source, Title = outcome.Title, Error = outcome.Error }).ToList()
+                    : [],
             },
             MayManage = caller.IsAdministrator,
             WordAudio = WordAudioController.View(_services.WordAudio, caller),

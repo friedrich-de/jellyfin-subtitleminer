@@ -99,7 +99,7 @@ internal static class DictionaryLookup
         var glossaries = new Dictionary<(int, long), string>();
         foreach (var group in ranked.SelectMany(word => word.Rows).GroupBy(item => item.Dictionary))
         {
-            foreach (var (id, glossary) in dictionaries[group.Key].Glossaries(group.Select(item => item.Row.Id).ToList()))
+            foreach (var (id, glossary) in dictionaries[group.Key].Glossaries(group.Select(item => item.Row).ToList()))
             {
                 glossaries[(group.Key, id)] = glossary;
             }

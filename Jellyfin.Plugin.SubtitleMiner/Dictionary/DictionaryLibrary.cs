@@ -32,7 +32,14 @@ internal sealed class DictionaryListEntry
 /// <param name="Enabled">Whether lookups use it.</param>
 internal sealed record InstalledDictionary(DictionaryReader Reader, bool Enabled);
 
-/// <summary>What the import that runs or ran last is doing.</summary>
+/// <summary>What an import came to.</summary>
+/// <param name="Number">Which import of this run of the server it was, counted from 1: a page tells by it which ones it has not shown yet.</param>
+/// <param name="Source">What was imported: a file's name or an address.</param>
+/// <param name="Title">The dictionary's title, when it went in.</param>
+/// <param name="Error">Why it did not, when it did not.</param>
+internal sealed record ImportOutcome(long Number, string Source, string? Title, string? Error);
+
+/// <summary>What the import that runs or ran last is doing, and what waits behind it.</summary>
 internal sealed record ImportState
 {
     /// <summary>Gets nothing imported yet.</summary>
@@ -53,19 +60,36 @@ internal sealed record ImportState
     /// <summary>Gets why it failed.</summary>
     public string? Error { get; init; }
 
+    /// <summary>Gets how many more dictionaries wait to be imported after this one.</summary>
+    public int Waiting { get; init; }
+
+    /// <summary>Gets what the last imports came to, the oldest first, at most <see cref="DictionaryLibrary.OutcomesKept"/>.</summary>
+    public IReadOnlyList<ImportOutcome> Finished { get; init; } = [];
+
     /// <summary>Gets a value indicating whether an import is running.</summary>
     public bool Running => State is "downloading" or "importing";
 }
 
 /// <summary>
 /// The dictionaries the server has: one file each in the plugin's data folder, a list of their order and which
-/// are on, and one import at a time. Lookups read the dictionaries that are on, in that order.
+/// are on, and one import at a time, with those asked for meanwhile waiting their turn. Lookups read the
+/// dictionaries that are on, in that order.
 /// </summary>
 internal sealed class DictionaryLibrary : IDisposable
 {
     /// <summary>The list's file in the folder.</summary>
     internal const string ListFileName = "dictionaries.json";
 
+    /// <summary>At most this many dictionaries wait to be imported.</summary>
+    internal const int MaxWaiting = 64;
+
+    /// <summary>What this many of the last imports came to is kept for the page.</summary>
+    internal const int OutcomesKept = 2 * MaxWaiting;
+
+    /// <summary>Why an import that was stopped did not go in, and those that waited behind it.</summary>
+    internal const string Stopped = "The import was stopped.";
+
+    private const string BrokeOff = "The dictionary could not be imported: the server ran out of memory.";
     private const string Extension = ".db";
     private const string Unfinished = ".importing";
 
@@ -76,6 +100,11 @@ internal sealed class DictionaryLibrary : IDisposable
     private ImportState _import = ImportState.Idle;
     private CancellationTokenSource? _running;
     private Task _job = Task.CompletedTask;
+    private bool _disposed;
+    private long _imports;
+
+    /// <summary>The imports asked for while one runs, in the order they were asked for, under <see cref="_gate"/>.</summary>
+    private readonly Queue<Asked> _waiting = new();
 
     /// <summary>How many lookups and pictures read each dictionary now, under <see cref="_gate"/>.</summary>
     private readonly Dictionary<DictionaryReader, int> _readers = [];
@@ -167,42 +196,73 @@ internal sealed class DictionaryLibrary : IDisposable
         }
     }
 
+    /// <summary>Gets a value indicating whether as many dictionaries wait to be imported as may.</summary>
+    public bool ImportsFull
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _waiting.Count >= MaxWaiting;
+            }
+        }
+    }
+
     /// <summary>
-    /// Starts an import, unless one runs. <paramref name="fetch"/> gives the path of the zip (downloading it, or
-    /// where an upload was saved); the zip is removed when the import ends.
+    /// Starts an import, or has it wait its turn when one runs. <paramref name="fetch"/> gives the path of the zip
+    /// (downloading it, or where an upload was saved); the zip is removed when the import ends.
     /// </summary>
     /// <param name="source">What is imported, as the page shows it.</param>
     /// <param name="fetch">Gets the zip, telling how far it is.</param>
-    /// <returns>Whether it started.</returns>
-    public bool TryStartImport(string source, Func<IProgress<double>, CancellationToken, Task<string>> fetch)
+    /// <param name="uploaded">The zip, when it is on the server already: it is removed too if the import never gets its turn.</param>
+    /// <returns>Whether it started or waits; <c>false</c> when too many wait already.</returns>
+    public bool TryStartImport(string source, Func<IProgress<double>, CancellationToken, Task<string>> fetch, string? uploaded = null)
     {
-        CancellationToken token;
+        var asked = new Asked(source, fetch, uploaded);
         lock (_gate)
         {
-            if (_import.Running)
+            if (_disposed)
             {
                 return false;
             }
 
-            _running?.Dispose();
-            _running = new CancellationTokenSource();
-            token = _running.Token;
-            _import = new ImportState { State = "downloading", Source = source };
-            _job = Task.Run(() => RunImport(source, fetch, token), CancellationToken.None);
+            if (_import.Running)
+            {
+                if (_waiting.Count >= MaxWaiting)
+                {
+                    return false;
+                }
+
+                _waiting.Enqueue(asked);
+                _import = _import with { Waiting = _waiting.Count };
+                return true;
+            }
+
+            var token = Begin(asked);
+            _job = Task.Run(() => RunImports(asked, token), CancellationToken.None);
         }
 
         return true;
     }
 
-    /// <summary>Stops the import that runs, if one does.</summary>
+    /// <summary>Stops the import that runs, if one does, and lets go of those that wait.</summary>
     public void CancelImport()
     {
+        List<Asked> dropped;
         lock (_gate)
         {
-            if (_import.Running)
+            if (!_import.Running)
             {
-                _running?.Cancel();
+                return;
             }
+
+            dropped = Drop(Stopped);
+            _running?.Cancel();
+        }
+
+        foreach (var asked in dropped)
+        {
+            Discard(asked);
         }
     }
 
@@ -280,14 +340,17 @@ internal sealed class DictionaryLibrary : IDisposable
         }
     }
 
-    /// <summary>Stops an import that runs.</summary>
+    /// <summary>Stops an import that runs, and lets go of those that wait.</summary>
     public void Dispose()
     {
         CancellationTokenSource? running;
+        List<Asked> dropped;
         lock (_gate)
         {
+            _disposed = true;
             running = _running;
             _running = null;
+            dropped = Drop(Stopped);
         }
 
         if (running is not null)
@@ -295,36 +358,140 @@ internal sealed class DictionaryLibrary : IDisposable
             running.Cancel();
             running.Dispose();
         }
+
+        foreach (var asked in dropped)
+        {
+            Discard(asked);
+        }
     }
 
-    private async Task RunImport(string source, Func<IProgress<double>, CancellationToken, Task<string>> fetch, CancellationToken token)
+    /// <summary>Makes <paramref name="asked"/> the import that runs. Under <see cref="_gate"/>.</summary>
+    private CancellationToken Begin(Asked asked)
     {
-        string? zip = null;
+        _running?.Dispose();
+        _running = new CancellationTokenSource();
+        _import = new ImportState { State = "downloading", Source = asked.Source, Waiting = _waiting.Count, Finished = _import.Finished };
+        return _running.Token;
+    }
+
+    /// <summary>Takes every import that waits out of the line, each noted as not done. Under <see cref="_gate"/>.</summary>
+    private List<Asked> Drop(string why)
+    {
+        var dropped = _waiting.ToList();
+        _waiting.Clear();
+        foreach (var asked in dropped)
+        {
+            Note(asked.Source, null, why);
+        }
+
+        _import = _import with { Waiting = 0 };
+        return dropped;
+    }
+
+    /// <summary>Notes what an import came to. Under <see cref="_gate"/>.</summary>
+    private void Note(string source, string? title, string? error)
+    {
+        var finished = _import.Finished.Append(new ImportOutcome(++_imports, source, title, error)).TakeLast(OutcomesKept).ToList();
+        _import = _import with { Finished = finished };
+    }
+
+    private void Discard(Asked asked)
+    {
+        if (asked.Uploaded is not null)
+        {
+            TryDelete(asked.Uploaded);
+        }
+    }
+
+    /// <summary>Imports <paramref name="first"/>, then whatever was asked for meanwhile, one after another.</summary>
+    private async Task RunImports(Asked first, CancellationToken token)
+    {
+        var asked = first;
+        while (true)
+        {
+            string? title;
+            string? error;
+            try
+            {
+                (title, error) = await RunImport(asked, token).ConfigureAwait(false);
+            }
+            catch
+            {
+                // The server ran out of memory. The import ends all the same, with what waited, so that the
+                // next one asked for may start.
+                List<Asked> dropped;
+                lock (_gate)
+                {
+                    Note(asked.Source, null, BrokeOff);
+                    dropped = Drop(BrokeOff);
+                    _import = new ImportState { State = "failed", Source = asked.Source, Error = BrokeOff, Finished = _import.Finished };
+                }
+
+                foreach (var left in dropped)
+                {
+                    Discard(left);
+                }
+
+                throw;
+            }
+
+            lock (_gate)
+            {
+                Note(asked.Source, title, error);
+                if (_disposed || _waiting.Count == 0)
+                {
+                    // Only here does the import stop being one that runs, under the lock that looked for more to
+                    // do: one asked for from now on starts its own work, and none is left waiting for nobody.
+                    _import = new ImportState
+                    {
+                        State = error is null ? "done" : "failed",
+                        Source = asked.Source,
+                        Progress = error is null ? 1 : 0,
+                        Title = title,
+                        Error = error,
+                        Finished = _import.Finished,
+                    };
+                    return;
+                }
+
+                // The next one starts under the same lock, so that the import is seen to run from the first to
+                // the last.
+                asked = _waiting.Dequeue();
+                token = Begin(asked);
+            }
+        }
+    }
+
+    /// <summary>Imports one dictionary. What it came to is for <see cref="RunImports"/> to tell.</summary>
+    private async Task<(string? Title, string? Error)> RunImport(Asked asked, CancellationToken token)
+    {
+        var source = asked.Source;
+        string? zip = asked.Uploaded;
         var id = Guid.NewGuid().ToString("N");
         var unfinished = Path.Combine(_folder, id + Unfinished);
         try
         {
-            zip = await fetch(new Progress(this, "downloading", source), token).ConfigureAwait(false);
+            zip = await asked.Fetch(new Progress(this, "downloading", source), token).ConfigureAwait(false);
             Update(new ImportState { State = "importing", Source = source });
             var info = YomitanArchive.Import(zip, unfinished, id, new Progress(this, "importing", source), token);
             Install(info, unfinished);
-            Update(new ImportState { State = "done", Source = source, Progress = 1, Title = info.Title });
             _logger.LogInformation("Imported the dictionary {Title} ({Terms} words, {Frequencies} frequencies, {Pitches} pitch accents)", info.Title, info.Terms, info.Frequencies, info.Pitches);
+            return (info.Title, null);
         }
         catch (OperationCanceledException)
         {
-            Update(new ImportState { State = "failed", Source = source, Error = "The import was stopped." });
+            return (null, Stopped);
         }
         catch (Exception error) when (error is InvalidDataException or DictionaryFetchException)
         {
             _logger.LogWarning("Could not import the dictionary from {Source}: {Reason}", source, error.Message);
-            Update(new ImportState { State = "failed", Source = source, Error = error.Message });
+            return (null, error.Message);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             // Whatever else went wrong, the import ends, so that the next one may start.
             _logger.LogWarning(error, "Could not import the dictionary from {Source}", source);
-            Update(new ImportState { State = "failed", Source = source, Error = "The dictionary could not be imported: " + error.Message });
+            return (null, "The dictionary could not be imported: " + error.Message);
         }
         finally
         {
@@ -481,11 +648,12 @@ internal sealed class DictionaryLibrary : IDisposable
         File.Move(next, file, overwrite: true);
     }
 
+    /// <summary>Says what the import that runs is doing; what waits and what ended stay as they are.</summary>
     private void Update(ImportState state)
     {
         lock (_gate)
         {
-            _import = state;
+            _import = state with { Waiting = _waiting.Count, Finished = _import.Finished };
         }
     }
 
@@ -500,6 +668,12 @@ internal sealed class DictionaryLibrary : IDisposable
             _logger.LogWarning(error, "Could not remove {Path}", path);
         }
     }
+
+    /// <summary>An import that was asked for.</summary>
+    /// <param name="Source">What is imported, as the page shows it.</param>
+    /// <param name="Fetch">Gets the zip, telling how far it is.</param>
+    /// <param name="Uploaded">The zip, when it is on the server already.</param>
+    private sealed record Asked(string Source, Func<IProgress<double>, CancellationToken, Task<string>> Fetch, string? Uploaded);
 
     /// <summary>Dictionaries kept for reading until this is disposed.</summary>
     internal sealed class Reading(DictionaryLibrary library, IReadOnlyList<DictionaryReader> readers) : IDisposable

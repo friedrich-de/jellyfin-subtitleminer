@@ -19,7 +19,15 @@ export interface DictionaryList {
     Pitches: number;
     Styles: string;
   }[];
-  Import: { State: string; Source?: string; Progress: number; Title?: string; Error?: string };
+  Import: {
+    State: string;
+    Source?: string;
+    Progress: number;
+    Title?: string;
+    Error?: string;
+    Waiting: number;
+    Finished: { Number: number; Source: string; Title?: string; Error?: string }[];
+  };
   MayManage: boolean;
 }
 
@@ -200,20 +208,26 @@ export async function forgetDictionaries(request: APIRequestContext, admin: Logi
   }
 }
 
-/** A web server on 127.0.0.1 that hands out files, as a dictionary's publisher does. */
+/**
+ * A web server on 127.0.0.1 that hands out files, as a dictionary's publisher does. With `until`,
+ * it answers only once that has come true: a download that takes as long as a test wants.
+ */
 export async function serveFiles(
   files: Record<string, Buffer>,
+  until: Promise<unknown> = Promise.resolve(),
 ): Promise<{ url: string; asked: string[]; stop: () => Promise<void> }> {
   const asked: string[] = [];
   const server = createServer((request, response) => {
     asked.push(request.url ?? '');
     const file = files[request.url ?? ''];
-    if (file === undefined) {
-      response.writeHead(404).end();
-      return;
-    }
-    response.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': file.length });
-    response.end(file);
+    void until.then(() => {
+      if (file === undefined) {
+        response.writeHead(404).end();
+        return;
+      }
+      response.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': file.length });
+      response.end(file);
+    });
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -224,6 +238,8 @@ export async function serveFiles(
     stop: () =>
       new Promise((resolve) => {
         server.close(() => resolve());
+        // A download the server gave up on is not waited for.
+        server.closeAllConnections();
       }),
   };
 }
