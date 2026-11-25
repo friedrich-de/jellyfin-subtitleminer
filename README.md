@@ -61,7 +61,7 @@ Cards reach AnkiWeb when your Anki next syncs. To send them right away, press **
 
 ## The dictionary
 
-No dictionary comes with the plugin. An administrator adds them in the page's settings: Jitendex and JMnedict with one tap, or any Yomitan dictionary from an address or a file. The Jellyfin server imports it (Jitendex took 15 seconds on a home server) and keeps it for everyone. Dictionaries can be put in order, turned off and removed.
+No dictionary comes with the plugin. An administrator adds them in the page's settings: Jitendex and JMnedict with one tap, or any Yomitan dictionary from an address or from files, several at once if you like. The Jellyfin server imports them one after another, each in a few seconds (Jitendex in 2 to 4), and keeps them for everyone. Dictionaries can be put in order, turned off and removed.
 
 Frequency and pitch accent dictionaries in Yomitan's format work as well, such as Kanjium's pitch accents. The popup then shows a word's pitch, and a card gets it in PitchPosition (the mora the pitch falls after, such as 2) and PitchCategories (heiban, atamadaka, nakadaka, odaka or kifuku, as Yomitan names them).
 

@@ -15,6 +15,11 @@ namespace Jellyfin.Plugin.SubtitleMiner.Dictionary;
 /// Reads a dictionary in Yomitan's format, a zip of <c>index.json</c>, term banks, term meta banks (frequencies,
 /// pitch accents, pronunciations), tag banks, a stylesheet and pictures, into a dictionary file. Kanji banks are left
 /// out: the popup looks kanji up as words.
+/// <para>
+/// The banks and pictures are unpacked and read on as many threads as the server has processors, each with its own
+/// view of the zip, while this thread writes what they read into the file in the dictionary's own order, so the
+/// file is the same however many threads there were.
+/// </para>
 /// </summary>
 internal static partial class YomitanArchive
 {
@@ -32,6 +37,15 @@ internal static partial class YomitanArchive
 
     /// <summary>A word written or read longer than this is left out.</summary>
     internal const int MaxKeyLength = 256;
+
+    /// <summary>No more threads than this read a dictionary: the one that writes the file cannot keep up with more.</summary>
+    internal const int MaxThreads = 8;
+
+    /// <summary>
+    /// The banks and pictures that are unpacked but not in the file yet take no more memory than about this,
+    /// unless one alone is larger.
+    /// </summary>
+    internal const long MaxBytesUnderWay = 384L * 1024 * 1024;
 
     /// <summary>The kinds of picture a definition may show, and how they are served.</summary>
     internal static readonly IReadOnlyDictionary<string, string> MediaTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -87,33 +101,39 @@ internal static partial class YomitanArchive
 
         using (zip)
         {
-            var entries = zip.Entries.Where(entry => !entry.FullName.EndsWith('/')).ToList();
-            if (entries.Sum(entry => entry.Length) > MaxTotalBytes)
+            // Each file with its place in the zip, by which another view of the same zip finds it.
+            var entries = zip.Entries.Select((entry, place) => new Piece(entry, place)).Where(piece => !piece.Entry.FullName.EndsWith('/')).ToList();
+            if (entries.Sum(piece => piece.Entry.Length) > MaxTotalBytes)
             {
                 throw new InvalidDataException("That dictionary is too large to import.");
             }
 
-            var index = entries.FirstOrDefault(entry => entry.FullName == "index.json")
+            var index = entries.FirstOrDefault(piece => piece.Entry.FullName == "index.json")?.Entry
                 ?? throw new InvalidDataException("That zip has no index.json at its top, so it is not a Yomitan dictionary.");
             var info = ReadIndex(Read(index, MaxSmallFileBytes));
             info.Id = id;
 
-            var terms = Banks(entries, TermBank());
-            var metas = Banks(entries, TermMetaBank());
-            var tags = Banks(entries, TagBank());
+            var terms = Banks(entries, TermBank(), Kind.Terms);
+            var metas = Banks(entries, TermMetaBank(), Kind.Metas);
+            var tags = Banks(entries, TagBank(), Kind.Tags);
             if (terms.Count == 0 && metas.Count == 0)
             {
                 throw new InvalidDataException("That dictionary has no words, frequencies or pitch accents. Kanji dictionaries are not read: the popup looks kanji up as words.");
             }
 
-            var styles = entries.FirstOrDefault(entry => entry.FullName == "styles.css") is { } css
-                ? Encoding.UTF8.GetString(Read(css, MaxSmallFileBytes))
+            var styles = entries.FirstOrDefault(piece => piece.Entry.FullName == "styles.css") is { } css
+                ? Encoding.UTF8.GetString(Read(css.Entry, MaxSmallFileBytes))
                 : null;
+
+            // Pictures go in by their paths' order: the file keeps them in that order, and adding at its end is
+            // much faster than adding in between.
             var media = entries
-                .Where(entry => MediaTypes.ContainsKey(Path.GetExtension(entry.Name)) && entry.Length <= MaxMediaBytes)
+                .Where(piece => MediaTypes.ContainsKey(Path.GetExtension(piece.Entry.Name)) && piece.Entry.Length <= MaxMediaBytes)
+                .OrderBy(piece => piece.Entry.FullName, StringComparer.Ordinal)
+                .Select(piece => piece with { Kind = Kind.Media })
                 .ToList();
 
-            var total = Math.Max(1, terms.Concat(metas).Concat(tags).Concat(media).Sum(entry => entry.CompressedLength));
+            var total = Math.Max(1, terms.Concat(metas).Concat(tags).Concat(media).Sum(piece => piece.Entry.CompressedLength));
             var done = 0L;
             void Advance(ZipArchiveEntry entry)
             {
@@ -125,31 +145,43 @@ internal static partial class YomitanArchive
             foreach (var bank in tags)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ReadTags(bank, writer, info);
-                Advance(bank);
+                ReadTags(bank.Entry, writer, info);
+                Advance(bank.Entry);
             }
 
-            foreach (var bank in terms)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                ReadTerms(bank, writer, info);
-                Advance(bank);
-            }
+            var pieces = terms.Concat(metas).Concat(media).ToList();
+            var format = info.Format;
+            OrderedWork.Run(
+                pieces.Count,
+                Math.Min(Environment.ProcessorCount, MaxThreads),
+                place => pieces[place].Entry.Length,
+                MaxBytesUnderWay,
+                () => ZipFile.OpenRead(zipPath),
+                (view, place) => Load(view.Entries[pieces[place].Place], pieces[place].Kind, format),
+                (place, loaded) =>
+                {
+                    switch (loaded)
+                    {
+                        case TermBank bank:
+                            writer.AddTerms(bank);
+                            info.Terms += bank.Count;
+                            info.Skipped += bank.Skipped;
+                            break;
+                        case MetaBank bank:
+                            writer.AddMetas(bank);
+                            info.Frequencies += bank.Frequencies;
+                            info.Pitches += bank.Pitches;
+                            info.Skipped += bank.Skipped;
+                            break;
+                        case byte[] picture:
+                            writer.AddMedia(pieces[place].Entry.FullName, picture);
+                            info.Media++;
+                            break;
+                    }
 
-            foreach (var bank in metas)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                ReadMetas(bank, writer, info);
-                Advance(bank);
-            }
-
-            foreach (var entry in media)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                writer.AddMedia(entry.FullName, Read(entry, MaxMediaBytes));
-                info.Media++;
-                Advance(entry);
-            }
+                    Advance(pieces[place].Entry);
+                },
+                cancellationToken);
 
             if (info.Terms == 0 && info.Frequencies == 0 && info.Pitches == 0)
             {
@@ -160,6 +192,33 @@ internal static partial class YomitanArchive
             writer.Finish(info, styles);
             progress?.Report(1);
             return info;
+        }
+    }
+
+    /// <summary>Unpacks one file of the zip and reads it, on a thread of its own: a bank into its rows, a picture as it is.</summary>
+    private static object Load(ZipArchiveEntry entry, Kind kind, int format)
+    {
+        if (kind == Kind.Media)
+        {
+            return Read(entry, MaxMediaBytes);
+        }
+
+        if (entry.Length > MaxBankBytes)
+        {
+            throw new InvalidDataException($"{entry.FullName} in that dictionary is too large.");
+        }
+
+        // A bank is a few megabytes, read once and dropped: borrowed, so that a hundred of them do not each
+        // leave a large array behind for the garbage collector.
+        var bytes = ArrayPool<byte>.Shared.Rent((int)entry.Length);
+        try
+        {
+            var json = bytes.AsSpan(0, ReadInto(entry, bytes.AsSpan(0, (int)entry.Length)));
+            return kind == Kind.Terms ? YomitanBank.ReadTerms(json, format, entry.FullName) : YomitanBank.ReadMetas(json, entry.FullName);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(bytes);
         }
     }
 
@@ -221,101 +280,6 @@ internal static partial class YomitanArchive
         };
     }
 
-    private static void ReadTerms(ZipArchiveEntry bank, DictionaryWriter writer, DictionaryInfo info)
-    {
-        using var document = Parse(bank);
-        var glossary = new ArrayBufferWriter<byte>();
-        foreach (var row in Rows(document, bank))
-        {
-            // Format 3: [expression, reading, definitionTags, rules, score, glossary[], sequence, termTags];
-            // format 1: [expression, reading, definitionTags, rules, score, ...glossary strings].
-            if (row.ValueKind != JsonValueKind.Array || row.GetArrayLength() < 5
-                || !Key(row[0], out var expression) || row[1].ValueKind != JsonValueKind.String || !Number(row[4], out var score))
-            {
-                info.Skipped++;
-                continue;
-            }
-
-            var reading = row[1].GetString()!;
-            if (reading.Length == 0)
-            {
-                reading = expression;
-            }
-            else if (reading.Length > MaxKeyLength)
-            {
-                info.Skipped++;
-                continue;
-            }
-
-            glossary.Clear();
-            long sequence = 0;
-            var termTags = string.Empty;
-            if (info.Format == 1)
-            {
-                using var json = new Utf8JsonWriter(glossary);
-                json.WriteStartArray();
-                foreach (var definition in row.EnumerateArray().Skip(5))
-                {
-                    definition.WriteTo(json);
-                }
-
-                json.WriteEndArray();
-            }
-            else
-            {
-                if (row.GetArrayLength() < 6 || row[5].ValueKind != JsonValueKind.Array)
-                {
-                    info.Skipped++;
-                    continue;
-                }
-
-                using (var json = new Utf8JsonWriter(glossary))
-                {
-                    row[5].WriteTo(json);
-                }
-
-                if (row.GetArrayLength() > 6 && Number(row[6], out var number))
-                {
-                    sequence = (long)Math.Round(number);
-                }
-
-                if (row.GetArrayLength() > 7)
-                {
-                    termTags = Tags(row[7]);
-                }
-            }
-
-            writer.AddTerm(expression, reading, Tags(row[2]), Tags(row[3]), (long)Math.Round(score), glossary.WrittenSpan, sequence, termTags);
-            info.Terms++;
-        }
-    }
-
-    private static void ReadMetas(ZipArchiveEntry bank, DictionaryWriter writer, DictionaryInfo info)
-    {
-        using var document = Parse(bank);
-        foreach (var row in Rows(document, bank))
-        {
-            // [expression, "freq" | "pitch" | "ipa", data]
-            if (row.ValueKind != JsonValueKind.Array || row.GetArrayLength() < 3 || !Key(row[0], out var expression)
-                || row[1].ValueKind != JsonValueKind.String || row[1].GetString() is not ("freq" or "pitch" or "ipa") || row[2].ValueKind == JsonValueKind.Null)
-            {
-                info.Skipped++;
-                continue;
-            }
-
-            var mode = row[1].GetString()!;
-            writer.AddMeta(expression, mode, row[2].GetRawText());
-            if (mode == "freq")
-            {
-                info.Frequencies++;
-            }
-            else
-            {
-                info.Pitches++;
-            }
-        }
-    }
-
     private static void ReadTags(ZipArchiveEntry bank, DictionaryWriter writer, DictionaryInfo info)
     {
         using var document = Parse(bank);
@@ -338,16 +302,11 @@ internal static partial class YomitanArchive
     internal static bool Number(JsonElement value, out double number)
     {
         number = 0;
-        return value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out number) && Math.Abs(number) < 9e15;
+        return value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out number) && FitsLong(number);
     }
 
-    private static bool Key(JsonElement value, out string key)
-    {
-        key = value.ValueKind == JsonValueKind.String ? value.GetString()! : string.Empty;
-        return key.Length > 0 && key.Length <= MaxKeyLength;
-    }
-
-    private static string Tags(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString()!.Trim() : string.Empty;
+    /// <summary>Whether a number can be kept as a whole number without losing any of it.</summary>
+    internal static bool FitsLong(double number) => Math.Abs(number) < 9e15;
 
     private static JsonElement.ArrayEnumerator Rows(JsonDocument document, ZipArchiveEntry bank)
     {
@@ -371,7 +330,7 @@ internal static partial class YomitanArchive
         }
     }
 
-    /// <summary>Reads a file of the zip whole, but never more of it than <paramref name="limit"/>.</summary>
+    /// <summary>Reads a file of the zip whole, unless it is larger than <paramref name="limit"/>.</summary>
     private static byte[] Read(ZipArchiveEntry entry, long limit)
     {
         if (entry.Length > limit)
@@ -379,29 +338,51 @@ internal static partial class YomitanArchive
             throw new InvalidDataException($"{entry.FullName} in that dictionary is too large.");
         }
 
-        using var stream = entry.Open();
-        using var buffer = new MemoryStream((int)Math.Max(0, entry.Length));
-        var chunk = new byte[81920];
-        int read;
-        while ((read = stream.Read(chunk)) > 0)
+        var bytes = new byte[entry.Length];
+        var read = ReadInto(entry, bytes);
+        return read == bytes.Length ? bytes : bytes[..read];
+    }
+
+    /// <summary>
+    /// Unpacks a file of the zip into <paramref name="room"/>, which is as large as the zip says the file is. A
+    /// file that unpacks to more than the zip says is refused: the limits are checked against what the zip says.
+    /// </summary>
+    private static int ReadInto(ZipArchiveEntry entry, Span<byte> room)
+    {
+        try
         {
-            if (buffer.Length + read > limit)
+            using var stream = entry.Open();
+            var read = 0;
+            while (read < room.Length)
             {
-                throw new InvalidDataException($"{entry.FullName} in that dictionary is too large.");
+                var count = stream.Read(room[read..]);
+                if (count == 0)
+                {
+                    return read;
+                }
+
+                read += count;
             }
 
-            buffer.Write(chunk, 0, read);
-        }
+            if (stream.ReadByte() >= 0)
+            {
+                throw new InvalidDataException($"{entry.FullName} in that dictionary is larger than the zip says it is.");
+            }
 
-        return buffer.ToArray();
+            return read;
+        }
+        catch (InvalidDataException error) when (!error.Message.StartsWith(entry.FullName, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"{entry.FullName} in that dictionary cannot be unpacked: the zip is damaged.");
+        }
     }
 
     /// <summary>The banks of one kind, in the order of their numbers.</summary>
-    private static List<ZipArchiveEntry> Banks(List<ZipArchiveEntry> entries, Regex name) => entries
-        .Select(entry => (entry, match: name.Match(entry.FullName)))
+    private static List<Piece> Banks(List<Piece> entries, Regex name, Kind kind) => entries
+        .Select(piece => (piece, match: name.Match(piece.Entry.FullName)))
         .Where(pair => pair.match.Success)
         .OrderBy(pair => long.Parse(pair.match.Groups[1].ValueSpan, System.Globalization.CultureInfo.InvariantCulture))
-        .Select(pair => pair.entry)
+        .Select(pair => pair.piece with { Kind = kind })
         .ToList();
 
     [GeneratedRegex(@"^term_bank_(\d{1,9})\.json$")]
@@ -412,4 +393,29 @@ internal static partial class YomitanArchive
 
     [GeneratedRegex(@"^tag_bank_(\d{1,9})\.json$")]
     private static partial Regex TagBank();
+
+    /// <summary>What a file of the zip is.</summary>
+    private enum Kind
+    {
+        /// <summary>Nothing the import reads.</summary>
+        Other,
+
+        /// <summary>A bank of words.</summary>
+        Terms,
+
+        /// <summary>A bank of frequencies, pitch accents and pronunciations.</summary>
+        Metas,
+
+        /// <summary>A bank of tags.</summary>
+        Tags,
+
+        /// <summary>A picture.</summary>
+        Media,
+    }
+
+    /// <summary>A file of the zip.</summary>
+    /// <param name="Entry">The file.</param>
+    /// <param name="Place">Its place among the zip's files, the same in every view of the zip.</param>
+    /// <param name="Kind">What it is.</param>
+    private sealed record Piece(ZipArchiveEntry Entry, int Place, Kind Kind = Kind.Other);
 }

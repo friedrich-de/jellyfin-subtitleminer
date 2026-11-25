@@ -60,6 +60,15 @@ public sealed class DictionariesControllerTests : IDisposable
         return Assert.IsType<DictionariesView>(accepted.Value);
     }
 
+    /// <summary>Sends a dictionary without waiting for the import.</summary>
+    private async Task<DictionariesView> Post(YomitanZip zip, string name)
+    {
+        _test.SignInAs(administrator: true);
+        await using var body = File.OpenRead(zip.Write(_test.Scratch, Guid.NewGuid().ToString("N") + ".zip"));
+        var result = await Controller(body).PostDictionary(name, TestContext.Current.CancellationToken);
+        return Assert.IsType<DictionariesView>(Assert.IsType<AcceptedResult>(result.Result).Value);
+    }
+
     private async Task<DictionariesView> List() => (await Controller().GetDictionaries()).Value!;
 
     private async Task<JsonElement> Lookup(string text)
@@ -192,22 +201,170 @@ public sealed class DictionariesControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task Only_one_import_runs_at_a_time()
+    public async Task Dictionaries_asked_for_while_one_is_imported_wait_their_turn()
     {
         var release = new TaskCompletionSource<string>();
-        Assert.True(_test.Dictionaries.TryStartImport("slow", (_, _) => release.Task));
-        _test.SignInAs(administrator: true);
-        await using var body = new MemoryStream([1, 2, 3]);
+        Assert.True(_test.Dictionaries.TryStartImport("slow.zip", (_, _) => release.Task));
 
-        Assert.Equal(DictionariesController.ImportRuns, Problem((await Controller(body).PostDictionary("x.zip", TestContext.Current.CancellationToken)).Result, StatusCodes.Status409Conflict).Detail);
-        Assert.Equal(DictionariesController.ImportRuns, Problem((await Controller().PostDownload(new DictionaryDownload { Url = "https://dictionaries.example/words.zip" })).Result, StatusCodes.Status409Conflict).Detail);
-        Assert.Equal("downloading", (await List()).Import.State);
+        var second = await Post(Words("Second"), "second.zip");
+        Assert.Equal(("downloading", "slow.zip", 1), (second.Import.State, second.Import.Source, second.Import.Waiting));
+        _test.DownloadNetwork.Files["https://dictionaries.example/third.zip"] = File.ReadAllBytes(Words("Third").Write(_test.Scratch, "third.zip"));
+        var third = Assert.IsType<DictionariesView>(Assert.IsType<AcceptedResult>(
+            (await Controller().PostDownload(new DictionaryDownload { Url = "https://dictionaries.example/third.zip" })).Result).Value);
+        Assert.Equal(("downloading", "slow.zip", 2), (third.Import.State, third.Import.Source, third.Import.Waiting));
+        Assert.Empty(third.Import.Finished);
+        Assert.Empty(third.Dictionaries);
 
-        // Stopping it ends it.
-        await Controller().DeleteImport();
+        release.SetResult(Words("First").Write(_test.Scratch, "slow.zip"));
+        await _test.Dictionaries.Job;
+
+        var view = await List();
+        Assert.Equal(["First", "Second", "Third"], view.Dictionaries.Select(item => item.Title));
+        Assert.Equal(("done", "https://dictionaries.example/third.zip", "Third", 0), (view.Import.State, view.Import.Source, view.Import.Title, view.Import.Waiting));
+        Assert.Equal(
+            [(1L, "slow.zip", "First"), (2L, "second.zip", "Second"), (3L, "https://dictionaries.example/third.zip", "Third")],
+            view.Import.Finished.Select(outcome => (outcome.Number, outcome.Source, outcome.Title)));
+        Assert.All(view.Import.Finished, outcome => Assert.Null(outcome.Error));
+        Assert.Empty(Directory.GetFiles(Path.Combine(_test.Scratch, "dictionary-uploads")));
+
+        // The next one is counted on from there.
+        await Upload(Words("Fourth"), "fourth.zip");
+        Assert.Equal([1L, 2L, 3L, 4L], (await List()).Import.Finished.Select(outcome => outcome.Number));
+    }
+
+    [Fact]
+    public async Task One_that_fails_does_not_hold_up_those_that_wait()
+    {
+        var release = new TaskCompletionSource<string>();
+        Assert.True(_test.Dictionaries.TryStartImport("slow.zip", (_, _) => release.Task));
+        await Post(new YomitanZip { Index = string.Empty }, "other.zip");
+        await Post(Words("Good"), "good.zip");
+
+        release.SetException(new DictionaryFetchException("The address answered 404 Not Found."));
+        await _test.Dictionaries.Job;
+
+        var view = await List();
+        Assert.Equal(["Good"], view.Dictionaries.Select(item => item.Title));
+        Assert.Equal(("done", "good.zip"), (view.Import.State, view.Import.Source));
+        Assert.Equal(
+            [
+                ("slow.zip", null, "The address answered 404 Not Found."),
+                ("other.zip", null, "That zip has no index.json at its top, so it is not a Yomitan dictionary."),
+                ("good.zip", "Good", null),
+            ],
+            view.Import.Finished.Select(outcome => (outcome.Source, outcome.Title, outcome.Error)));
+    }
+
+    [Fact]
+    public async Task Stopping_the_import_lets_go_of_those_that_wait()
+    {
+        var release = new TaskCompletionSource<string>();
+        Assert.True(_test.Dictionaries.TryStartImport("slow.zip", (_, _) => release.Task));
+        await Post(Words("Second"), "second.zip");
+        await Post(Words("Third"), "third.zip");
+        Assert.Equal(2, Directory.GetFiles(Path.Combine(_test.Scratch, "dictionary-uploads")).Length);
+
+        var stopped = (await Controller().DeleteImport()).Value!;
+        Assert.Equal(("downloading", 0), (stopped.Import.State, stopped.Import.Waiting));
+        Assert.Empty(Directory.GetFiles(Path.Combine(_test.Scratch, "dictionary-uploads")));
         release.SetCanceled(TestContext.Current.CancellationToken);
         await _test.Dictionaries.Job;
-        Assert.Equal(("failed", "The import was stopped."), ((await List()).Import.State, (await List()).Import.Error));
+
+        var view = await List();
+        Assert.Empty(view.Dictionaries);
+        Assert.Equal(("failed", "slow.zip", "The import was stopped."), (view.Import.State, view.Import.Source, view.Import.Error));
+        Assert.Equal(
+            [
+                ("second.zip", DictionaryLibrary.Stopped),
+                ("third.zip", DictionaryLibrary.Stopped),
+                ("slow.zip", "The import was stopped."),
+            ],
+            view.Import.Finished.Select(outcome => (outcome.Source, outcome.Error)));
+
+        // Stopping when nothing runs does nothing, and the next import starts as ever.
+        await Controller().DeleteImport();
+        await Upload(Words("Later"), "later.zip");
+        Assert.Equal(["Later"], (await List()).Dictionaries.Select(item => item.Title));
+    }
+
+    [Fact]
+    public async Task One_asked_for_after_the_stop_is_imported_once_the_stopped_one_has_ended()
+    {
+        var release = new TaskCompletionSource<string>();
+        Assert.True(_test.Dictionaries.TryStartImport("slow.zip", (_, _) => release.Task));
+        await Controller().DeleteImport();
+
+        var waiting = await Post(Words("After"), "after.zip");
+        Assert.Equal(("downloading", "slow.zip", 1), (waiting.Import.State, waiting.Import.Source, waiting.Import.Waiting));
+        release.SetCanceled(TestContext.Current.CancellationToken);
+        await _test.Dictionaries.Job;
+
+        Assert.Equal(["After"], (await List()).Dictionaries.Select(item => item.Title));
+    }
+
+    [Fact]
+    public async Task Only_so_many_dictionaries_wait()
+    {
+        var release = new TaskCompletionSource<string>();
+        Assert.True(_test.Dictionaries.TryStartImport("slow.zip", (_, _) => release.Task));
+        for (var i = 0; i < DictionaryLibrary.MaxWaiting; i++)
+        {
+            Assert.False(_test.Dictionaries.ImportsFull);
+            Assert.True(_test.Dictionaries.TryStartImport("waits-" + i, (_, _) => throw new DictionaryFetchException("No such file.")));
+        }
+
+        Assert.True(_test.Dictionaries.ImportsFull);
+        Assert.False(_test.Dictionaries.TryStartImport("one too many", (_, _) => throw new DictionaryFetchException("No such file.")));
+        _test.SignInAs(administrator: true);
+        await using var body = new MemoryStream([1, 2, 3]);
+        Assert.Equal(DictionariesController.ImportsFull, Problem((await Controller(body).PostDictionary("x.zip", TestContext.Current.CancellationToken)).Result, StatusCodes.Status409Conflict).Detail);
+        Assert.Equal(DictionariesController.ImportsFull, Problem((await Controller().PostDownload(new DictionaryDownload { Url = "https://dictionaries.example/words.zip" })).Result, StatusCodes.Status409Conflict).Detail);
+        Assert.False(Directory.Exists(Path.Combine(_test.Scratch, "dictionary-uploads")));
+        Assert.Equal(DictionaryLibrary.MaxWaiting, (await List()).Import.Waiting);
+
+        release.SetException(new DictionaryFetchException("No such file."));
+        await _test.Dictionaries.Job;
+
+        // What the last imports came to is kept, the oldest forgotten first.
+        for (var round = 0; round < 2; round++)
+        {
+            var held = new TaskCompletionSource<string>();
+            Assert.True(_test.Dictionaries.TryStartImport("slow.zip", (_, _) => held.Task));
+            for (var i = 0; i < DictionaryLibrary.MaxWaiting; i++)
+            {
+                Assert.True(_test.Dictionaries.TryStartImport("waits-" + i, (_, _) => throw new DictionaryFetchException("No such file.")));
+            }
+
+            held.SetException(new DictionaryFetchException("No such file."));
+            await _test.Dictionaries.Job;
+        }
+
+        var finished = (await List()).Import.Finished;
+        var all = 3 * (DictionaryLibrary.MaxWaiting + 1);
+        Assert.Equal(DictionaryLibrary.OutcomesKept, finished.Count);
+        Assert.Equal(Enumerable.Range(all - DictionaryLibrary.OutcomesKept + 1, DictionaryLibrary.OutcomesKept).Select(number => (long)number), finished.Select(outcome => outcome.Number));
+    }
+
+    [Fact]
+    public async Task A_server_that_stops_lets_go_of_what_waits()
+    {
+        var folder = Path.Combine(_test.Scratch, "stopping");
+        var library = new DictionaryLibrary(folder, NullLogger.Instance);
+        var release = new TaskCompletionSource<string>();
+        Assert.True(library.TryStartImport("slow.zip", (_, token) => release.Task.WaitAsync(token)));
+        var uploaded = Words().Write(_test.Scratch, "waits.zip");
+        Assert.True(library.TryStartImport("waits.zip", (_, _) => Task.FromResult(uploaded), uploaded));
+
+        library.Dispose();
+        await library.Job;
+
+        Assert.False(File.Exists(uploaded));
+        Assert.Empty(library.Installed);
+        Assert.Equal(
+            [("waits.zip", DictionaryLibrary.Stopped), ("slow.zip", "The import was stopped.")],
+            library.Import.Finished.Select(outcome => (outcome.Source, outcome.Error)));
+        Assert.Equal(("failed", 0), (library.Import.State, library.Import.Waiting));
+        Assert.False(library.TryStartImport("late.zip", (_, _) => Task.FromResult(uploaded)));
     }
 
     [Fact]

@@ -138,13 +138,27 @@ export interface DictionaryView {
 
 export type ImportState = 'idle' | 'downloading' | 'importing' | 'done' | 'failed';
 
-/** What the import that runs, or ran last, does. */
+/** What the import that runs, or ran last, does, and what waits behind it. */
 export interface DictionaryImport {
   State: ImportState;
   /** A file's name or an address. */
   Source?: string;
   /** From 0 to 1. */
   Progress: number;
+  Title?: string;
+  Error?: string;
+  /** How many more dictionaries wait to be imported after this one. */
+  Waiting: number;
+  /** What the last imports came to, the oldest first. */
+  Finished: DictionaryImportOutcome[];
+}
+
+/** What an import came to: the dictionary's title when it went in, or why it did not. */
+export interface DictionaryImportOutcome {
+  /** Counted up from 1 since the server started: a page tells by it which ones it has not shown. */
+  Number: number;
+  /** A file's name or an address. */
+  Source: string;
   Title?: string;
   Error?: string;
 }

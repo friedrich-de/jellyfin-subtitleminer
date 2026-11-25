@@ -57,7 +57,11 @@ function plugin(start: SettingsView, anki: { server?: Collection; device?: Colle
       return json(stored);
     }
     if (request.path === 'Dictionaries') {
-      return json({ Dictionaries: [], Import: { State: 'idle', Progress: 0 }, MayManage: false });
+      return json({
+        Dictionaries: [],
+        Import: { State: 'idle', Progress: 0, Waiting: 0, Finished: [] },
+        MayManage: false,
+      });
     }
     if (request.path === 'Anki') {
       if (anki.server === undefined) {

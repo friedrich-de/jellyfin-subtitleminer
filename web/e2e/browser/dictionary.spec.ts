@@ -465,6 +465,45 @@ test.describe('the dictionaries in the settings', () => {
     );
   });
 
+  test('take several files picked at once, and say how each of them ended', async ({
+    page,
+    jellyfin,
+  }) => {
+    await signInToJellyfin(page, jellyfin.admin);
+    await page.goto('/SubtitleMiner/');
+    await page.getByTestId('open-settings').click();
+    const section = page.getByTestId('dictionaries');
+    await expect(section.getByTestId('dictionary-E2E Words')).toBeVisible();
+
+    await page.getByTestId('dictionary-file').setInputFiles([
+      {
+        name: 'one.zip',
+        mimeType: 'application/zip',
+        buffer: yomitanZip(wordsDictionary('One More')),
+      },
+      { name: 'other.zip', mimeType: 'application/zip', buffer: Buffer.from('not a zip') },
+      {
+        name: 'two.zip',
+        mimeType: 'application/zip',
+        buffer: yomitanZip(metaDictionary('Two More')),
+      },
+    ]);
+
+    await expect(page.getByTestId('dictionary-message')).toHaveText(
+      '2 dictionaries are ready: One More, Two More.\n' +
+        'other.zip: That file is not a zip. A Yomitan dictionary is a zip with an index.json in it.',
+      { useInnerText: true },
+    );
+    // In the order they were picked, behind those that were there.
+    await expect(section.locator('.dictionary .title')).toHaveText([
+      'E2E Words',
+      'E2E Frequencies',
+      'One More',
+      'Two More',
+    ]);
+    await expect(page.getByTestId('dictionary-file')).toBeVisible();
+  });
+
   test('take an audio source for words, which the page never shows again', async ({
     page,
     jellyfin,

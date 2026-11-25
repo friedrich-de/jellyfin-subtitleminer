@@ -3,7 +3,12 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 
 import type { PluginApi } from '@/api/plugin';
 import { TEXT_SIZES } from '@/anki/pageSettings';
-import type { DictionariesView, DictionaryView, WordAudioSaved } from '@/api/types';
+import type {
+  DictionariesView,
+  DictionaryImportOutcome,
+  DictionaryView,
+  WordAudioSaved,
+} from '@/api/types';
 
 const props = defineProps<{ api: PluginApi }>();
 
@@ -32,12 +37,30 @@ const list = shallowRef<DictionariesView | null>(null);
 const failed = ref<string | null>(null);
 const message = ref<{ text: string; error: boolean } | null>(null);
 const busy = ref(false);
-const sending = ref<string | null>(null);
+/** The file that is on its way to the server, and which of those picked it is. */
+const sending = ref<{ name: string; at: number; of: number } | null>(null);
 const address = ref('');
 const confirming = ref<string | null>(null);
 const audioAddress = ref('');
 const audioMessage = ref<{ text: string; error: boolean } | null>(null);
 let polling: number | null = null;
+
+/** How often an import that runs is looked at. A large dictionary is in within a few seconds. */
+const LOOK_EVERY_MS = 400;
+/** No more than this many uploads wait on the server at once: each is a file there until its turn. */
+const SENT_AHEAD = 4;
+const STOPPED = 'The import was stopped.';
+
+/** The number of the last import whose end this page knows of; null before the first look. */
+let known: number | null = null;
+/** Imports that ended and are not told of yet, and files that never got to the server. */
+let ended: DictionaryImportOutcome[] = [];
+let unsent: { what: string; why: string }[] = [];
+/** Whether this page saw the import run or started it: only then does it say how it ended. */
+let watching = false;
+/** Whether Stop was pressed while files were on their way. */
+let halted = false;
+let upload: AbortController | null = null;
 
 const enabled = computed(() => list.value?.Dictionaries.filter((item) => item.Enabled) ?? []);
 const running = computed(() => {
@@ -79,22 +102,72 @@ function stopPolling(): void {
   polling = null;
 }
 
+/** Keeps the imports that ended since the last look. Those from before the page was there are not its to tell. */
+function collect(finished: readonly DictionaryImportOutcome[]): void {
+  const last = finished.at(-1)?.Number ?? 0;
+  if (known === null) {
+    known = last;
+    return;
+  }
+  // The server counts from 1 again after a restart.
+  if (last < known) known = 0;
+  for (const outcome of finished) {
+    if (outcome.Number > known) {
+      ended.push(outcome);
+      known = outcome.Number;
+    }
+  }
+}
+
 /**
- * Takes a new list in, and follows an import that runs until it ends. `started` is for the
- * answer to starting one, which may have ended by then.
+ * How the imports ended, in words: one in a line of its own, several as a count of those that are
+ * ready and a line for each reason the others are not.
  */
-function took(view: DictionariesView, started = false): void {
-  const before = list.value?.Import.State;
+function summary(): { text: string; error: boolean } | null {
+  const ready = ended
+    .filter((outcome) => outcome.Error === undefined)
+    .map((outcome) => outcome.Title ?? sourceName(outcome.Source));
+  const not = [
+    ...ended
+      .filter((outcome) => outcome.Error !== undefined)
+      .map((outcome) => ({ what: sourceName(outcome.Source), why: outcome.Error! })),
+    ...unsent,
+  ];
+  if (ready.length + not.length === 0) return null;
+  if (not.length === 0 && ready.length === 1)
+    return { text: `${ready[0]} is ready.`, error: false };
+  if (ready.length === 0 && not.length === 1) return { text: not[0]!.why, error: true };
+
+  const lines: string[] = [];
+  if (ready.length === 1) lines.push(`${ready[0]} is ready.`);
+  if (ready.length > 1) lines.push(`${ready.length} dictionaries are ready: ${ready.join(', ')}.`);
+  for (const why of new Set(not.map((item) => item.why))) {
+    const which = not.filter((item) => item.why === why).map((item) => item.what);
+    lines.push(`${which.join(', ')}: ${why}`);
+  }
+  return { text: lines.join('\n'), error: not.length > 0 };
+}
+
+/** Says how the imports ended, once none runs and no file is on its way. */
+function settle(): void {
+  if (running.value || sending.value !== null) return;
+  const said = watching ? summary() : null;
+  ended = [];
+  unsent = [];
+  watching = false;
+  if (said !== null) message.value = said;
+}
+
+/** Takes a new list in, and follows an import that runs until it and those behind it end. */
+function took(view: DictionariesView): void {
   list.value = view;
   stopPolling();
+  collect(view.Import.Finished);
   if (running.value) {
-    polling = window.setTimeout(() => void refresh(), 1_000);
-  } else if (started || before === 'downloading' || before === 'importing') {
-    if (view.Import.State === 'done') {
-      message.value = { text: `${view.Import.Title ?? 'The dictionary'} is ready.`, error: false };
-    } else if (view.Import.State === 'failed') {
-      message.value = { text: view.Import.Error ?? 'The import failed.', error: true };
-    }
+    watching = true;
+    polling = window.setTimeout(() => void refresh(), LOOK_EVERY_MS);
+  } else {
+    settle();
   }
 }
 
@@ -104,14 +177,32 @@ async function refresh(): Promise<void> {
     failed.value = null;
   } catch (error) {
     failed.value = messageOf(error);
+    // An import is followed to its end, also past a look the server did not answer.
+    if (running.value) {
+      stopPolling();
+      polling = window.setTimeout(() => void refresh(), LOOK_EVERY_MS);
+    }
   }
+}
+
+/**
+ * From here on the page says how imports end. It looks first, so that one another page started
+ * and that ended unseen is not told of as if it were this page's.
+ */
+async function watch(): Promise<void> {
+  if (!watching) {
+    await refresh();
+    if (!watching) ended = [];
+  }
+  watching = true;
 }
 
 async function act(change: () => Promise<DictionariesView>, starts = false): Promise<void> {
   busy.value = true;
   message.value = null;
   try {
-    took(await change(), starts);
+    if (starts) await watch();
+    took(await change());
   } catch (error) {
     message.value = { text: messageOf(error), error: true };
   } finally {
@@ -152,14 +243,56 @@ function remove(item: DictionaryView): void {
   void act(() => props.api.removeDictionary(item.Id));
 }
 
-async function upload(event: Event): Promise<void> {
+const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => window.setTimeout(resolve, ms));
+
+/**
+ * Sends the picked files to the server one after another. The server imports them in that order,
+ * each as soon as it is there, while the next is on its way.
+ */
+async function send(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (file === undefined) return;
-  sending.value = file.name;
-  await act(() => props.api.uploadDictionary(file, file.name), true);
+  const files = [...(input.files ?? [])];
+  if (files.length === 0) return;
+  message.value = null;
+  halted = false;
+  upload = new AbortController();
+  for (const [index, file] of files.entries()) {
+    if (index === 0) {
+      sending.value = { name: file.name, at: 1, of: files.length };
+      await watch();
+    }
+    if (!halted) {
+      sending.value = { name: file.name, at: index + 1, of: files.length };
+      try {
+        // Not too many at once: the server keeps each as a file until its turn.
+        while (!halted && running.value && (list.value?.Import.Waiting ?? 0) >= SENT_AHEAD) {
+          await pause(LOOK_EVERY_MS / 4);
+        }
+        if (!halted) {
+          took(await props.api.uploadDictionary(file, file.name, upload.signal));
+          continue;
+        }
+      } catch (error) {
+        if (!halted) {
+          unsent.push({ what: file.name, why: messageOf(error) });
+          continue;
+        }
+      }
+    }
+    unsent.push({ what: file.name, why: STOPPED });
+  }
+  upload = null;
   sending.value = null;
   input.value = '';
+  settle();
+}
+
+/** Stops the import that runs, those that wait, and the files still on their way. */
+function stop(): Promise<void> {
+  halted = true;
+  upload?.abort();
+  return act(() => props.api.stopDictionaryImport());
 }
 
 function download(url: string): void {
@@ -222,13 +355,25 @@ const importText = computed(() => {
   const job = list.value?.Import;
   if (job === undefined) return '';
   const what = job.Title ?? (job.Source === undefined ? 'the dictionary' : sourceName(job.Source));
-  return job.State === 'downloading'
-    ? `Downloading ${what}… ${Math.round(job.Progress * 100)}%`
-    : `Importing ${what}… ${Math.round(job.Progress * 100)}%`;
+  const doing = job.State === 'downloading' ? 'Downloading' : 'Importing';
+  const more = job.Waiting > 0 ? `, ${job.Waiting} more waiting` : '';
+  return `${doing} ${what}… ${Math.round(job.Progress * 100)}%${more}`;
+});
+
+const sendingText = computed(() => {
+  const file = sending.value;
+  if (file === null) return '';
+  const which = file.of > 1 ? ` (${file.at} of ${file.of})` : '';
+  return `Sending ${file.name} to the server${which}…`;
 });
 
 onMounted(() => void refresh());
-onBeforeUnmount(stopPolling);
+onBeforeUnmount(() => {
+  stopPolling();
+  // The files already on the server are imported all the same; no more are sent.
+  halted = true;
+  upload?.abort();
+});
 </script>
 
 <template>
@@ -369,18 +514,22 @@ onBeforeUnmount(stopPolling);
           the first dictionary that has them.
         </p>
 
-        <div v-if="running" class="importing" role="status" data-testid="import-progress">
-          <span class="small">{{ importText }}</span>
-          <progress max="1" :value="list.Import.Progress" />
-          <button
-            class="button"
-            type="button"
-            :disabled="busy"
-            @click="act(() => api.stopDictionaryImport())"
+        <template v-if="running || sending !== null">
+          <div class="importing" role="status" data-testid="import-progress">
+            <span class="small">{{ running ? importText : sendingText }}</span>
+            <progress v-if="running" max="1" :value="list.Import.Progress" />
+            <progress v-else />
+            <button class="button" type="button" :disabled="busy" @click="stop()">Stop</button>
+          </div>
+          <p
+            v-if="running && sending !== null"
+            class="muted small"
+            role="status"
+            data-testid="dictionary-sending"
           >
-            Stop
-          </button>
-        </div>
+            {{ sendingText }}
+          </p>
+        </template>
 
         <template v-else>
           <div class="suggested">
@@ -389,7 +538,7 @@ onBeforeUnmount(stopPolling);
               :key="suggestion.name"
               class="button"
               type="button"
-              :disabled="busy || sending !== null || isInstalled(suggestion)"
+              :disabled="busy || isInstalled(suggestion)"
               @click="download(suggestion.url)"
             >
               Add {{ suggestion.name }}, {{ suggestion.text }}
@@ -418,18 +567,17 @@ onBeforeUnmount(stopPolling);
             </span>
           </label>
           <label class="field">
-            <span class="name">Or upload a Yomitan dictionary's zip from this device</span>
+            <span class="name">Or upload Yomitan dictionaries' zips from this device</span>
             <input
               type="file"
               accept=".zip,application/zip"
+              multiple
               :disabled="busy"
               data-testid="dictionary-file"
-              @change="upload"
+              @change="send"
             />
+            <span class="muted small">Several can be picked at once.</span>
           </label>
-          <p v-if="sending !== null" class="muted small" role="status">
-            Sending {{ sending }} to the server…
-          </p>
         </template>
 
         <h3>Word audio, for everyone</h3>
@@ -721,6 +869,11 @@ input:focus-visible {
 
 .error {
   color: var(--danger);
+}
+
+/* Several dictionaries at once end in several lines. */
+[data-testid='dictionary-message'] {
+  white-space: pre-line;
 }
 
 @media (prefers-reduced-motion: reduce) {

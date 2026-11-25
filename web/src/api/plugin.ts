@@ -67,8 +67,8 @@ export interface PluginApi {
   lookUp(text: string, signal?: AbortSignal): Promise<Lookup>;
   /** A picture of a dictionary's definitions. */
   dictionaryPicture(id: string, path: string): Promise<Blob>;
-  /** Only an administrator may: imports a dictionary's zip. */
-  uploadDictionary(file: Blob, name: string): Promise<DictionariesView>;
+  /** Only an administrator may: imports a dictionary's zip, after those that wait already. */
+  uploadDictionary(file: Blob, name: string, signal?: AbortSignal): Promise<DictionariesView>;
   /** Only an administrator may: the server downloads a dictionary's zip and imports it. */
   downloadDictionary(url: string): Promise<DictionariesView>;
   /** Only an administrator may. */
@@ -202,7 +202,7 @@ export function createPluginApi(fetchFn: Fetch, base: string, token: string): Pl
     dictionaryPicture: (id, path) =>
       file(dictionaries(`/${encodeURIComponent(id)}/Media?${query({ path })}`), undefined),
 
-    uploadDictionary: async (zip, name) => {
+    uploadDictionary: async (zip, name, signal) => {
       const response = await send(fetchFn, dictionaries(`?${query({ name })}`), {
         method: 'POST',
         headers: {
@@ -211,6 +211,7 @@ export function createPluginApi(fetchFn: Fetch, base: string, token: string): Pl
           'Content-Type': 'application/zip',
         },
         body: zip,
+        ...(signal === undefined ? {} : { signal }),
       });
       return (await response.json()) as DictionariesView;
     },

@@ -1,4 +1,5 @@
 import {
+  type DictionaryList,
   forgetDictionaries,
   importEnded,
   listDictionaries,
@@ -129,6 +130,109 @@ test.describe('the dictionaries on the server', () => {
         Error: 'The address answered 404 Not Found.',
       });
       expect(publisher.asked).toEqual(['/words.zip', '/gone.zip']);
+    } finally {
+      await publisher.stop();
+    }
+  });
+
+  test('wait their turn when they are sent while another is imported', async ({ request }) => {
+    let release = (): void => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const publisher = await serveFiles(
+      { '/first.zip': yomitanZip(wordsDictionary('First')) },
+      held,
+    );
+    const send = async (name: string, zip: Buffer): Promise<DictionaryList> => {
+      const response = await request.post(`${API}/Dictionaries?name=${name}`, {
+        headers: { ...tokenHeader(admin.token), 'Content-Type': 'application/zip' },
+        data: zip,
+      });
+      expect(response.status(), await response.text()).toBe(202);
+      return (await response.json()) as DictionaryList;
+    };
+    try {
+      const before = (await listDictionaries(request, admin)).Import.Finished.at(-1)?.Number ?? 0;
+      const started = await request.post(`${API}/Dictionaries/Download`, {
+        headers: tokenHeader(admin.token),
+        data: { Url: `${publisher.url}/first.zip` },
+      });
+      expect(started.status(), await started.text()).toBe(202);
+
+      const second = await send('second.zip', yomitanZip(wordsDictionary('Second')));
+      expect(second.Import).toMatchObject({ State: 'downloading', Waiting: 1 });
+      await send('other.zip', Buffer.from('not a zip'));
+      const fourth = await send('fourth.zip', yomitanZip(metaDictionary('Fourth')));
+      expect(fourth.Import).toMatchObject({
+        State: 'downloading',
+        Source: `${publisher.url}/first.zip`,
+        Waiting: 3,
+      });
+      expect(fourth.Dictionaries).toEqual([]);
+
+      release();
+      const list = await importEnded(request, admin);
+      expect(list.Dictionaries.map((item) => item.Title)).toEqual(['First', 'Second', 'Fourth']);
+      expect(list.Import).toMatchObject({ State: 'done', Title: 'Fourth', Waiting: 0 });
+      expect(
+        list.Import.Finished.filter((outcome) => outcome.Number > before).map((outcome) => [
+          outcome.Number - before,
+          outcome.Source,
+          outcome.Title ?? outcome.Error,
+        ]),
+      ).toEqual([
+        [1, `${publisher.url}/first.zip`, 'First'],
+        [2, 'second.zip', 'Second'],
+        [
+          3,
+          'other.zip',
+          'That file is not a zip. A Yomitan dictionary is a zip with an index.json in it.',
+        ],
+        [4, 'fourth.zip', 'Fourth'],
+      ]);
+      expect((await lookUp(request, viewer, '食べる')).results[0]?.term.glossaries).toHaveLength(2);
+    } finally {
+      release();
+      await publisher.stop();
+    }
+  });
+
+  test('are let go of when the import they wait behind is stopped', async ({ request }) => {
+    const publisher = await serveFiles(
+      { '/first.zip': yomitanZip(wordsDictionary('First')) },
+      new Promise(() => undefined),
+    );
+    try {
+      const before = (await listDictionaries(request, admin)).Import.Finished.at(-1)?.Number ?? 0;
+      await request.post(`${API}/Dictionaries/Download`, {
+        headers: tokenHeader(admin.token),
+        data: { Url: `${publisher.url}/first.zip` },
+      });
+      const waits = await request.post(`${API}/Dictionaries?name=waits.zip`, {
+        headers: { ...tokenHeader(admin.token), 'Content-Type': 'application/zip' },
+        data: yomitanZip(wordsDictionary('Waits')),
+      });
+      expect(((await waits.json()) as DictionaryList).Import.Waiting).toBe(1);
+
+      const stopped = await request.delete(`${API}/Dictionaries/Import`, {
+        headers: tokenHeader(admin.token),
+      });
+      expect(stopped.status(), await stopped.text()).toBe(200);
+      expect(((await stopped.json()) as DictionaryList).Import.Waiting).toBe(0);
+
+      const list = await importEnded(request, admin);
+      expect(list.Import).toMatchObject({ State: 'failed', Error: 'The import was stopped.' });
+      expect(list.Dictionaries).toEqual([]);
+      expect(
+        list.Import.Finished.filter((outcome) => outcome.Number > before).map((outcome) => [
+          outcome.Source,
+          outcome.Error,
+        ]),
+      ).toEqual([
+        ['waits.zip', 'The import was stopped.'],
+        [`${publisher.url}/first.zip`, 'The import was stopped.'],
+      ]);
     } finally {
       await publisher.stop();
     }
