@@ -61,7 +61,9 @@ Cards reach AnkiWeb when your Anki next syncs. To send them right away, press **
 
 ## The dictionary
 
-No dictionary comes with the plugin. An administrator adds them in the page's settings: Jitendex and JMnedict with one tap, or any Yomitan dictionary from an address or from files, several at once if you like. The Jellyfin server imports them one after another, each in a few seconds (Jitendex in 2 to 4), and keeps them for everyone. Dictionaries can be put in order, turned off and removed.
+No dictionary comes with the plugin. An administrator adds them in the page's settings: Jitendex and JMnedict with one tap, or any Yomitan dictionary from an address or from files, several at once if you like. The Jellyfin server imports them one after another, each in a few seconds (Jitendex in 2 to 4), and keeps them for everyone. Dictionaries can be put in order, turned off and removed. Importing a dictionary that is there already puts the new import in its place.
+
+If a dictionary's small pictures, such as Daijirin's labels 漢 and 文, say "Image failed to load", it was imported by a version before 2.1.0.1, which kept pictures with Shift-JIS names in the zip under names no definition asks for. Import it once more.
 
 Frequency and pitch accent dictionaries in Yomitan's format work as well, such as Kanjium's pitch accents. The popup then shows a word's pitch, and a card gets it in PitchPosition (the mora the pitch falls after, such as 2) and PitchCategories (heiban, atamadaka, nakadaka, odaka or kifuku, as Yomitan names them).
 
@@ -102,6 +104,10 @@ cd web && npm ci && npm run check
 # The package Jellyfin installs: dist/subtitle-miner_<version>.zip and dist/manifest.json
 dev/package.sh
 
+# Dictionaries of your own against the importer, outside Jellyfin: what each import counted
+# and whether every picture its definitions ask for is there
+SUBTITLE_MINER_DICTIONARIES=<folder of zips> dotnet test --project Jellyfin.Plugin.SubtitleMiner.Tests -c Release -- --filter-class "*RealDictionaryTests"
+
 # End to end: a throwaway Jellyfin 12.4 with the package installed through Jellyfin's own
 # plugin installer, then the plugin's addresses over HTTP and the page in a real browser
 # at desktop and at phone size
@@ -109,6 +115,8 @@ dev/e2e.sh
 ```
 
 `dev/e2e.sh` downloads the Jellyfin server once into `.cache/` (about 110 MB, x86-64 Linux) and needs Playwright's Chromium (`cd web && npx playwright install chromium`). The top of the script says how to use an installed server instead. The tests make their own videos with ffmpeg (colours that change every five seconds, a hum on each audio track, subtitles inside and next to the video), play them with a pretend player through Jellyfin's own playback calls, send cards to a pretend AnkiConnect, and keep the server off the internet. `SUBTITLE_MINER_E2E_SCREENS=<folder> dev/e2e.sh screens` takes pictures of the page with the test media. The pictures in `docs/screenshots/` were taken on a real Jellyfin playing Fate/strange Fake.
+
+The dictionary check is the tool for a dictionary that does not import or shows no pictures. It fails with what it found, and writes the same to the file `SUBTITLE_MINER_DICTIONARIES_REPORT` names. A dictionary's zip is read as Yomitan reads it, because real dictionaries count on it: a file's name that the packer wrote in its own encoding (Shift-JIS on a Japanese Windows) is taken from the "Unicode Path" field beside it (`Dictionary/ZipNames.cs`), and a checksum that does not fit refuses nothing as long as the file unpacks whole, since some dictionaries are packed with wrong ones.
 
 To work on the page against a Jellyfin that has the plugin installed: `cd web && JELLYFIN_URL=http://localhost:8096 npm run dev`.
 

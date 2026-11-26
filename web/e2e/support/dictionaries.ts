@@ -151,6 +151,24 @@ export function metaDictionary(title = 'E2E Frequencies'): TestDictionary {
   };
 }
 
+/**
+ * The dictionary of marks as a packer on a Japanese Windows writes it, and as a real Daijirin
+ * comes: the SVG's name in Shift-JIS, and the name in UTF-8 in a field beside it.
+ */
+export function marksDictionaryPackedOnWindows(title = 'E2E Marks'): TestDictionary {
+  return {
+    ...marksDictionary(title),
+    shiftJisNames: {
+      // gaiji/文語.svg
+      'gaiji/文語.svg': Buffer.concat([
+        Buffer.from('gaiji/'),
+        Buffer.from([0x95, 0xb6, 0x8c, 0xea]),
+        Buffer.from('.svg'),
+      ]),
+    },
+  };
+}
+
 export async function listDictionaries(
   request: APIRequestContext,
   login: Login,

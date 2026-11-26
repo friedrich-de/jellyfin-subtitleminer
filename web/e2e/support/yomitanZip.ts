@@ -13,6 +13,12 @@ export interface TestDictionary {
   frequencyMode?: 'rank-based' | 'occurrence-based';
   /** Other files, such as pictures, by their path in the zip. */
   files?: Record<string, Buffer>;
+  /**
+   * Files of `files` that the zip names as a packer on a Japanese Windows does, by their path:
+   * these bytes, the path in Shift-JIS, stand where the name goes, and the path in UTF-8 is in
+   * the "Unicode Path" field beside them. Real dictionaries such as Daijirin come that way.
+   */
+  shiftJisNames?: Record<string, Buffer>;
 }
 
 /** A format 3 term row. */
@@ -49,43 +55,59 @@ export function yomitanZip(dictionary: TestDictionary): Buffer {
   if (dictionary.tags?.length) files.push(['tag_bank_1.json', json(dictionary.tags)]);
   if (dictionary.styles) files.push(['styles.css', Buffer.from(dictionary.styles)]);
   for (const [name, data] of Object.entries(dictionary.files ?? {})) files.push([name, data]);
-  return zip(files);
+  return zip(files, dictionary.shiftJisNames ?? {});
 }
 
 function json(value: unknown): Buffer {
   return Buffer.from(JSON.stringify(value));
 }
 
-function zip(files: [string, Buffer][]): Buffer {
+/** Info-ZIP's "Unicode Path" field: a version, the checksum of the name it stands beside, the name in UTF-8. */
+function unicodePath(rawName: Buffer, name: string): Buffer {
+  const utf8 = Buffer.from(name);
+  const head = Buffer.alloc(9);
+  head.writeUInt16LE(0x7075, 0);
+  head.writeUInt16LE(5 + utf8.length, 2);
+  head.writeUInt8(1, 4);
+  head.writeUInt32LE(crc32(rawName), 5);
+  return Buffer.concat([head, utf8]);
+}
+
+function zip(files: [string, Buffer][], shiftJisNames: Record<string, Buffer>): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
   for (const [name, data] of files) {
-    const path = Buffer.from(name);
+    const shiftJis = shiftJisNames[name];
+    const path = shiftJis ?? Buffer.from(name);
+    const extra = shiftJis ? unicodePath(shiftJis, name) : Buffer.alloc(0);
+    const flags = shiftJis ? 0 : 0x0800; // names in UTF-8, unless the packer wrote its own encoding
     const crc = crc32(data);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4); // version needed
-    local.writeUInt16LE(0x0800, 6); // names in UTF-8
+    local.writeUInt16LE(flags, 6);
     local.writeUInt16LE(0, 8); // stored
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(data.length, 18);
     local.writeUInt32LE(data.length, 22);
     local.writeUInt16LE(path.length, 26);
-    locals.push(local, path, data);
+    local.writeUInt16LE(extra.length, 28);
+    locals.push(local, path, extra, data);
 
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(20, 4);
     central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(flags, 8);
     central.writeUInt32LE(crc, 16);
     central.writeUInt32LE(data.length, 20);
     central.writeUInt32LE(data.length, 24);
     central.writeUInt16LE(path.length, 28);
+    central.writeUInt16LE(extra.length, 30);
     central.writeUInt32LE(offset, 42);
-    centrals.push(central, path);
-    offset += local.length + path.length + data.length;
+    centrals.push(central, path, extra);
+    offset += local.length + path.length + extra.length + data.length;
   }
 
   const directory = Buffer.concat(centrals);
