@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/friedrich-de/jellyfin-subtitleminer/main/web/public/icons/icon-512.png",
     "versions": [
       {
+        "version": "2.1.0.1",
+        "changelog": "- Dictionaries packed on a Japanese Windows show their pictures. Some, such as Daijirin with its label pictures (漢, 文, 派生 and the like), come in a zip that writes the pictures' names in Shift-JIS and puts the same names in UTF-8 into a field beside them. Yomitan reads that field and the plugin did not: it kept those pictures under unreadable names, and the popup said \"Image failed to load\" wherever a definition asked for one. The plugin now takes the names as Yomitan does. **Import such a dictionary once more** to get its pictures: the new import takes the old one's place, in the same spot of the list and on or off as it was.",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/friedrich-de/jellyfin-subtitleminer/main/repository/subtitle-miner_2.1.0.1.zip",
+        "checksum": "58081d591793130f7f82a1eb75930f80",
+        "timestamp": "2026-11-26T03:03:37Z"
+      },
+      {
         "version": "2.1.0.0",
         "changelog": "- Dictionaries are imported in seconds. Jitendex, with 437,000 words, took 27 seconds and now takes 2 to 4 on the same machine; JMdict went from 15 seconds to under 2. The server reads a dictionary's files side by side on up to 8 processor cores instead of one after another, keeps each definition as the dictionary wrote it instead of taking it apart and writing it anew, and compresses definitions together in blocks instead of one by one, which was two thirds of the time before.\n- Imported dictionaries take less room on the server: Jitendex 94 MB instead of 211 MB, JMdict 70 MB instead of 124 MB. Dictionaries imported by an earlier version keep working as they are; import one again to make it smaller.\n- Several dictionaries can be added at once. Pick as many zips as you like in the file field: they are sent one after another and imported in that order, each as soon as it is there, and the page says at the end which are ready and why any are not. A dictionary added while another is imported waits its turn instead of being turned away. Stop ends the import that runs and lets go of those that wait.\n- A dictionary whose zip is damaged or lies about the size of a file in it is refused with the file's name, and leaves nothing behind.",
         "targetAbi": "12.4.0.0",

@@ -6,6 +6,7 @@ import { forgetAnki, saveSettings } from '../support/ankiSettings';
 import {
   forgetDictionaries,
   marksDictionary,
+  marksDictionaryPackedOnWindows,
   metaDictionary,
   uploadDictionary,
   wordsDictionary,
@@ -184,6 +185,40 @@ test.describe('a word tapped in a line', () => {
       .locator('.dictionary-popup img')
       .evaluateAll((images) => images.map((image) => (image as HTMLImageElement).naturalWidth));
     expect(sizes).toEqual([16, 1]);
+    expect(pictures).toEqual(['200', '200']);
+  });
+
+  test('shows the pictures a dictionary’s zip names in Shift-JIS', async ({
+    page,
+    request,
+    jellyfin,
+    player,
+  }) => {
+    // As a real Daijirin comes: its marks are named in Shift-JIS, with the names in UTF-8 beside
+    // them, where Yomitan reads them.
+    await uploadDictionary(request, admin, marksDictionaryPackedOnWindows());
+    const tv = player(jellyfin.viewer, 'Dictionary desk', 'mpv');
+    await tv.play(jellyfin.media.episode1.id, { positionMs: 1_500, paused: true });
+    await signInToJellyfin(page, jellyfin.viewer);
+    await page.goto('/SubtitleMiner/');
+    await expect(firstLine(page)).toBeVisible();
+    const pictures: string[] = [];
+    page.on('response', (response) => {
+      if (response.url().includes('/Media?path=gaiji')) pictures.push(String(response.status()));
+    });
+    await tapCharacter(page, firstLine(page), '昨');
+    await expect(popup(page).getByText('(ナリ) the day before today')).toBeVisible();
+
+    const marks = popup(page).locator('.dictionary-popup [data-image-load-state]');
+    await expect(marks).toHaveCount(2);
+    await expect
+      .poll(() =>
+        marks.evaluateAll((links) =>
+          links.map((link) => link.getAttribute('data-image-load-state')),
+        ),
+      )
+      .toEqual(['loaded', 'loaded']);
+    await expect(popup(page)).not.toContainText('Image failed to load');
     expect(pictures).toEqual(['200', '200']);
   });
 

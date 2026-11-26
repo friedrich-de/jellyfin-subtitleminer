@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.0.1
+
+- Dictionaries packed on a Japanese Windows show their pictures. Some, such as Daijirin with its label pictures (漢, 文, 派生 and the like), come in a zip that writes the pictures' names in Shift-JIS and puts the same names in UTF-8 into a field beside them. Yomitan reads that field and the plugin did not: it kept those pictures under unreadable names, and the popup said "Image failed to load" wherever a definition asked for one. The plugin now takes the names as Yomitan does. **Import such a dictionary once more** to get its pictures: the new import takes the old one's place, in the same spot of the list and on or off as it was.
+
 ## 2.1.0.0
 
 - Dictionaries are imported in seconds. Jitendex, with 437,000 words, took 27 seconds and now takes 2 to 4 on the same machine; JMdict went from 15 seconds to under 2. The server reads a dictionary's files side by side on up to 8 processor cores instead of one after another, keeps each definition as the dictionary wrote it instead of taking it apart and writing it anew, and compresses definitions together in blocks instead of one by one, which was two thirds of the time before.
