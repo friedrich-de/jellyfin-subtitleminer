@@ -101,16 +101,18 @@ internal static partial class YomitanArchive
 
         using (zip)
         {
-            // Each file with its place in the zip, by which another view of the same zip finds it.
-            var entries = zip.Entries.Select((entry, place) => new Piece(entry, place)).Where(piece => !piece.Entry.FullName.EndsWith('/')).ToList();
+            // Each file with its place in the zip, by which another view of the same zip finds it, and with its
+            // name as Yomitan reads it, which is not always the name .NET gives it.
+            var names = ZipNames.Read(zipPath, zip);
+            var entries = zip.Entries.Select((entry, place) => new Piece(entry, place, names[place])).Where(piece => !piece.Name.EndsWith('/')).ToList();
             if (entries.Sum(piece => piece.Entry.Length) > MaxTotalBytes)
             {
                 throw new InvalidDataException("That dictionary is too large to import.");
             }
 
-            var index = entries.FirstOrDefault(piece => piece.Entry.FullName == "index.json")?.Entry
+            var index = entries.FirstOrDefault(piece => piece.Name == "index.json")
                 ?? throw new InvalidDataException("That zip has no index.json at its top, so it is not a Yomitan dictionary.");
-            var info = ReadIndex(Read(index, MaxSmallFileBytes));
+            var info = ReadIndex(Read(index.Entry, index.Name, MaxSmallFileBytes));
             info.Id = id;
 
             var terms = Banks(entries, TermBank(), Kind.Terms);
@@ -121,15 +123,15 @@ internal static partial class YomitanArchive
                 throw new InvalidDataException("That dictionary has no words, frequencies or pitch accents. Kanji dictionaries are not read: the popup looks kanji up as words.");
             }
 
-            var styles = entries.FirstOrDefault(piece => piece.Entry.FullName == "styles.css") is { } css
-                ? Encoding.UTF8.GetString(Read(css.Entry, MaxSmallFileBytes))
+            var styles = entries.FirstOrDefault(piece => piece.Name == "styles.css") is { } css
+                ? Encoding.UTF8.GetString(Read(css.Entry, css.Name, MaxSmallFileBytes))
                 : null;
 
             // Pictures go in by their paths' order: the file keeps them in that order, and adding at its end is
             // much faster than adding in between.
             var media = entries
-                .Where(piece => MediaTypes.ContainsKey(Path.GetExtension(piece.Entry.Name)) && piece.Entry.Length <= MaxMediaBytes)
-                .OrderBy(piece => piece.Entry.FullName, StringComparer.Ordinal)
+                .Where(piece => MediaTypes.ContainsKey(Path.GetExtension(piece.Name)) && piece.Entry.Length <= MaxMediaBytes)
+                .OrderBy(piece => piece.Name, StringComparer.Ordinal)
                 .Select(piece => piece with { Kind = Kind.Media })
                 .ToList();
 
@@ -145,7 +147,7 @@ internal static partial class YomitanArchive
             foreach (var bank in tags)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ReadTags(bank.Entry, writer, info);
+                ReadTags(bank, writer, info);
                 Advance(bank.Entry);
             }
 
@@ -157,7 +159,7 @@ internal static partial class YomitanArchive
                 place => pieces[place].Entry.Length,
                 MaxBytesUnderWay,
                 () => ZipFile.OpenRead(zipPath),
-                (view, place) => Load(view.Entries[pieces[place].Place], pieces[place].Kind, format),
+                (view, place) => Load(view.Entries[pieces[place].Place], pieces[place].Name, pieces[place].Kind, format),
                 (place, loaded) =>
                 {
                     switch (loaded)
@@ -174,7 +176,7 @@ internal static partial class YomitanArchive
                             info.Skipped += bank.Skipped;
                             break;
                         case byte[] picture:
-                            writer.AddMedia(pieces[place].Entry.FullName, picture);
+                            writer.AddMedia(pieces[place].Name, picture);
                             info.Media++;
                             break;
                     }
@@ -196,16 +198,16 @@ internal static partial class YomitanArchive
     }
 
     /// <summary>Unpacks one file of the zip and reads it, on a thread of its own: a bank into its rows, a picture as it is.</summary>
-    private static object Load(ZipArchiveEntry entry, Kind kind, int format)
+    private static object Load(ZipArchiveEntry entry, string name, Kind kind, int format)
     {
         if (kind == Kind.Media)
         {
-            return Read(entry, MaxMediaBytes);
+            return Read(entry, name, MaxMediaBytes);
         }
 
         if (entry.Length > MaxBankBytes)
         {
-            throw new InvalidDataException($"{entry.FullName} in that dictionary is too large.");
+            throw new InvalidDataException($"{name} in that dictionary is too large.");
         }
 
         // A bank is a few megabytes, read once and dropped: borrowed, so that a hundred of them do not each
@@ -213,8 +215,8 @@ internal static partial class YomitanArchive
         var bytes = ArrayPool<byte>.Shared.Rent((int)entry.Length);
         try
         {
-            var json = bytes.AsSpan(0, ReadInto(entry, bytes.AsSpan(0, (int)entry.Length)));
-            return kind == Kind.Terms ? YomitanBank.ReadTerms(json, format, entry.FullName) : YomitanBank.ReadMetas(json, entry.FullName);
+            var json = bytes.AsSpan(0, ReadInto(entry, name, bytes.AsSpan(0, (int)entry.Length)));
+            return kind == Kind.Terms ? YomitanBank.ReadTerms(json, format, name) : YomitanBank.ReadMetas(json, name);
         }
         finally
         {
@@ -280,7 +282,7 @@ internal static partial class YomitanArchive
         };
     }
 
-    private static void ReadTags(ZipArchiveEntry bank, DictionaryWriter writer, DictionaryInfo info)
+    private static void ReadTags(Piece bank, DictionaryWriter writer, DictionaryInfo info)
     {
         using var document = Parse(bank);
         foreach (var row in Rows(document, bank))
@@ -308,38 +310,38 @@ internal static partial class YomitanArchive
     /// <summary>Whether a number can be kept as a whole number without losing any of it.</summary>
     internal static bool FitsLong(double number) => Math.Abs(number) < 9e15;
 
-    private static JsonElement.ArrayEnumerator Rows(JsonDocument document, ZipArchiveEntry bank)
+    private static JsonElement.ArrayEnumerator Rows(JsonDocument document, Piece bank)
     {
         if (document.RootElement.ValueKind != JsonValueKind.Array)
         {
-            throw new InvalidDataException($"{bank.FullName} in that dictionary is not a list of rows.");
+            throw new InvalidDataException($"{bank.Name} in that dictionary is not a list of rows.");
         }
 
         return document.RootElement.EnumerateArray();
     }
 
-    private static JsonDocument Parse(ZipArchiveEntry bank)
+    private static JsonDocument Parse(Piece bank)
     {
         try
         {
-            return JsonDocument.Parse(Read(bank, MaxBankBytes), Json);
+            return JsonDocument.Parse(Read(bank.Entry, bank.Name, MaxBankBytes), Json);
         }
         catch (JsonException)
         {
-            throw new InvalidDataException($"{bank.FullName} in that dictionary is not JSON.");
+            throw new InvalidDataException($"{bank.Name} in that dictionary is not JSON.");
         }
     }
 
     /// <summary>Reads a file of the zip whole, unless it is larger than <paramref name="limit"/>.</summary>
-    private static byte[] Read(ZipArchiveEntry entry, long limit)
+    private static byte[] Read(ZipArchiveEntry entry, string name, long limit)
     {
         if (entry.Length > limit)
         {
-            throw new InvalidDataException($"{entry.FullName} in that dictionary is too large.");
+            throw new InvalidDataException($"{name} in that dictionary is too large.");
         }
 
         var bytes = new byte[entry.Length];
-        var read = ReadInto(entry, bytes);
+        var read = ReadInto(entry, name, bytes);
         return read == bytes.Length ? bytes : bytes[..read];
     }
 
@@ -347,7 +349,7 @@ internal static partial class YomitanArchive
     /// Unpacks a file of the zip into <paramref name="room"/>, which is as large as the zip says the file is. A
     /// file that unpacks to more than the zip says is refused: the limits are checked against what the zip says.
     /// </summary>
-    private static int ReadInto(ZipArchiveEntry entry, Span<byte> room)
+    private static int ReadInto(ZipArchiveEntry entry, string name, Span<byte> room)
     {
         try
         {
@@ -366,20 +368,20 @@ internal static partial class YomitanArchive
 
             if (stream.ReadByte() >= 0)
             {
-                throw new InvalidDataException($"{entry.FullName} in that dictionary is larger than the zip says it is.");
+                throw new InvalidDataException($"{name} in that dictionary is larger than the zip says it is.");
             }
 
             return read;
         }
-        catch (InvalidDataException error) when (!error.Message.StartsWith(entry.FullName, StringComparison.Ordinal))
+        catch (InvalidDataException error) when (!error.Message.StartsWith(name, StringComparison.Ordinal))
         {
-            throw new InvalidDataException($"{entry.FullName} in that dictionary cannot be unpacked: the zip is damaged.");
+            throw new InvalidDataException($"{name} in that dictionary cannot be unpacked: the zip is damaged.");
         }
     }
 
     /// <summary>The banks of one kind, in the order of their numbers.</summary>
     private static List<Piece> Banks(List<Piece> entries, Regex name, Kind kind) => entries
-        .Select(piece => (piece, match: name.Match(piece.Entry.FullName)))
+        .Select(piece => (piece, match: name.Match(piece.Name)))
         .Where(pair => pair.match.Success)
         .OrderBy(pair => long.Parse(pair.match.Groups[1].ValueSpan, System.Globalization.CultureInfo.InvariantCulture))
         .Select(pair => pair.piece with { Kind = kind })
@@ -416,6 +418,7 @@ internal static partial class YomitanArchive
     /// <summary>A file of the zip.</summary>
     /// <param name="Entry">The file.</param>
     /// <param name="Place">Its place among the zip's files, the same in every view of the zip.</param>
+    /// <param name="Name">Its path in the zip, as <see cref="ZipNames"/> reads it.</param>
     /// <param name="Kind">What it is.</param>
-    private sealed record Piece(ZipArchiveEntry Entry, int Place, Kind Kind = Kind.Other);
+    private sealed record Piece(ZipArchiveEntry Entry, int Place, string Name, Kind Kind = Kind.Other);
 }
